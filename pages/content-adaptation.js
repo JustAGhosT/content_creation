@@ -1,6 +1,6 @@
 import React from 'react';
 
-const WorkflowPage = () => {
+const ContentAdaptationPage = () => {
   return (
     <html>
       <head>
@@ -19,23 +19,6 @@ const WorkflowPage = () => {
               flex-direction: column;
               gap: 1.5rem;
               padding: 1.5rem;
-            }
-            .header {
-              text-align: center;
-              margin-bottom: 1.5rem;
-              padding: 1.5rem;
-              background: linear-gradient(135deg, #2c3e50, #4a6491);
-              color: white;
-              border-radius: 8px;
-            }
-            .header h1 {
-              margin: 0;
-              font-size: 2.2rem;
-            }
-            .header p {
-              margin: 0.5rem 0 0;
-              font-size: 1.2rem;
-              opacity: 0.9;
             }
             .section {
               background-color: #f8f9fa;
@@ -130,11 +113,6 @@ const WorkflowPage = () => {
             .step-card .tip strong {
               color: #3498db;
             }
-            @media (max-width: 768px) {
-              .stage-steps {
-                grid-template-columns: 1fr;
-              }
-            }
             .content-adaptation {
               margin: 2rem 0;
             }
@@ -196,115 +174,10 @@ const WorkflowPage = () => {
       </head>
       <body>
         <div className="container">
-          <div className="header">
-            <h1>Humanizing Technical Excellence</h1>
-            <p>Expanded Content Production Workflow & Platform Analysis</p>
-          </div>
-          
           <div className="section">
-            <h2>Comprehensive Content Production & Distribution Workflow</h2>
-            <p>A detailed, step-by-step process for efficiently creating and distributing your technical content series across multiple platforms while maintaining quality and consistency.</p>
-            
             <div className="workflow">
               <div className="workflow-container">
                 <div className="workflow-diagram">
-                  <div className="workflow-stage">
-                    <div className="stage-header">
-                      <div className="stage-number">1</div>
-                      <h3 className="stage-title">Strategic Planning</h3>
-                    </div>
-                    <div className="stage-steps">
-                      <div className="step-card">
-                        <h4>Content Calendar Development</h4>
-                        <ul>
-                          <li>Schedule articles according to your quarterly series plan</li>
-                          <li>Allocate 2-3 weeks of production time per article</li>
-                          <li>Plan related content (tweets, notes, resources) for each piece</li>
-                          <li>Identify strategic publication dates for maximum visibility</li>
-                        </ul>
-                        <div className="tip">
-                          <strong>Pro Tip:</strong> Use a project management tool like Notion or Asana to maintain your content calendar with clear deadlines and dependencies.
-                        </div>
-                      </div>
-                      
-                      <div className="step-card">
-                        <h4>Research & Resource Collection</h4>
-                        <ul>
-                          <li>Gather technical references and examples for each topic</li>
-                          <li>Identify real-world case studies that illustrate concepts</li>
-                          <li>Collect relevant code samples and technical diagrams</li>
-                          <li>Research industry context and current relevance</li>
-                        </ul>
-                        <div className="tip">
-                          <strong>Pro Tip:</strong> Create a dedicated research document for each article with links, quotes, and ideas that you can reference during writing.
-                        </div>
-                      </div>
-                      
-                      <div className="step-card">
-                        <h4>Audience & Platform Analysis</h4>
-                        <ul>
-                          <li>Identify the primary audience segments for each article</li>
-                          <li>Determine which platforms will reach each segment best</li>
-                          <li>Plan platform-specific adaptations needed</li>
-                          <li>Set specific engagement goals for each platform</li>
-                        </ul>
-                        <div className="tip">
-                          <strong>Pro Tip:</strong> Create audience personas for your content and map each platform to the personas it best reaches.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="workflow-stage">
-                    <div className="stage-header">
-                      <div className="stage-number">2</div>
-                      <h3 className="stage-title">Primary Content Creation</h3>
-                    </div>
-                    <div className="stage-steps">
-                      <div className="step-card">
-                        <h4>Article Development</h4>
-                        <ul>
-                          <li>Create detailed outline with key sections and points</li>
-                          <li>Write the full article optimized for phoenixvc.tech</li>
-                          <li>Incorporate technical examples and code snippets</li>
-                          <li>Develop practical applications and implementation guidance</li>
-                          <li>Add cross-references to related articles in the series</li>
-                        </ul>
-                        <div className="tip">
-                          <strong>Pro Tip:</strong> Write in modular sections that can be easily adapted or excerpted for different platforms.
-                        </div>
-                      </div>
-                      
-                      <div className="step-card">
-                        <h4>Interactive Element Creation</h4>
-                        <ul>
-                          <li>Develop downloadable resources (templates, checklists)</li>
-                          <li>Create technical diagrams and visualizations</li>
-                          <li>Build interactive code examples where applicable</li>
-                          <li>Design implementation worksheets for readers</li>
-                          <li>Prepare supplementary materials for different expertise levels</li>
-                        </ul>
-                        <div className="tip">
-                          <strong>Pro Tip:</strong> Create a consistent visual style guide for all diagrams and resources to maintain brand identity across platforms.
-                        </div>
-                      </div>
-                      
-                      <div className="step-card">
-                        <h4>Review & Refinement</h4>
-                        <ul>
-                          <li>Technical accuracy review by subject matter experts</li>
-                          <li>Readability and clarity assessment</li>
-                          <li>SEO optimization for primary keywords</li>
-                          <li>Feedback incorporation and revisions</li>
-                          <li>Final proofread and technical verification</li>
-                        </ul>
-                        <div className="tip">
-                          <strong>Pro Tip:</strong> Create a checklist of common issues to look for during review, such as technical accuracy, clarity of explanations, and consistent terminology.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
                   <div className="workflow-stage">
                     <div className="stage-header">
                       <div className="stage-number">3</div>
@@ -485,4 +358,4 @@ const WorkflowPage = () => {
   );
 };
 
-export default WorkflowPage;
+export default ContentAdaptationPage;
