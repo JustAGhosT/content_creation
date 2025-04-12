@@ -16,6 +16,11 @@ const Header = () => {
               <a>Series</a>
             </Link>
           </li>
+          <li>
+            <Link href="/workflow">
+              <a>Workflow</a>
+            </Link>
+          </li>
         </ul>
       </nav>
     </header>
