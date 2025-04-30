@@ -42,37 +42,77 @@ const slackClient = process.env.SLACK_TOKEN
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 // Endpoint to send notifications
-router.post('/send-notification', async (req, res) => {
+// Middleware for validating request
+const validateNotification = (req, res, next) => {
   const { type, message, recipient } = req.body;
-
-  try {
-    if (type === 'email') {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: recipient,
-        subject: 'Notification',
-        text: message
-      });
-    } else if (type === 'slack') {
-      await slackClient.chat.postMessage({
-        channel: recipient,
-        text: message
-      });
-    } else if (type === 'sms') {
-      await twilioClient.messages.create({
-        body: message,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: recipient
-      });
-    } else {
-      return res.status(400).json({ message: 'Invalid notification type' });
-    }
-
-    res.status(200).json({ message: 'Notification sent successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error sending notification', error: error.message });
+  if (!type || !message || !recipient) {
+    return res.status(400).json({ message: 'Missing required fields' });
   }
-});
+  if (!['email', 'slack', 'sms'].includes(type)) {
+    return res.status(400).json({ message: 'Invalid notification type' });
+  }
+  next();
+};
+
+// Middleware for authentication
+const authenticate = (req, res, next) => {
+  // Add your authentication logic here
+  // Example: Check for valid JWT token
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+  // Validate token, check permissions, etc.
+  next();
+};
+
+// Endpoint to send notifications
+router.post(
+  '/send-notification',
+  authenticate,
+  validateNotification,
+  async (req, res) => {
+    const { type, message, recipient } = req.body;
+
+    try {
+      if (type === 'email') {
+        if (!transporter) {
+          return res.status(503).json({ message: 'Email service not configured' });
+        }
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: recipient,
+          subject: 'Notification',
+          text: message
+        });
+      } else if (type === 'slack') {
+        if (!slackClient) {
+          return res.status(503).json({ message: 'Slack service not configured' });
+        }
+        await slackClient.chat.postMessage({
+          channel: recipient,
+          text: message
+        });
+      } else if (type === 'sms') {
+        if (!twilioClient) {
+          return res.status(503).json({ message: 'SMS service not configured' });
+        }
+        await twilioClient.messages.create({
+          body: message,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: recipient
+        });
+      } else {
+        return res.status(400).json({ message: 'Invalid notification type' });
+      }
+
+      res.status(200).json({ message: 'Notification sent successfully' });
+    } catch (error) {
+      console.error('Notification error:', error);
+      res.status(500).json({ message: 'Error sending notification', error: error.message });
+    }
+  }
+);
 
 // Endpoint to get notifications
 router.get('/notifications', async (req, res) => {

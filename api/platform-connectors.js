@@ -15,12 +15,12 @@ const platforms = [
 const platformConfigurations = {
   facebook: {
     apiUrl: 'https://api.facebook.com/publish',
-    apiKey: 'FACEBOOK_API_KEY',
+    apiKey: process.env.FACEBOOK_API_KEY,
   },
   'custom channel': {
     apiUrl: 'https://api.customchannel.com/publish',
-    apiKey: 'CUSTOM_CHANNEL_API_KEY',
-    headers: { 'Authorization': 'Bearer CUSTOM_CHANNEL_API_KEY' }
+    apiKey: process.env.CUSTOM_CHANNEL_API_KEY,
+    headers: { 'Authorization': `Bearer ${process.env.CUSTOM_CHANNEL_API_KEY}` }
   }
 };
 // Endpoint to approve pre-publishing queue
@@ -52,10 +52,12 @@ router.post('/approve-queue', async (req, res) => {
 
       try {
         await axios.post(platformConfig.apiUrl, {
-          content: item.content,
-          apiKey: platformConfig.apiKey
+          content: item.content
         }, {
-          headers: platformConfig.headers
+          headers: {
+            ...platformConfig.headers,
+            'Authorization': `Bearer ${platformConfig.apiKey}`
+          }
         });
         results.success.push(item);
       } catch (err) {
@@ -81,22 +83,6 @@ router.get('/platforms', (req, res) => {
   res.json(platforms);
 });
 
-// Endpoint to approve pre-publishing queue
-router.post('/approve-queue', async (req, res) => {
-  const { queue } = req.body;
 
-  try {
-    // Simulate publishing to each platform
-    for (const item of queue) {
-      await axios.post(`https://api.${item.platform.name.toLowerCase()}.com/publish`, {
-        content: item.content
-      });
-    }
-
-    res.status(200).json({ message: 'Queue approved and published successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error publishing queue', error: error.message });
-  }
-});
 
 module.exports = router;
