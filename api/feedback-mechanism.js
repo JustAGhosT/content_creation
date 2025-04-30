@@ -11,8 +11,8 @@ router.post('/submit-feedback', async (req, res) => {
   }
 
   try {
-    // Placeholder for saving feedback to a database or other storage
-    console.log(`Feedback for review ${reviewId}: ${feedback}`);
+    const { saveFeedback } = require('./data-persistence');
+    await saveFeedback({ reviewId, feedback });
     res.status(200).json({ message: 'Feedback submitted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error submitting feedback', error: error.message });
