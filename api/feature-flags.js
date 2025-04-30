@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import express from 'express';
+import { authenticateRequest } from '../middleware/auth.js';  
 const router = express.Router();
 
 // Path to store feature flags
@@ -56,63 +57,67 @@ router.get('/feature-flags', authenticateRequest, (_req, res) => {
   res.json(featureFlags);
 });
 
-// Update a feature flag
-router.patch('/feature-flags/:feature', authenticateRequest, (req, res) => {
-  // Validate content type
-  if (!req.is('application/json')) {
-    return res.status(415).json({ message: 'Content type must be application/json' });
-  }
+// Update a feature flag  
+router.patch('/feature-flags/:feature', authenticateRequest, (req, res) => {  
+  // Validate content type  
+  if (!req.is('application/json')) {  
+    return res.status(415).json({ message: 'Content type must be application/json' });  
+  }  
 
-  // Validate request body structure
-  const allowedProps = ['enabled', 'implementation'];
-  const invalidProps = Object.keys(req.body).filter(prop => !allowedProps.includes(prop));
-  if (invalidProps.length > 0) {
-    return res.status(400).json({
-      message: `Invalid properties in request body: ${invalidProps.join(', ')}`
-    });
-  }
+  // Validate request body structure  
+  const allowedProps = ['enabled', 'implementation'];  
+  const invalidProps = Object.keys(req.body).filter(prop => !allowedProps.includes(prop));  
+  if (invalidProps.length > 0) {  
+    return res.status(400).json({  
+      message: `Invalid properties in request body: ${invalidProps.join(', ')}`  
+    });  
+  }  
 
-  const { feature } = req.params;
-  const { enabled, implementation } = req.body;
+  const { feature } = req.params;  
+  const { enabled, implementation } = req.body;  
 
-  if (!feature) {
-    return res.status(400).json({ message: 'Feature name is required' });
-  }
+  if (!feature) {  
+    return res.status(400).json({ message: 'Feature name is required' });  
+  }  
 
-  if (typeof enabled === 'undefined') {
-    return res.status(400).json({ message: 'Enabled status is required' });
-  }
+  if (typeof enabled === 'undefined') {  
+    return res.status(400).json({ message: 'Enabled status is required' });  
+  }  
 
-  if (typeof enabled !== 'boolean') {
-    return res.status(400).json({ message: 'Enabled status must be a boolean' });
-  }
+  if (typeof enabled !== 'boolean') {  
+    return res.status(400).json({ message: 'Enabled status must be a boolean' });  
+  }  
 
-  // …rest of the handler…
-});
+  if (Object.hasOwn(featureFlags, feature)) {  
+    if (typeof featureFlags[feature] === 'object') {  
+      featureFlags[feature].enabled = enabled;  
+      if (implementation) {  
+        // Validate implementation values for textParser  
+        if (  
+          feature === 'textParser' &&  
+          !['deepseek', 'openai', 'azure'].includes(implementation)  
+        ) {  
+          return res.status(400).json({ message: 'Invalid implementation value' });  
+        }  
+        featureFlags[feature].implementation = implementation;  
+      }  
+    } else {  
+      featureFlags[feature] = enabled;  
+    }  
 
-  if (Object.hasOwn(featureFlags, feature)) {
-    if (typeof featureFlags[feature] === 'object') {
-      featureFlags[feature].enabled = enabled;
-      if (implementation) {
-        // Validate implementation values for textParser
-        if (
-          feature === 'textParser' &&
-          !['deepseek', 'openai', 'azure'].includes(implementation)
-        ) {
-          return res.status(400).json({ message: 'Invalid implementation value' });
-        }
-        featureFlags[feature].implementation = implementation;
-      }
+    // Persist changes  
+    saveFeatureFlags();  
+    const saveSuccess = saveFeatureFlags();
+    if (saveSuccess) {
+      return res.status(200).json({ message: 'Feature flag updated successfully' });
     } else {
-      featureFlags[feature] = enabled;
+      return res.status(500).json({
+      message: 'Feature flag updated in memory but failed to persist changes'
+      });
     }
 
-    // Persist changes
-    saveFeatureFlags();
-    return res.status(200).json({ message: 'Feature flag updated successfully' });
+    return res.status(400).json({ message: 'Invalid feature flag' });  
   }
-
-  return res.status(400).json({ message: 'Invalid feature flag' });
-});
+});  
 
 export default router;
