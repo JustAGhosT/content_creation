@@ -50,7 +50,7 @@ router.post('/parse', async (req, res) => {
     const parsedData = JSON.parse(rawInput);
     let response;
     // Reject early if the text-parser feature is disabled
-    if (!featureFlags.textParser.enabled) {
+    if (!featureFlags?.textParser?.enabled) {
       return res.status(400).json({ error: 'Text parser feature is disabled' });
     }
 
