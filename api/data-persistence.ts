@@ -4,7 +4,7 @@ import { FeatureFlags } from './feature-flags';
 
 const router = express.Router();
 
-interface FeatureFlags {
+interface FeatureFlagsConfig {
   airtableIntegration: boolean;
 }
 
