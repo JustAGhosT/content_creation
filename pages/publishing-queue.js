@@ -25,7 +25,8 @@ const PublishingQueuePage = () => {
       <h1>Pre-Publishing Queue</h1>
       {error && <p>Error: {error}</p>}
       <PlatformConnectors content={content} />
-      <AirtableIntegration />
+      {/* Only show AirtableIntegration if content has loaded and there's no error */}
+      {!error && content.length > 0 && <AirtableIntegration />}
     </div>
   );
 };
