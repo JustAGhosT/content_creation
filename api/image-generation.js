@@ -20,7 +20,7 @@ router.post('/generate-image', async (req, res) => {
     }
 
     const response = await huggingFaceClient.generateImage(context);
-    res.json(response);
+    res.json(response.data || response);
   } catch (error) {
     console.error('Error generating image:', error);
     res.status(500).json({ error: 'Failed to generate image' });
@@ -38,13 +38,13 @@ router.post('/approve-image', async (req, res) => {
   try {
     const response = await huggingFaceClient.approveImage(image);
     res.json(response);
-  } catch (error) {  
-    console.error('Error rejecting image:', error);  
-    const statusCode = error.response?.status || 500;  
-    const errorMessage = error.response?.data?.error || 'Failed to reject image';  
-    res.status(statusCode).json({ error: errorMessage });  
-  }  
-});  
+  } catch (error) {
+    console.error('Error approving image:', error);
+    const statusCode = error.response?.status || 500;
+    const errorMessage = error.response?.data?.error || 'Failed to approve image';
+    res.status(statusCode).json({ error: errorMessage });
+  }
+});
 
 // Endpoint to regenerate image
 router.post('/regenerate-image', async (req, res) => {
@@ -76,8 +76,8 @@ router.post('/upload-image', async (req, res) => {
 
   try {
     // Simulate image upload process using Hugging Face API
-    const response = await huggingFaceClient.post('/upload-image', { file });
-    res.json(response.data);
+    const response = await huggingFaceClient.uploadImage(file);
+    res.json(response);
   } catch (error) {
     console.error('Error uploading image:', error);
     const statusCode = error.response?.status || 500;
@@ -101,10 +101,13 @@ router.post('/review-image', async (req, res) => {
     } else {
       return res.status(400).json({ error: 'Invalid action' });
     }
-    // No need to send response here, as the delegated endpoint will handle it
-    return;
+    // Send the result back to the client
+    res.json(response);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to review image' });
+    console.error(`Error processing ${action} action:`, error);
+    const statusCode = error.response?.status || 500;
+    const errorMessage = error.response?.data?.error || `Failed to ${action} image`;
+    res.status(statusCode).json({ error: errorMessage });
   }
 });
 
