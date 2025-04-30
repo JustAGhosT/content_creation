@@ -1,6 +1,3 @@
-const express = require('express');
-const router = express.Router();
-
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -41,12 +38,7 @@ const saveFeatureFlags = () => {
   }
 };
 
-router.get('/feature-flags', (req, res) => {
-  res.json(featureFlags);
-});
-
-router.post('/feature-flags', (req, res) => {
-  const { feature, enabled, implementation } = req.body;
+router.get('/feature-flags', authenticateRequest, (req, res) => {
   if (featureFlags.hasOwnProperty(feature)) {
     if (typeof featureFlags[feature] === 'object') {
       featureFlags[feature].enabled = enabled;

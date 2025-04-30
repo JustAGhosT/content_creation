@@ -6,12 +6,19 @@ const axios = require('axios');
 router.post('/summarize', async (req, res) => {
   const { rawText } = req.body;
 
+  // Validate input
+  if (!rawText || typeof rawText !== 'string') {
+    return res.status(400).json({ error: 'Invalid input: rawText must be a non-empty string' });
+  }
+
   try {
     // Simulate summarization API to generate concise summaries
-    const response = await axios.post('https://api.summarization.ai/summarize', { text: rawText });
+    const SUMMARIZATION_API_URL = process.env.SUMMARIZATION_API_URL || 'https://api.summarization.ai/summarize';
+    const response = await axios.post(SUMMARIZATION_API_URL, { text: rawText });
     res.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to generate summary' });
+    console.error('Summarization API error:', error.message);
+    res.status(500).json({ error: 'Failed to generate summary', details: error.message });
   }
 });
 
@@ -19,12 +26,19 @@ router.post('/summarize', async (req, res) => {
 router.post('/approve-summary', async (req, res) => {
   const { summary } = req.body;
 
+  // Validate input
+  if (!summary || typeof summary !== 'string') {
+    return res.status(400).json({ error: 'Invalid input: summary must be a non-empty string' });
+  }
+
   try {
     // Simulate approval process for the summary
-    const response = await axios.post('https://api.summarization.ai/approve', { summary });
+    const APPROVAL_API_URL = process.env.APPROVAL_API_URL || 'https://api.summarization.ai/approve';
+    const response = await axios.post(APPROVAL_API_URL, { summary });
     res.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to approve summary' });
+    console.error('Summary approval API error:', error.message);
+    res.status(500).json({ error: 'Failed to approve summary', details: error.message });
   }
 });
 

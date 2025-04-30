@@ -5,16 +5,38 @@ const { WebClient } = require('@slack/web-api');
 const twilio = require('twilio');
 
 // Email configuration
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+if (
+  !process.env.EMAIL_USER ||
+  !process.env.GMAIL_CLIENT_ID ||
+  !process.env.GMAIL_CLIENT_SECRET ||
+  !process.env.GMAIL_REFRESH_TOKEN
+) {
+  console.error('Email credentials not configured. Email notifications will not work.');
+}
+const transporter =
+  process.env.EMAIL_USER &&
+  process.env.GMAIL_CLIENT_ID &&
+  process.env.GMAIL_CLIENT_SECRET &&
+  process.env.GMAIL_REFRESH_TOKEN
+    ? nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          type: 'OAuth2',
+          user: process.env.EMAIL_USER,
+          clientId: process.env.GMAIL_CLIENT_ID,
+          clientSecret: process.env.GMAIL_CLIENT_SECRET,
+          refreshToken: process.env.GMAIL_REFRESH_TOKEN
+        }
+      })
+    : null;
 
 // Slack configuration
-const slackClient = new WebClient(process.env.SLACK_TOKEN);
+if (!process.env.SLACK_TOKEN) {
+  console.error('Slack token not configured. Slack notifications will not work.');
+}
+const slackClient = process.env.SLACK_TOKEN
+  ? new WebClient(process.env.SLACK_TOKEN)
+  : null;
 
 // Twilio configuration
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);

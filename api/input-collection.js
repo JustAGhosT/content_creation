@@ -6,10 +6,12 @@ const featureFlags = require('./feature-flags');
 // RSS Feed Integration
 const fetchRSSFeed = async () => {
   try {
-    const response = await axios.get('https://example.com/rss-feed');
+    const rssFeedUrl = process.env.RSS_FEED_URL || 'https://example.com/rss-feed';
+    const response = await axios.get(rssFeedUrl);
     return response.data;
   } catch (error) {
-    throw new Error('Failed to fetch RSS feed');
+    // handle error appropriately
+    throw error;
   }
 };
 
@@ -17,16 +19,21 @@ const fetchRSSFeed = async () => {
 router.post('/submit-content', async (req, res) => {
   const { content } = req.body;
 
+  if (!content) {
+    return res.status(400).json({ error: 'Content is required' });
+  }
+
   try {
     // Simulate storing the submitted content
     console.log('Content submitted:', content);
+    // TODO: Implement actual content storage
     res.status(200).json({ message: 'Content submitted successfully' });
   } catch (error) {
+    console.error('Failed to submit content:', error);
     res.status(500).json({ error: 'Failed to submit content' });
   }
 });
-
-// Endpoint to fetch content based on feature flag
+// eslint-disable-next-line no-unused-vars
 router.get('/fetch-content', async (req, res) => {
   try {
     let content;
