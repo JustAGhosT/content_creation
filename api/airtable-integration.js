@@ -95,6 +95,8 @@ router.get('/track-content', async (req, res) => {
 
   try {
     // Fetch records from Airtable
+    // Do not use user input in Airtable formula to avoid injection risks.
+    // Fetch records without filtering; filter will be applied in application code below.
     const queryOptions = {
       maxRecords: pageSizeNum + 1,
       pageSize: pageSizeNum + 1

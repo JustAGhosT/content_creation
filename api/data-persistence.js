@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Airtable = require('airtable');
-const featureFlags = require('./feature-flags');
+const featureFlags = global.featureFlags || {};
 
 // Initialize Airtable
 if (!process.env.AIRTABLE_API_KEY ||
@@ -35,29 +35,8 @@ router.post('/store-content', async (req, res) => {
     }
   });
 
-  // Endpoint to track published content with pagination
-  router.get('/track-content', async (req, res) => {
-    if (!featureFlags.airtableIntegration) {
-    return res.status(403).json({ message: 'Airtable integration is disabled' });
-    }
-
-    const { page = 1, pageSize = 20 } = req.query;
-    const offset = (page - 1) * pageSize;
-
-    try {
-    const records = await table.select({
-      maxRecords: parseInt(pageSize, 10),
-      offset: offset
-    }).all();
-    res.status(200).json(records);
-    } catch (error) {
-    console.error('Error tracking content:', error);
-    res.status(500).json({ message: 'Error tracking content', error: error.message });
-    }
-  });
-
-  // Endpoint to provide analytics interface
-  router.get('/track-content', async (req, res) => {
+  // Endpoint to provide paginated list of tracked content (v2)
+  router.get('/track-content-page', async (req, res) => {
     if (!featureFlags.airtableIntegration) {
       return res.status(403).json({ message: 'Airtable integration is disabled' });
     }
