@@ -6,10 +6,8 @@ interface Feedback {
   feedback: string;
 }
 
-interface FeedbackItem {
-  reviewId: string;
-  feedback: string;
-}
+// Use the Feedback interface directly, or create a type alias if needed
+type FeedbackItem = Feedback;
 
 interface SaveFeedback {
   (feedback: Feedback): Promise<void>;
