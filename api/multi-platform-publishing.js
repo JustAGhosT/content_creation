@@ -34,11 +34,11 @@ const platformConfigs = {
 
 const apiClients = {};
 for (const [platform, cfg] of Object.entries(platformConfigs)) {
-  if (!cfg.url || !cfg.key) {
-    throw new Error(`Missing config for ${platform} API`);
+  for (const [platform, cfg] of Object.entries(platformConfigs)) {
+    if (cfg.url && cfg.key) {
+      apiClients[platform] = createApiClient(cfg.url, cfg.key);
+    }
   }
-  apiClients[platform] = createApiClient(cfg.url, cfg.key);
-}
 
 // Whitelist valid platform keys
 const validPlatforms = Object.keys(platformConfigs);
