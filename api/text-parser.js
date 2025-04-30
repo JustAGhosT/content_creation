@@ -1,47 +1,56 @@
 router.post('/analyze', async (req, res) => {
-  const { parsedData } = req.body;
+  try {
+    const { parsedData } = req.body;
 
-  if (
-    !parsedData ||
-    typeof parsedData !== 'object' ||
-    Array.isArray(parsedData)
-  ) {
-    return res.status(400).json({ error: 'Invalid input: parsedData must be a non-empty object' });
+    if (
+      !parsedData ||
+      typeof parsedData !== 'object' ||
+      Array.isArray(parsedData)
+    ) {
+      return res.status(400).json({ error: 'Invalid input: parsedData must be a non-empty object' });
+    }
+
+    // Example analysis: count keys and value types
+    const keyCount = Object.keys(parsedData).length;
+    const valueTypes = {};
+    for (const [key, value] of Object.entries(parsedData)) {
+      valueTypes[key] = Array.isArray(value) ? 'array' : typeof value;
+    }
+
+    res.json({
+      keyCount,
+      valueTypes
+    });
+  } catch (error) {
+    console.error('Analysis error:', error);
+    res.status(500).json({
+      error: 'Failed to analyze text',
+      details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+      service: featureFlags?.textParser?.implementation
+    });
   }
-
-  // Example analysis: count keys and value types
-  const keyCount = Object.keys(parsedData).length;
-  const valueTypes = {};
-  for (const [key, value] of Object.entries(parsedData)) {
-    valueTypes[key] = Array.isArray(value) ? 'array' : typeof value;
-  }
-
-  res.json({
-    keyCount,
-    valueTypes
-  });
 });
 
 router.post('/parse', async (req, res) => {
-  const { rawInput } = req.body;
-
-  if (!rawInput || typeof rawInput !== 'string') {
-    return res.status(400).json({ error: 'Invalid input: rawInput must be a non-empty string' });
-  }
-
-  // Optional: Add size limit validation
-  if (rawInput.length > 1000000) { // 1MB limit example
-    return res.status(413).json({ error: 'Input too large' });
-  }
-
   try {
-  // Simulate parsing JSON/XML to extract structured data
-  const parsedData = JSON.parse(rawInput);
-  let response;
-  // Reject early if the text-parser feature is disabled
-  if (!featureFlags.textParser.enabled) {
-    return res.status(400).json({ error: 'Text parser feature is disabled' });
-  }
+    const { rawInput } = req.body;
+
+    if (!rawInput || typeof rawInput !== 'string') {
+      return res.status(400).json({ error: 'Invalid input: rawInput must be a non-empty string' });
+    }
+
+    // Optional: Add size limit validation
+    if (rawInput.length > 1000000) { // 1MB limit example
+      return res.status(413).json({ error: 'Input too large' });
+    }
+
+    // Simulate parsing JSON/XML to extract structured data
+    const parsedData = JSON.parse(rawInput);
+    let response;
+    // Reject early if the text-parser feature is disabled
+    if (!featureFlags.textParser.enabled) {
+      return res.status(400).json({ error: 'Text parser feature is disabled' });
+    }
 
     // Dispatch based on the enabled implementation
     if (featureFlags.textParser.implementation === 'deepseek') {
@@ -64,25 +73,23 @@ router.post('/parse', async (req, res) => {
     }
     res.json(response.data);
   } catch (error) {
-    // Improved error handling
+    console.error('Parse error:', error);
     let status = 500;
-    let message = 'Failed to analyze text';
+    let message = 'Failed to parse text';
 
     if (error.response) {
-      // The request was made and the server responded with a status code
       status = error.response.status || 500;
       message = error.response.data?.error || error.response.statusText || message;
     } else if (error.request) {
-      // The request was made but no response was received
       message = 'No response received from upstream service';
     } else if (error.message) {
-      // Something happened in setting up the request
       message = error.message;
     }
 
     res.status(status).json({
       error: message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+      service: featureFlags?.textParser?.implementation
     });
   }
 });
