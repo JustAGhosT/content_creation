@@ -18,8 +18,18 @@ const Authentication: React.FC = () => {
       try {
         const response = await axios.get('/api/auth/user');
         setUser(response.data);
-      } catch (err: any) {
-        setError(err.response?.data?.message || err.message);
+try {
+  const response = await axios.get('/api/auth/user');
+  setUser(response.data);
+} catch (err: unknown) {
+  const error = err as Error & {
+    response?: {
+      data?: { message?: string },
+      status?: number
+    }
+  };
+  setError(error.response?.data?.message || error.message);
+}
       }
     };
 
@@ -33,7 +43,17 @@ const Authentication: React.FC = () => {
     try {
       const response = await axios.post('/api/auth/login', { username, password });
       setUser(response.data);
-    } catch (err: any) {
+      const response = await axios.post('/api/auth/login', { username, password });
+      setUser(response.data);
+    } catch (err: unknown) {
+      const error = err as Error & { 
+        response?: { 
+          data?: { message?: string },
+          status?: number
+        },
+        request?: unknown
+      };
+      // …now update the rest of the error handling below to use `error` instead of `err`
       let errorMessage = 'An error occurred during login.';
       if (err.response) {
         if (err.response.status === 401) {
@@ -58,7 +78,17 @@ const Authentication: React.FC = () => {
     try {
       await axios.post('/api/auth/logout');
       setUser(null);
-    } catch (err: any) {
+    try {
+      await axios.post('/api/auth/logout');
+      setUser(null);
+    } catch (err: unknown) {
+      const error = err as Error & {
+        response?: {
+          data?: { message?: string }
+        }
+      };
+      setError(error.response?.data?.message || error.message);
+    }
       setError(err.response?.data?.message || err.message);
     }
   };

@@ -28,7 +28,14 @@ interface AnalyticsResponse {
 }
 
 let airtableInitialized = false;
-let table: Airtable.Table<any>;
+// Define a specific interface matching your Airtable schema
+interface AirtableRecord {
+  Content: string;
+  createdTime?: string;
+  // Add other fields that exist in your Airtable schema
+}
+
+let table: Airtable.Table<AirtableRecord>;
 
 if (!process.env.AIRTABLE_API_KEY ||
   !process.env.AIRTABLE_BASE_ID ||
