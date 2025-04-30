@@ -7,6 +7,9 @@ const huggingFaceClient = new HuggingFaceClient();
 
 // Endpoint to generate image
 router.post('/generate-image', async (req, res) => {
+  if (!req.body || !req.body.context) {
+    return res.status(400).json({ error: 'Context is required' });
+  }
   const { context } = req.body;
 
   try {
@@ -19,6 +22,7 @@ router.post('/generate-image', async (req, res) => {
     const response = await huggingFaceClient.generateImage(context);
     res.json(response);
   } catch (error) {
+    console.error('Error generating image:', error);
     res.status(500).json({ error: 'Failed to generate image' });
   }
 });
