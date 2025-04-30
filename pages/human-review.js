@@ -53,6 +53,9 @@ const HumanReview = () => {
       console.log('Content approved:', response.data);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsLoading(false);
+      setCurrentStep('approved');
     }
     };
 
