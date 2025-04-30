@@ -1,3 +1,5 @@
+import { authenticateUser } from './authenticationHelpers.js';
+
 const { storeRecord } = require('./airtable-integration');
 const express = require('express');
 const featureFlags = global.featureFlags || {};
@@ -19,7 +21,7 @@ async function storeContent(content) {
 const router = express.Router();
 
 // HTTP Endpoint for manual content submission
-router.post('/submit-content', async (req, res) => {
+router.post('/submit-content', authenticateUser, async (req, res) => {
   const { content } = req.body;
 
   if (!content) {
@@ -54,7 +56,7 @@ router.post('/submit-content', async (req, res) => {
     res.status(500).json({ error: 'Failed to submit content' });
   }
 });
-
+router.use('/submit-content', authenticateUser);
 // No duplicate helper function needed; already defined above
 
 export default router;
