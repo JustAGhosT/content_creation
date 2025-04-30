@@ -1,9 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
 /**
- * Handles API requests for the mobile responsiveness endpoint.
+ * API route handler for the mobile responsiveness endpoint.
  *
- * Responds with a confirmation message for GET requests. Returns a 405 error for all other HTTP methods.
+ * Responds with a JSON confirmation message for GET requests. Returns a 405 status code with an error message for all other HTTP methods.
  */
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
