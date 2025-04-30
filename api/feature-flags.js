@@ -58,6 +58,20 @@ router.get('/feature-flags', authenticateRequest, (_req, res) => {
 
 // Update a feature flag
 router.patch('/feature-flags/:feature', authenticateRequest, (req, res) => {
+  // Validate content type
+  if (!req.is('application/json')) {
+    return res.status(415).json({ message: 'Content type must be application/json' });
+  }
+
+  // Validate request body structure
+  const allowedProps = ['enabled', 'implementation'];
+  const invalidProps = Object.keys(req.body).filter(prop => !allowedProps.includes(prop));
+  if (invalidProps.length > 0) {
+    return res.status(400).json({
+      message: `Invalid properties in request body: ${invalidProps.join(', ')}`
+    });
+  }
+
   const { feature } = req.params;
   const { enabled, implementation } = req.body;
 
