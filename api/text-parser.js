@@ -1,3 +1,6 @@
+const express = require('express');  
+const axios   = require('axios');  
+const router  = express.Router();  
 const featureFlags = global.featureFlags || {};
 
 router.post('/analyze', async (req, res) => {
@@ -95,3 +98,5 @@ router.post('/parse', async (req, res) => {
     });
   }
 });
+
+module.exports = router;
