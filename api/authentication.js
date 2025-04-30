@@ -14,7 +14,18 @@ if (!secretKey) {
   process.exit(1);
 }
 
-router.post('/login', async (req, res) => {
+const rateLimit = require('express-rate-limit');
+
+// Rate limiter for login attempts
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: { message: 'Too many login attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post('/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
 
   // Validate inputs
@@ -22,31 +33,46 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ message: 'Username and password are required' });
   }
 
-  // Get user from database instead of static array
-  const user = await findUserByUsername(username);
+  try {
+    // Get user from database instead of static array
+    const user = await findUserByUsername(username);
 
-  if (!user) {
-    return res.status(401).json({ message: 'Invalid username or password' });
-  }
-
-  // Use a proper password verification function
-  const isPasswordValid = await verifyUserCredentials(username, password);
-
-  if (!isPasswordValid) {
-    return res.status(401).json({ message: 'Invalid username or password' });
-  }
-
-  const token = jwt.sign({ id: user.id, role: user.role }, secretKey, { expiresIn: '1h' });
-
-  // Return token and basic user info (omitting sensitive data)
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      role: user.role
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid username or password' });
     }
-  });
+
+    // Use a proper password verification function
+    const isPasswordValid = await verifyUserCredentials(username, password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid username or password' });
+    }
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        role: user.role,
+        username: user.username,
+        iat: Math.floor(Date.now() / 1000)
+      },
+      secretKey,
+      { expiresIn: '1h' }
+    );
+
+    // Return token and basic user info (omitting sensitive data)
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        // Include any additional non-sensitive user info
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'An error occurred during login' });
+  }
 });
 
 // Middleware for verifying JWT token
