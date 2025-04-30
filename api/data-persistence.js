@@ -13,7 +13,9 @@ if (!process.env.AIRTABLE_API_KEY ||
   console.error('Missing required Airtable environment variables');
 } else {
   const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY })
-        .base(process.env.AIRTABLE_BASE_ID);
+  .base(process.env.AIRTABLE_BASE_ID);
+  table = base(process.env.AIRTABLE_TABLE_NAME);
+airtableInitialized = true;
   table = base(process.env.AIRTABLE_TABLE_NAME);
   airtableInitialized = true;
 }
