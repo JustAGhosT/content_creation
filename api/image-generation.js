@@ -1,28 +1,23 @@
-const express = require('express');
-const router = express.Router();
-const axios = require('axios');
-const featureFlags = require('./feature-flags');
+import { Router } from 'express';
+const router = Router();
+import { imageGeneration } from './feature-flags';
+import HuggingFaceClient from './huggingface-client';
+
+const huggingFaceClient = new HuggingFaceClient();
 
 // Endpoint to generate image
 router.post('/generate-image', async (req, res) => {
   const { context } = req.body;
 
   try {
-    try {
-      let response;
-      if (featureFlags.imageGeneration) {
-        // Simulate image generation using Hugging Face API
-        response = await axios.post(
-          'https://api.huggingface.co/generate-image',
-          { context }
-        );
-      } else {
-        return res
-          .status(400)
-          .json({ error: 'Image generation is not enabled' });
-      }
-      res.json(response.data);
-    res.json(response.data);
+    if (!imageGeneration) {
+      return res
+        .status(400)
+        .json({ error: 'Image generation is not enabled' });
+    }
+
+    const response = await huggingFaceClient.generateImage(context);
+    res.json(response);
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate image' });
   }
@@ -32,12 +27,18 @@ router.post('/generate-image', async (req, res) => {
 router.post('/approve-image', async (req, res) => {
   const { image } = req.body;
 
+  if (!image || typeof image !== 'object') {
+    return res.status(400).json({ error: 'Invalid image data provided' });
+  }
+
   try {
-    // Simulate approval process for the image
-    const response = await axios.post('https://api.huggingface.co/approve-image', { image });
-    res.json(response.data);
+    const response = await huggingFaceClient.approveImage(image);
+    res.json(response);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to approve image' });
+    console.error('Error approving image:', error);
+    const statusCode = error.response?.status || 500;
+    const errorMessage = error.response?.data?.error || 'Failed to approve image';
+    res.status(statusCode).json({ error: errorMessage });
   }
 });
 
@@ -46,9 +47,8 @@ router.post('/reject-image', async (req, res) => {
   const { image } = req.body;
 
   try {
-    // Simulate rejection process for the image
-    const response = await axios.post('https://api.huggingface.co/reject-image', { image });
-    res.json(response.data);
+    const response = await huggingFaceClient.rejectImage(image);
+    res.json(response);
   } catch (error) {
     res.status(500).json({ error: 'Failed to reject image' });
   }
@@ -59,9 +59,8 @@ router.post('/regenerate-image', async (req, res) => {
   const { context } = req.body;
 
   try {
-    // Simulate image regeneration using Hugging Face API
-    const response = await axios.post('https://api.huggingface.co/regenerate-image', { context });
-    res.json(response.data);
+    const response = await huggingFaceClient.regenerateImage(context);
+    res.json(response);
   } catch (error) {
     res.status(500).json({ error: 'Failed to regenerate image' });
   }
@@ -72,9 +71,8 @@ router.post('/upload-image', async (req, res) => {
   const { file } = req.body;
 
   try {
-    // Simulate image upload process
-    const response = await axios.post('https://api.huggingface.co/upload-image', { file });
-    res.json(response.data);
+    const response = await huggingFaceClient.uploadImage(file);
+    res.json(response);
   } catch (error) {
     res.status(500).json({ error: 'Failed to upload image' });
   }
@@ -87,18 +85,18 @@ router.post('/review-image', async (req, res) => {
   try {
     let response;
     if (action === 'approve') {
-      response = await axios.post('https://api.huggingface.co/approve-image', { image });
+      response = await huggingFaceClient.approveImage(image);
     } else if (action === 'reject') {
-      response = await axios.post('https://api.huggingface.co/reject-image', { image });
+      response = await huggingFaceClient.rejectImage(image);
     } else if (action === 'regenerate') {
-      response = await axios.post('https://api.huggingface.co/regenerate-image', { context: image.context });
+      response = await huggingFaceClient.regenerateImage(image.context);
     } else {
       return res.status(400).json({ error: 'Invalid action' });
     }
-    res.json(response.data);
+    res.json(response);
   } catch (error) {
     res.status(500).json({ error: 'Failed to review image' });
   }
 });
 
-module.exports = router;
+export default router;

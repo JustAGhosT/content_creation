@@ -12,6 +12,7 @@ router.post('/submit-feedback', async (req, res) => {
 
   try {
     const { saveFeedback } = require('./data-persistence');
+const { getFeedback } = require('./data-persistence');
     await saveFeedback({ reviewId, feedback });
     res.status(200).json({ message: 'Feedback submitted successfully' });
   } catch (error) {
@@ -21,8 +22,14 @@ router.post('/submit-feedback', async (req, res) => {
 
 // Endpoint to get feedback
 router.get('/feedback', async (req, res) => {
-  // Placeholder for fetching feedback from a database or other storage
-  res.status(200).json([]);
+  const { reviewId } = req.query;
+
+  try {
+    const feedbackItems = await getFeedback(reviewId ? { reviewId } : {});
+    res.status(200).json(feedbackItems);
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving feedback', error: error.message });
+  }
 });
 
 module.exports = router;

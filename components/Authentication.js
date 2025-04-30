@@ -18,12 +18,21 @@ const Authentication = () => {
     fetchUser();
   }, []);
 
+  // add this at the top of your component (if not already there)
+  const [isLoading, setIsLoading] = useState(false);
+
   const login = async (username, password) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
       const response = await axios.post('/api/auth/login', { username, password });
       setUser(response.data);
     } catch (err) {
-      setError(err.message);
+      const errorMessage = err.response?.data?.message || err.message;
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -57,11 +66,25 @@ const Authentication = () => {
           >
             <div>
               <label htmlFor="username">Username</label>
-              <input type="text" id="username" name="username" required />
+              <input
+                type="text"
+                id="username"
+                name="username"
+                autoComplete="username"
+                minLength="4"
+                required
+              />
             </div>
             <div>
               <label htmlFor="password">Password</label>
-              <input type="password" id="password" name="password" required />
+              <input
+                type="password"
+                id="password"
+                name="password"
+                autoComplete="current-password"
+                minLength="8"
+                required
+              />
             </div>
             <button type="submit">Login</button>
           </form>
