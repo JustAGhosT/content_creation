@@ -19,18 +19,27 @@ router.post('/submit-content', async (req, res) => {
   }
 
   try {
+
+    // TODO: Implement actual content storage
     // Store the submitted content
     const contentId = await storeContent(content);
     console.log(`Content submitted and stored with ID: ${contentId}`);
 
-    // Simulate storing the submitted content
-    console.log('Content submitted:', content);
-    // TODO: Implement actual content storage
-    res.status(200).json({ message: 'Content submitted successfully' });
+    res.status(200).json({ 
+      message: 'Content submitted successfully',
+      contentId
+    });
   } catch (error) {
     console.error('Failed to submit content:', error);
     res.status(500).json({ error: 'Failed to submit content' });
   }
 });
+
+// Helper function to store content
+async function storeContent(content) {
+  // TODO: Implement actual storage logic (e.g., database, Airtable, etc.)
+  // For now, simulate storing and return a mock ID
+  return 'mock-content-id';
+}
 
 module.exports = router;

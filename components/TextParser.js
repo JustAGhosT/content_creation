@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import PropTypes from 'prop-types';
 
 const TextParser = ({ rawInput }) => {
   const [parsedData, setParsedData] = useState(null);
   const [error, setError] = useState(null);
-
   const [isLoading, setIsLoading] = useState(false);
 
   const parseText = async () => {
@@ -48,12 +48,16 @@ const TextParser = ({ rawInput }) => {
 
   return (
     <div>
-      <button onClick={parseText}>Parse Text</button>
-      <button onClick={analyzeText}>Analyze Text</button>
+      <button onClick={parseText} disabled={isLoading}>Parse Text</button>
+      <button onClick={analyzeText} disabled={isLoading}>Analyze Text</button>
       {error && <p>Error: {error}</p>}
       {parsedData && <pre>{JSON.stringify(parsedData, null, 2)}</pre>}
     </div>
   );
+};
+
+TextParser.propTypes = {
+  rawInput: PropTypes.string.isRequired,
 };
 
 export default TextParser;
