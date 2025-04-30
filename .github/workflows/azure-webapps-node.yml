@@ -22,10 +22,16 @@ PROJECT_NAME: 'content-creation'    # set this to your project name
 LOCATION_CODE: 'euw'               # set this to your location code
 LOCATION: 'westeurope'             # set this to your preferred location
 
-# Feature flags
-FEATURE_BUILD: true
-FEATURE_INFRASTRUCTURE: true
-FEATURE_DEPLOY: true
+env:
+  NODE_VERSION: '20.x'                # set this to the node version to use
+  AZURE_WEBAPP_PACKAGE_PATH: '.'      # set this to the path to your web app project
+  PROJECT_NAME: 'content-creation'    # set this to your project name
+  LOCATION_CODE: 'euw'               # set this to your location code
+  LOCATION: 'westeurope'             # set this to your preferred location
+  # Feature flags
+  FEATURE_BUILD: 'true'
+  FEATURE_INFRASTRUCTURE: 'true'
+  FEATURE_DEPLOY: 'true'
 
 jobs:
 build:

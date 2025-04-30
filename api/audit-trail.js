@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Log file path
-const logFilePath = path.join(__dirname, 'audit-log.json');
+const logFilePath = path.join(__dirname, process.env.AUDIT_LOG_PATH || 'audit-log.json');
 
 // Middleware to log actions
 const logAction = (req, res, next) => {

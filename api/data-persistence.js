@@ -4,7 +4,15 @@ const Airtable = require('airtable');
 const featureFlags = require('./feature-flags');
 
 // Initialize Airtable
-const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(process.env.AIRTABLE_BASE_ID);
+// Initialize Airtable
+if (!process.env.AIRTABLE_API_KEY ||
+    !process.env.AIRTABLE_BASE_ID ||
+    !process.env.AIRTABLE_TABLE_NAME) {
+  console.error('Missing required Airtable environment variables');
+  // Consider a more robust startup check mechanism
+}
+const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY })
+              .base(process.env.AIRTABLE_BASE_ID);
 const table = base(process.env.AIRTABLE_TABLE_NAME);
 
 // Endpoint to store published content
