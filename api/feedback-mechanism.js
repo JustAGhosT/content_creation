@@ -5,6 +5,11 @@ const router = express.Router();
 router.post('/submit-feedback', async (req, res) => {
   const { reviewId, feedback } = req.body;
 
+  // Validate input
+  if (!reviewId || !feedback) {
+    return res.status(400).json({ message: 'reviewId and feedback are required' });
+  }
+
   try {
     // Placeholder for saving feedback to a database or other storage
     console.log(`Feedback for review ${reviewId}: ${feedback}`);
