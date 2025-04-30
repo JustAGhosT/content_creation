@@ -18,12 +18,13 @@ interface GetFeedback {
 }
 
 // Endpoint to submit feedback
-router.post('/submit-feedback', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/submit-feedback', (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { reviewId, feedback }: Feedback = req.body;
 
   // Validate input
   if (!reviewId || !feedback) {
-    return res.status(400).json({ message: 'reviewId and feedback are required' });
+    res.status(400).json({ message: 'reviewId and feedback are required' });
+    return;
   }
 
   try {
