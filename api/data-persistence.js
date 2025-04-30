@@ -4,7 +4,6 @@ const Airtable = require('airtable');
 const featureFlags = require('./feature-flags');
 
 // Initialize Airtable
-// Initialize Airtable
 if (!process.env.AIRTABLE_API_KEY ||
     !process.env.AIRTABLE_BASE_ID ||
     !process.env.AIRTABLE_TABLE_NAME) {
@@ -58,22 +57,64 @@ router.post('/store-content', async (req, res) => {
   });
 
   // Endpoint to provide analytics interface
-  router.get('/analytics', async (req, res) => {
+  router.get('/track-content', async (req, res) => {
     if (!featureFlags.airtableIntegration) {
-    return res.status(403).json({ message: 'Airtable integration is disabled' });
+      return res.status(403).json({ message: 'Airtable integration is disabled' });
     }
-
+  
+    const { pageSize = 20, offset } = req.query;
+  
     try {
-    const records = await table.select().all();
-    const analytics = records.map(record => ({
-      id: record.id,
-      content: record.fields.Content,
-      createdTime: record.fields.createdTime || record.createdTime
-    }));
-    res.status(200).json(analytics);
+      const result = await table.select({
+        pageSize: parseInt(pageSize, 10),
+        offset: offset || undefined
+      }).firstPage();
+  
+      // Get the next offset for pagination
+      const nextOffset = result.length === parseInt(pageSize, 10) ? result[result.length - 1].getId() : null;
+  
+      res.status(200).json({
+        records: result,
+        nextOffset
+      });
     } catch (error) {
-    res.status(500).json({ message: 'Error fetching analytics', error: error.message });
+      console.error('Error tracking content:', error);
+      res.status(500).json({ message: 'Error tracking content' });
     }
   });
+  
+  // Endpoint to provide analytics interface with pagination
+  router.get('/analytics', async (req, res) => {
+    if (!featureFlags.airtableIntegration) {
+      return res.status(403).json({ message: 'Airtable integration is disabled' });
+    }
+  
+    const { pageSize = 20, offset } = req.query;
+  
+    try {
+      const result = await table.select({
+        pageSize: parseInt(pageSize, 10),
+        offset: offset || undefined
+      }).firstPage();
+  
+      const analytics = result.map(record => ({
+        id: record.id,
+        content: record.fields.Content,
+        createdTime: record.fields.createdTime || record.createdTime
+      }));
+  
+      // Get the next offset for pagination
+      const nextOffset = result.length === parseInt(pageSize, 10) ? result[result.length - 1].getId() : null;
+  
+      res.status(200).json({
+        analytics,
+        nextOffset
+      });
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      res.status(500).json({ message: 'Error fetching analytics', error: error.message });
+    }
+  });
+  
 
 module.exports = router;
