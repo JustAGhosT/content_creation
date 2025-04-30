@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import axios from 'axios';
 import PropTypes from 'prop-types';
@@ -32,7 +31,6 @@ const SummarizationAPI = ({ rawText }) => {
       setError('No summary to approve');
       return;
     }
-
     setLoading(true);
     setError(null);
     try {
@@ -47,13 +45,25 @@ const SummarizationAPI = ({ rawText }) => {
 
   return (
     <div>
-      <button onClick={generateSummary} disabled={loading}>Generate Summary</button>
+      <button
+        onClick={generateSummary}
+        disabled={loading || !rawText || rawText.trim() === ''}
+      >
+        {loading ? 'Generating...' : 'Generate Summary'}
+      </button>
       {error && <p>Error: {error}</p>}
       {summary && (
         <div>
           <pre>{JSON.stringify(summary, null, 2)}</pre>
-          <button onClick={approveSummary} disabled={loading || approvalStatus === 'approved'}>
-            {approvalStatus === 'approved' ? 'Approved' : 'Approve Summary'}
+          <button
+            onClick={approveSummary}
+            disabled={loading || approvalStatus === 'approved'}
+          >
+            {loading && approvalStatus !== 'approved'
+              ? 'Approving...'
+              : approvalStatus === 'approved'
+              ? 'Approved'
+              : 'Approve Summary'}
           </button>
         </div>
       )}
