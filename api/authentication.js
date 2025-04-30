@@ -88,24 +88,37 @@ router.get('/user', authenticateToken, async (req, res) => {
 });
 
 router.post('/logout', authenticateToken, async (req, res) => {  
-    try {  
-      // Add the token to a blacklist in Redis or another fast database  
-      // Extract token from authorization header  
-      const token = req.headers.authorization?.split(' ')[1];  
+  try {  
+    // Add the token to a blacklist in Redis or another fast database  
+    // Extract token from authorization header  
+    const token = req.headers.authorization?.split(' ')[1];  
+    
+    if (token) {  
+      // Calculate remaining time until token expiration  
+      const decoded = jwt.decode(token);  
       
-      if (token) {  
-        // Calculate remaining time until token expiration  
-        const decoded = jwt.decode(token);  
-        const expiryTime = decoded.exp - Math.floor(Date.now() / 1000);  
-        
-        // Add to blacklist with TTL equal to remaining token lifetime  
-        await addToTokenBlacklist(token, expiryTime);  
-      }  
+      // Ensure decoded contains expiration
+      if (!decoded || !decoded.exp) {
+        return res.status(400).json({ message: 'Invalid token' });
+      }
       
-      res.json({ message: 'Logged out successfully' });  
-    } catch (error) {  
-      res.status(500).json({ message: 'Error during logout', error: error.message });  
+      const now = Math.floor(Date.now() / 1000);
+      const expiryTime = Math.max(0, decoded.exp - now);
+      
+      // Add to blacklist with TTL equal to remaining token lifetime  
+      if (addToTokenBlacklist) {
+        await addToTokenBlacklist(token, expiryTime);
+      } else {
+        console.warn('Token blacklist function not properly implemented');
+        // Fallback implementation if needed
+      }
     }  
-  });  
+    
+    res.json({ message: 'Logged out successfully' });  
+  } catch (error) {  
+    console.error('Logout error:', error);
+    res.status(500).json({ message: 'Error during logout', error: error.message });  
+  }  
+});
 
 module.exports = router;
