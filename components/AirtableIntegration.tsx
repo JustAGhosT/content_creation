@@ -5,6 +5,7 @@ interface Record {
   id: string;
   fields: {
     Name?: string;
+    [key: string]: any; // To accommodate any additional fields
   };
 }
 
