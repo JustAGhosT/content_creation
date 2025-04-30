@@ -3,13 +3,17 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const router = express.Router();
 
-const users = [
-  { id: 1, username: 'editor', password: 'password123', role: 'editor' },
-  { id: 2, username: 'approver', password: 'password123', role: 'approver' },
-  { id: 3, username: 'admin', password: 'password123', role: 'admin' }
-];
+// Import user data access layer
+const { findUserByUsername, verifyUserCredentials } = require('../models/user');
 
-const secretKey = 'your_secret_key';
+// Get JWT secret from environment variables
+const secretKey = process.env.JWT_SECRET;
+
+// Validate required environment variables
+if (!secretKey) {
+  console.error('JWT_SECRET environment variable is required');
+  process.exit(1);
+}
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
@@ -30,7 +34,8 @@ router.post('/login', async (req, res) => {
   res.json({ token });
 });
 
-router.get('/user', (req, res) => {
+// Middleware for verifying JWT token
+const authenticateToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -39,10 +44,31 @@ router.get('/user', (req, res) => {
 
   try {
     const decoded = jwt.verify(token, secretKey);
-    const user = users.find(u => u.id === decoded.id);
-    res.json(user);
+    req.user = decoded;
+    next();
   } catch (err) {
-    res.status(401).json({ message: 'Unauthorized' });
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+};
+
+router.get('/user', authenticateToken, async (req, res) => {
+  try {
+    // Get user from database by ID
+    const user = await getUserById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Return user without sensitive information
+    res.json({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      // Add other non-sensitive fields as needed
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving user', error: error.message });
   }
 });
 
