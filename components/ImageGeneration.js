@@ -120,12 +120,15 @@ const ImageGeneration = ({ context }) => {
           />
           <button onClick={approveImage}>Approve Image</button>
           <button onClick={rejectImage}>Reject Image</button>
-          <button onClick={regenerateImage}>Regenerate Image</button>
+          <button onClick={regenerateImage} disabled={isLoading}>
+            {isLoading ? 'Regenerating...' : 'Regenerate Image'}
+          </button>
           <input
             type="file"
             accept="image/*"
             aria-label="Upload custom image"
             onChange={(e) => uploadImage(e.target.files[0])}
+            disabled={isLoading}
           />
           <p className="help-text">Upload a JPEG, PNG, or GIF image (max 5MB)</p>
         </div>

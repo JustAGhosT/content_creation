@@ -10,17 +10,22 @@ const HumanReview = () => {
   const [summary, setSummary] = useState(null);
   const [image, setImage] = useState(null);
   const [error, setError] = useState(null);
-
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentStep, setCurrentStep] = useState('input'); // 'input', 'parsing', 'summarizing', 'generating', 'approving'
   const handleRawInputChange = (e) => {
     setRawInput(e.target.value);
   };
 
   const handleParseText = async () => {
+    setIsLoading(true);
+    setCurrentStep('parsing');
     try {
       const response = await axios.post('/api/parse', { rawInput });
       setParsedData(response.data);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -49,40 +54,63 @@ const HumanReview = () => {
     } catch (err) {
       setError(err.message);
     }
-  };
+    };
 
-  return (
+    return (
     <div>
       <h2>Human Review Interface</h2>
       {error && <p>Error: {error}</p>}
+      {isLoading && <p>Loading... {currentStep}</p>}
+      {currentStep === 'approved' && <p className="success">Content successfully approved!</p>}
       <div>
-        <textarea
-          value={rawInput}
-          onChange={handleRawInputChange}
-          placeholder="Enter raw input here"
-        />
-        <button onClick={handleParseText}>Parse Text</button>
+      <textarea
+        value={rawInput}
+        onChange={handleRawInputChange}
+        placeholder="Enter raw input here"
+        disabled={isLoading || currentStep === 'approved'}
+      />
+      <button
+        onClick={handleParseText}
+        disabled={isLoading || !rawInput || currentStep === 'approved'}
+      >
+        Parse Text
+      </button>
       </div>
       {parsedData && (
-        <div>
-          <TextParser rawInput={rawInput} />
-          <button onClick={handleGenerateSummary}>Generate Summary</button>
-        </div>
+      <div>
+        <TextParser rawInput={rawInput} />
+        <button
+        onClick={handleGenerateSummary}
+        disabled={isLoading || currentStep === 'approved'}
+        >
+        Generate Summary
+        </button>
+      </div>
       )}
       {summary && (
-        <div>
-          <SummarizationAPI rawText={parsedData} />
-          <button onClick={handleGenerateImage}>Generate Image</button>
-        </div>
+      <div>
+        <SummarizationAPI rawText={parsedData} />
+        <button
+        onClick={handleGenerateImage}
+        disabled={isLoading || currentStep === 'approved'}
+        >
+        Generate Image
+        </button>
+      </div>
       )}
       {image && (
-        <div>
-          <ImageGeneration context={summary} />
-          <button onClick={handleApproveContent}>Approve Content</button>
-        </div>
+      <div>
+        <ImageGeneration context={summary} />
+        <button
+        onClick={handleApproveContent}
+        disabled={isLoading || currentStep === 'approved'}
+        >
+        Approve Content
+        </button>
+      </div>
       )}
     </div>
-  );
+    );
 };
 
 export default HumanReview;

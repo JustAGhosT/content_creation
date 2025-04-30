@@ -19,7 +19,6 @@ router.post('/submit-content', async (req, res) => {
   }
 
   try {
-
     // TODO: Implement actual content storage
     // Store the submitted content
     const contentId = await storeContent(content);

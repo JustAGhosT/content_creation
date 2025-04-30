@@ -22,6 +22,7 @@ const TextParser = ({ rawInput }) => {
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message;
       setError(errorMessage);
+    setParsedData(null);
     } finally {
       setIsLoading(false);
     }
