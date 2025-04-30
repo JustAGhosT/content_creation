@@ -34,11 +34,10 @@ const platformConfigs = {
 
 const apiClients = {};
 for (const [platform, cfg] of Object.entries(platformConfigs)) {
-  for (const [platform, cfg] of Object.entries(platformConfigs)) {
-    if (cfg.url && cfg.key) {
-      apiClients[platform] = createApiClient(cfg.url, cfg.key);
-    }
+  if (cfg.url && cfg.key) {
+    apiClients[platform] = createApiClient(cfg.url, cfg.key);
   }
+}
 
 // Whitelist valid platform keys
 const validPlatforms = Object.keys(platformConfigs);
@@ -117,7 +116,8 @@ router.post('/approve-queue', async (req, res, next) => {
       if (!validPlatforms.includes(platformKey)) {
         return res.status(400).json({ error: `Invalid platform: ${item.platform}` });
       }
-      if (!featureFlags.platformConnectors[platformKey]) {
+      const platformEnabled = featureFlags.enabledPlatforms?.[platformKey] ?? true;
+      if (!platformEnabled) {
         return res.status(400).json({ error: `Platform ${item.platform} is not enabled` });
       }
       await apiClients[platformKey].post('/publish', { content: item.content });
