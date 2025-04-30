@@ -38,51 +38,54 @@ router.post('/approve-image', async (req, res) => {
   try {
     const response = await huggingFaceClient.approveImage(image);
     res.json(response);
-  } catch (error) {
-    console.error('Error approving image:', error);
-    const statusCode = error.response?.status || 500;
-    const errorMessage = error.response?.data?.error || 'Failed to approve image';
-    res.status(statusCode).json({ error: errorMessage });
-  }
-});
-
-// Endpoint to reject image
-router.post('/reject-image', async (req, res) => {
-  const { image } = req.body;
-
-  try {
-    const response = await huggingFaceClient.rejectImage(image);
-    res.json(response);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to reject image' });
-  }
-});
+  } catch (error) {  
+    console.error('Error rejecting image:', error);  
+    const statusCode = error.response?.status || 500;  
+    const errorMessage = error.response?.data?.error || 'Failed to reject image';  
+    res.status(statusCode).json({ error: errorMessage });  
+  }  
+});  
 
 // Endpoint to regenerate image
-router.post('/regenerate-image', async (req, res) => {
-  const { context } = req.body;
+router.post('/regenerate-image', async (req, res) => {  
+  // Validate input  
+  if (!req.body || !req.body.context) {  
+    return res.status(400).json({ error: 'Context is required' });  
+  }  
+  const { context } = req.body;  
 
-  try {
-    const response = await huggingFaceClient.regenerateImage(context);
-    res.json(response);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to regenerate image' });
-  }
-});
+  try {  
+    // Simulate image regeneration using Hugging Face API  
+    const response = await huggingFaceClient.post('/regenerate-image', { context });  
+    res.json(response.data);  
+  } catch (error) {  
+    console.error('Error regenerating image:', error);  
+    const statusCode = error.response?.status || 500;  
+    const errorMessage = error.response?.data?.error || 'Failed to regenerate image';  
+    res.status(statusCode).json({ error: errorMessage });  
+    }  
+  });  
 
-// Endpoint to upload image
-router.post('/upload-image', async (req, res) => {
-  const { file } = req.body;
+  // Endpoint to upload image
+  router.post('/upload-image', async (req, res) => {
+    // Validate input
+    if (!req.body || !req.body.file) {
+    return res.status(400).json({ error: 'File is required' });
+    }
+    const { file } = req.body;
 
-  try {
+    try {
     const response = await huggingFaceClient.uploadImage(file);
     res.json(response);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to upload image' });
-  }
-});
+    } catch (error) {
+    console.error('Error uploading image:', error);
+    const statusCode = error.response?.status || 500;
+    const errorMessage = error.response?.data?.error || 'Failed to upload image';
+    res.status(statusCode).json({ error: errorMessage });
+    }
+  });
 
-// Endpoint to review image
+  // Endpoint to review image
 router.post('/review-image', async (req, res) => {
   const { image, action } = req.body;
 
