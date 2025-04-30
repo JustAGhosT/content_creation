@@ -8,7 +8,7 @@ if (featureFlags.inputCollection === undefined) {
   console.warn('`inputCollection` feature flag is not defined; defaulting to false.');
   featureFlags.inputCollection = false;
 }
-async function storeContent(content) {
+export async function storeContent(content) {
   const record = await storeRecord('ContentTable', {
     title: content.title,
     body: content.body,
@@ -19,7 +19,7 @@ async function storeContent(content) {
 
 const axios = require('axios');
 
-const fetchRSSFeed = async () => {
+export const fetchRSSFeed = async () => {
   const rssFeedUrl = process.env.RSS_FEED_URL || 'https://example.com/rss-feed';
   try {
     const response = await axios.get(rssFeedUrl);
