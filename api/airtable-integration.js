@@ -84,7 +84,6 @@ router.get('/track-content', async (req, res) => {
   const { page = 1, pageSize = 20, filter = '' } = req.query;
   const pageNum = parseInt(page, 10);
   const pageSizeNum = parseInt(pageSize, 10);
-  const offset = (pageNum - 1) * pageSizeNum;
 
   // Validate pagination parameters
   if (isNaN(pageNum) || pageNum < 1) {
@@ -95,25 +94,26 @@ router.get('/track-content', async (req, res) => {
   }
 
   try {
-    // Sanitize filter parameter more thoroughly for Airtable formula syntax
-    const sanitizedFilter = filter.replace(/['"\\]/g, ''); // Remove quotes and backslashes
-    const filterFormula = sanitizedFilter ? `FIND("${sanitizedFilter}", Content)` : '';
-
-    // Get one more record than requested to determine if there are more pages
+    // Fetch records from Airtable
     const queryOptions = {
       maxRecords: pageSizeNum + 1,
       pageSize: pageSizeNum + 1
     };
 
-    if (offset > 0) {
-      queryOptions.offset = offset;
+    if (req.query.nextToken) {
+      queryOptions.offset = req.query.nextToken;
     }
 
-    if (filterFormula) {
-      queryOptions.filterByFormula = filterFormula;
-    }
+    let records = await table.select(queryOptions).all();
 
-    const records = await table.select(queryOptions).all();
+    // Filter in application code if filter is provided
+    if (filter && typeof filter === 'string' && filter.trim() !== '') {
+      const filterLower = filter.trim().toLowerCase();
+      records = records.filter(record => {
+        const content = (record.fields.Content || '').toLowerCase();
+        return content.includes(filterLower);
+      });
+    }
 
     // Check if there are more pages
     const hasMore = records.length > pageSizeNum;
