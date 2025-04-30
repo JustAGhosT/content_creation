@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import PropTypes from 'prop-types';
 
-const TextParser = ({ rawInput }) => {
-  const [parsedData, setParsedData] = useState(null);
-  const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+interface TextParserProps {
+  rawInput: string;
+}
+
+const TextParser: React.FC<TextParserProps> = ({ rawInput }) => {
+  const [parsedData, setParsedData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const parseText = async () => {
     if (!rawInput || rawInput.trim() === '') {
@@ -19,10 +22,10 @@ const TextParser = ({ rawInput }) => {
     try {
       const response = await axios.post('/api/parse', { rawInput });
       setParsedData(response.data);
-    } catch (err) {
+    } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message;
       setError(errorMessage);
-    setParsedData(null);
+      setParsedData(null);
     } finally {
       setIsLoading(false);
     }
@@ -39,7 +42,7 @@ const TextParser = ({ rawInput }) => {
     try {
       const response = await axios.post('/api/analyze', { parsedData });
       setParsedData(response.data);
-    } catch (err) {
+    } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message;
       setError(errorMessage);
     } finally {
@@ -55,10 +58,6 @@ const TextParser = ({ rawInput }) => {
       {parsedData && <pre>{JSON.stringify(parsedData, null, 2)}</pre>}
     </div>
   );
-};
-
-TextParser.propTypes = {
-  rawInput: PropTypes.string.isRequired,
 };
 
 export default TextParser;

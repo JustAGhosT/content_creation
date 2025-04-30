@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-// components/FeedbackMechanism.js
+interface FeedbackMechanismProps {
+  reviewId: string;
+}
 
-const FeedbackMechanism = ({ reviewId = '' }) => {
-  // Validate reviewId 
+const FeedbackMechanism: React.FC<FeedbackMechanismProps> = ({ reviewId }) => {
   if (!reviewId) {
     console.warn('FeedbackMechanism: reviewId prop is missing or empty');
   }
 
-  const [feedback, setFeedback] = useState('');
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const submitFeedback = async () => {
     if (!feedback.trim()) {

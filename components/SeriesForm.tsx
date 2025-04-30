@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 
-const SeriesForm = ({ onAddSeries }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+interface SeriesFormProps {
+  onAddSeries: (series: { title: string; description: string }) => void;
+}
 
-  const handleSubmit = (e) => {
+const SeriesForm: React.FC<SeriesFormProps> = ({ onAddSeries }) => {
+  const [title, setTitle] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     onAddSeries({ title, description });
     setTitle('');

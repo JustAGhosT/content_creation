@@ -1,11 +1,11 @@
-require('dotenv').config();
-const express = require('express');
+import express, { Request, Response, NextFunction } from 'express';
+import * as Sentry from '@sentry/node';
+import winston from 'winston';
+import axios, { AxiosInstance } from 'axios';
+import { verifyJwt } from '../auth';
+import featureFlags from './feature-flags';
+
 const router = express.Router();
-const Sentry = require('@sentry/node');
-const winston = require('winston');
-const axios = require('axios');
-const { verifyJwt } = require('../auth');
-const featureFlags = require('./feature-flags');
 
 // Initialize error tracking
 Sentry.init({ dsn: process.env.SENTRY_DSN });
@@ -14,7 +14,7 @@ const logger = winston.createLogger({
 });
 
 // Create platform API clients
-const createApiClient = (baseUrl, apiKey) =>
+const createApiClient = (baseUrl: string, apiKey: string): AxiosInstance =>
   axios.create({
     baseURL: baseUrl,
     headers: {
@@ -24,15 +24,15 @@ const createApiClient = (baseUrl, apiKey) =>
     timeout: 10000,
   });
 
-const platformConfigs = {
-  facebook:   { url: process.env.FACEBOOK_API_URL,   key: process.env.FACEBOOK_API_KEY },
-  instagram:  { url: process.env.INSTAGRAM_API_URL,  key: process.env.INSTAGRAM_API_KEY },
-  linkedin:   { url: process.env.LINKEDIN_API_URL,   key: process.env.LINKEDIN_API_KEY },
-  twitter:    { url: process.env.TWITTER_API_URL,    key: process.env.TWITTER_API_KEY },
-  custom:     { url: process.env.CUSTOM_API_URL,     key: process.env.CUSTOM_API_KEY },
+const platformConfigs: { [key: string]: { url: string; key: string } } = {
+  facebook: { url: process.env.FACEBOOK_API_URL, key: process.env.FACEBOOK_API_KEY },
+  instagram: { url: process.env.INSTAGRAM_API_URL, key: process.env.INSTAGRAM_API_KEY },
+  linkedin: { url: process.env.LINKEDIN_API_URL, key: process.env.LINKEDIN_API_KEY },
+  twitter: { url: process.env.TWITTER_API_URL, key: process.env.TWITTER_API_KEY },
+  custom: { url: process.env.CUSTOM_API_URL, key: process.env.CUSTOM_API_KEY },
 };
 
-const apiClients = {};
+const apiClients: { [key: string]: AxiosInstance } = {};
 for (const [platform, cfg] of Object.entries(platformConfigs)) {
   if (cfg.url && cfg.key) {
     apiClients[platform] = createApiClient(cfg.url, cfg.key);
@@ -51,8 +51,8 @@ if (!global.publishingQueue) {
 router.use(verifyJwt);
 
 // Publish content immediately
-router.post('/publish-content', async (req, res, next) => {
-  const { content, platforms } = req.body;
+router.post('/publish-content', async (req: Request, res: Response, next: NextFunction) => {
+  const { content, platforms }: { content: string; platforms: string[] } = req.body;
   try {
     if (!featureFlags.platformConnectors) {
       return res.status(400).json({ error: 'Platform connectors are disabled' });
@@ -79,8 +79,8 @@ router.post('/publish-content', async (req, res, next) => {
 });
 
 // Add to queue
-router.post('/add-to-queue', async (req, res, next) => {
-  const { content, platforms } = req.body;
+router.post('/add-to-queue', async (req: Request, res: Response, next: NextFunction) => {
+  const { content, platforms }: { content: string; platforms: string[] } = req.body;
   if (!content || !platforms || !Array.isArray(platforms) || platforms.length === 0) {
     return res.status(400).json({ error: 'Invalid content or platforms' });
   }
@@ -99,8 +99,8 @@ router.post('/add-to-queue', async (req, res, next) => {
 });
 
 // Approve and publish queue
-router.post('/approve-queue', async (req, res, next) => {
-  const { queue } = req.body;
+router.post('/approve-queue', async (req: Request, res: Response, next: NextFunction) => {
+  const { queue }: { queue: { id: number; platform: string; content: string }[] } = req.body;
   if (!queue || !Array.isArray(queue) || queue.length === 0) {
     return res.status(400).json({ error: 'Invalid queue data' });
   }
@@ -138,8 +138,8 @@ router.post('/approve-queue', async (req, res, next) => {
 });
 
 // Global error handler
-router.use((err, req, res, next) => {
+router.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-module.exports = router;
+export default router;

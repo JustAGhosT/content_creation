@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const NotificationSystem = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [error, setError] = useState(null);
+interface Notification {
+  type: string;
+  message: string;
+}
+
+const NotificationSystem: React.FC = () => {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -18,7 +23,7 @@ const NotificationSystem = () => {
     fetchNotifications();
   }, []);
 
-  const sendNotification = async (type, message) => {
+  const sendNotification = async (type: string, message: string) => {
     try {
       const response = await axios.post('/api/notifications', { type, message });
       setNotifications([...notifications, response.data]);

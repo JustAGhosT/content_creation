@@ -1,9 +1,9 @@
-const express = require('express');
+import express, { Request, Response, NextFunction } from 'express';
 const router = express.Router();
-const featureFlags = require('./feature-flags');
+import featureFlags from './feature-flags';
 
 // Pre-load modules at startup
-const toolModules = {
+const toolModules: { [key: string]: any } = {
   textParser: require('./text-parser'),
   summarization: require('./summarization'),
   imageGeneration: require('./image-generation'),
@@ -17,7 +17,7 @@ const toolModules = {
 };
 
 // Middleware to select the correct tool based on feature flags
-const selectTool = (req, res, next) => {
+const selectTool = (req: Request, res: Response, next: NextFunction) => {
   const { feature } = req.body;
 
   // Check if feature exists and is enabled
@@ -39,8 +39,8 @@ const selectTool = (req, res, next) => {
 };
 
 // Endpoint to handle tool selection
-router.post('/select-tool', selectTool, (req, res) => {
+router.post('/select-tool', selectTool, (req: Request, res: Response) => {
   res.status(200).json({ message: 'Tool selected successfully', feature: req.body.feature });
 });
 
-module.exports = router;
+export default router;
