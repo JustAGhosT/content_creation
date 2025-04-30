@@ -4,15 +4,19 @@ const Airtable = require('airtable');
 const featureFlags = global.featureFlags || {};
 
 // Initialize Airtable
+let airtableInitialized = false;
+let table;
+
 if (!process.env.AIRTABLE_API_KEY ||
-    !process.env.AIRTABLE_BASE_ID ||
-    !process.env.AIRTABLE_TABLE_NAME) {
+  !process.env.AIRTABLE_BASE_ID ||
+  !process.env.AIRTABLE_TABLE_NAME) {
   console.error('Missing required Airtable environment variables');
-  // Consider a more robust startup check mechanism
+} else {
+  const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY })
+        .base(process.env.AIRTABLE_BASE_ID);
+  table = base(process.env.AIRTABLE_TABLE_NAME);
+  airtableInitialized = true;
 }
-const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY })
-              .base(process.env.AIRTABLE_BASE_ID);
-const table = base(process.env.AIRTABLE_TABLE_NAME);
 
 // Endpoint to store published content
 router.post('/store-content', async (req, res) => {
