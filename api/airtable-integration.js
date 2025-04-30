@@ -82,6 +82,7 @@ function validateContent(req, res, next) {
   req.body.content = content.trim();
   next();
 }
+
 // Attempt to initialize Airtable on startup
 if (!initializeAirtable()) {
   console.error('Airtable failed to initialize at startup.');
