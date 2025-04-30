@@ -27,7 +27,6 @@ const logAction = async (req, res, next) => {
   void res;
   void next;
   const logEntry = {
-    body: sanitizeRequestBody(req.body),
     action: req.method + ' ' + req.originalUrl,
     user: req.user ? req.user.username : 'anonymous',
     body: sanitizeRequestBody(req.body),
@@ -60,10 +59,10 @@ const logAction = async (req, res, next) => {
     } catch (err) {
       console.error('Failed to write log entry:', err);
     }
+  };
+
   await writeLogEntry();
   next();
-};
-  // Removed duplicate fs.readFile and fs.writeFile logic
 };
 
 // Apply the middleware to all routes
