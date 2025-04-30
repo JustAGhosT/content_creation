@@ -4,6 +4,7 @@ import axios from 'axios';
 const Authentication = () => {
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -11,15 +12,12 @@ const Authentication = () => {
         const response = await axios.get('/api/auth/user');
         setUser(response.data);
       } catch (err) {
-        setError(err.message);
+        setError(err.response?.data?.message || err.message);
       }
     };
 
     fetchUser();
   }, []);
-
-  // add this at the top of your component (if not already there)
-  const [isLoading, setIsLoading] = useState(false);
 
   const login = async (username, password) => {
     setIsLoading(true);
@@ -29,7 +27,20 @@ const Authentication = () => {
       const response = await axios.post('/api/auth/login', { username, password });
       setUser(response.data);
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message;
+      let errorMessage = 'An error occurred during login.';
+      if (err.response) {
+        if (err.response.status === 401) {
+          errorMessage = 'Invalid username or password.';
+        } else if (err.response.data?.message) {
+          errorMessage = err.response.data.message;
+        } else {
+          errorMessage = `Server error: ${err.response.status}`;
+        }
+      } else if (err.request) {
+        errorMessage = 'No response from server. Please check your connection.';
+      } else {
+        errorMessage = err.message;
+      }
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -41,18 +52,19 @@ const Authentication = () => {
       await axios.post('/api/auth/logout');
       setUser(null);
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || err.message);
     }
   };
 
   return (
     <div>
       <h2>Authentication</h2>
-      {error && <p>Error: {error}</p>}
+      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+      {isLoading && <p>Loading...</p>}
       {user ? (
         <div>
           <p>Welcome, {user.name}</p>
-          <button onClick={logout}>Logout</button>
+          <button onClick={logout} disabled={isLoading}>Logout</button>
         </div>
       ) : (
         <div>
@@ -73,6 +85,7 @@ const Authentication = () => {
                 autoComplete="username"
                 minLength="4"
                 required
+                disabled={isLoading}
               />
             </div>
             <div>
@@ -84,9 +97,12 @@ const Authentication = () => {
                 autoComplete="current-password"
                 minLength="8"
                 required
+                disabled={isLoading}
               />
             </div>
-            <button type="submit">Login</button>
+            <button type="submit" disabled={isLoading}>
+              {isLoading ? 'Logging in...' : 'Login'}
+            </button>
           </form>
         </div>
       )}
