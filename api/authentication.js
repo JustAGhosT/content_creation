@@ -2,8 +2,6 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const router = express.Router();
-
-// Import user data access layer
 const { findUserByUsername, verifyUserCredentials } = require('../models/user');
 
 // Get JWT secret from environment variables
@@ -17,13 +15,21 @@ if (!secretKey) {
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  const user = users.find(u => u.username === username);
+
+  // Validate inputs
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username and password are required' });
+  }
+
+  // Get user from database instead of static array
+  const user = await findUserByUsername(username);
 
   if (!user) {
     return res.status(401).json({ message: 'Invalid username or password' });
   }
 
-  const isPasswordValid = await bcrypt.compare(password, user.password);
+  // Use a proper password verification function
+  const isPasswordValid = await verifyUserCredentials(username, password);
 
   if (!isPasswordValid) {
     return res.status(401).json({ message: 'Invalid username or password' });
@@ -31,7 +37,15 @@ router.post('/login', async (req, res) => {
 
   const token = jwt.sign({ id: user.id, role: user.role }, secretKey, { expiresIn: '1h' });
 
-  res.json({ token });
+  // Return token and basic user info (omitting sensitive data)
+  res.json({
+    token,
+    user: {
+      id: user.id,
+      username: user.username,
+      role: user.role
+    }
+  });
 });
 
 // Middleware for verifying JWT token
@@ -72,8 +86,25 @@ router.get('/user', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/logout', (req, res) => {
-  res.json({ message: 'Logged out successfully' });
-});
+router.post('/logout', authenticateToken, async (req, res) => {  
+    try {  
+      // Add the token to a blacklist in Redis or another fast database  
+      // Extract token from authorization header  
+      const token = req.headers.authorization?.split(' ')[1];  
+      
+      if (token) {  
+        // Calculate remaining time until token expiration  
+        const decoded = jwt.decode(token);  
+        const expiryTime = decoded.exp - Math.floor(Date.now() / 1000);  
+        
+        // Add to blacklist with TTL equal to remaining token lifetime  
+        await addToTokenBlacklist(token, expiryTime);  
+      }  
+      
+      res.json({ message: 'Logged out successfully' });  
+    } catch (error) {  
+      res.status(500).json({ message: 'Error during logout', error: error.message });  
+    }  
+  });  
 
 module.exports = router;
