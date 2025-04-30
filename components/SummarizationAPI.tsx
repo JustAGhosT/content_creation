@@ -7,7 +7,13 @@ interface SummarizationAPIProps {
 }
 
 const SummarizationAPI: React.FC<SummarizationAPIProps> = ({ rawText }) => {
-  const [summary, setSummary] = useState<any>(null);
+  interface Summary {
+    content: string;
+    keyPoints: string[];
+    // Add other properties as needed
+  }
+
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
