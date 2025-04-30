@@ -76,7 +76,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 });
 
 // Middleware for verifying JWT token
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -84,10 +84,23 @@ const authenticateToken = (req, res, next) => {
   }
 
   try {
+    // Check if token is blacklisted
+    if (isTokenBlacklisted && await isTokenBlacklisted(token)) {
+      return res.status(401).json({ message: 'Token has been revoked' });
+    }
+
     const decoded = jwt.verify(token, secretKey);
+
+    // Check if token has expired
+    const now = Math.floor(Date.now() / 1000);
+    if (decoded.exp && decoded.exp < now) {
+      return res.status(401).json({ message: 'Token has expired' });
+    }
+
     req.user = decoded;
     next();
   } catch (err) {
+    console.error('Token verification error:', err);
     return res.status(401).json({ message: 'Unauthorized' });
   }
 };
