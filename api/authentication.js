@@ -2,7 +2,8 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const router = express.Router();
-const { findUserByUsername, verifyUserCredentials } = require('../models/user');
+const { findUserByUsername, verifyUserCredentials, getUserById } = require('../models/user');
+const { addToTokenBlacklist, isTokenBlacklisted } = require('./authenticationHelpers');
 
 // Get JWT secret from environment variables
 const secretKey = process.env.JWT_SECRET;
