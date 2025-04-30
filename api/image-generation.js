@@ -89,8 +89,23 @@ router.post(
       const response = await huggingFaceClient.generateImage(context);
       res.json(response.data || response);
     } catch (error) {
-      console.error('Error generating image:', error);
-      res.status(500).json({ error: 'Failed to generate image' });
+// File: api/image-generation.js
+
+// … earlier in the file …
+
+router.post('/generate-image', async (req, res) => {
+  const { context } = req.body;
+
+  try {
+    // … request logic …
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error generating image:', error);
++   const statusCode = error.response?.status || 500;
++   const errorMessage = error.response?.data?.error || 'Failed to generate image';
++   res.status(statusCode).json({ error: errorMessage });
+  }
+});
     }
   }
 );
