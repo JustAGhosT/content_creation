@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import PlatformConnectors from '../components/PlatformConnectors';
+// ...other imports
 import AirtableIntegration from '../components/AirtableIntegration';
 
 const PublishingQueuePage = () => {
   const [content, setContent] = useState([]);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchContent = async () => {
@@ -14,6 +14,8 @@ const PublishingQueuePage = () => {
         setContent(data);
       } catch (err) {
         setError(err.message);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -26,7 +28,7 @@ const PublishingQueuePage = () => {
       {error && <p>Error: {error}</p>}
       <PlatformConnectors content={content} />
       {/* Only show AirtableIntegration if content has loaded and there's no error */}
-      {!error && content.length > 0 && <AirtableIntegration />}
+      {!loading && !error && content.length > 0 && <AirtableIntegration />}
     </div>
   );
 };
