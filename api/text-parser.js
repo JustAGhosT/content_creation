@@ -26,7 +26,7 @@ router.post('/analyze', async (req, res) => {
     res.status(500).json({
       error: 'Failed to analyze text',
       details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
-      service: featureFlags?.textParser?.implementation
+      service: (global.featureFlags || {})?.textParser?.implementation
     });
   }
 });
