@@ -71,15 +71,35 @@ router.get('/track-content', async (req, res) => {
 
 // Endpoint to provide analytics interface
 router.get('/analytics', async (req, res) => {
+  const { page = 1, pageSize = 20 } = req.query;
+  const offset = (page - 1) * pageSize;
+
   try {
-    const records = await table.select().all();
+    const records = await table.select({
+      maxRecords: parseInt(pageSize),
+      offset: parseInt(offset)
+    }).all();
+
+    // Get total count for pagination metadata
+    const totalRecords = await table.select().all();
+
     const analytics = records.map(record => ({
       id: record.id,
       content: record.fields.Content,
-      createdTime: record._rawJson.createdTime
+      createdTime: record.fields.createdTime || new Date().toISOString()
     }));
-    res.status(200).json(analytics);
+
+    res.status(200).json({
+      data: analytics,
+      pagination: {
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalRecords: totalRecords.length,
+        totalPages: Math.ceil(totalRecords.length / pageSize)
+      }
+    });
   } catch (error) {
+    console.error('Airtable analytics error:', error);
     res.status(500).json({ message: 'Error fetching analytics', error: error.message });
   }
 });

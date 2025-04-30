@@ -23,45 +23,57 @@ router.post('/store-content', async (req, res) => {
 
   const { content } = req.body;
 
+  if (!content) {
+    return res.status(400).json({ message: 'Content is required' });
+  }
+
   try {
     const record = await table.create({ Content: content });
     res.status(200).json({ message: 'Content stored successfully', record });
   } catch (error) {
-    res.status(500).json({ message: 'Error storing content', error: error.message });
-  }
-});
+    console.error('Error storing content:', error);
+    res.status(500).json({ message: 'Error storing content' });
+    }
+  });
 
-// Endpoint to track published content
-router.get('/track-content', async (req, res) => {
-  if (!featureFlags.airtableIntegration) {
+  // Endpoint to track published content with pagination
+  router.get('/track-content', async (req, res) => {
+    if (!featureFlags.airtableIntegration) {
     return res.status(403).json({ message: 'Airtable integration is disabled' });
-  }
+    }
 
-  try {
-    const records = await table.select().all();
+    const { page = 1, pageSize = 20 } = req.query;
+    const offset = (page - 1) * pageSize;
+
+    try {
+    const records = await table.select({
+      maxRecords: parseInt(pageSize, 10),
+      offset: offset
+    }).all();
     res.status(200).json(records);
-  } catch (error) {
+    } catch (error) {
+    console.error('Error tracking content:', error);
     res.status(500).json({ message: 'Error tracking content', error: error.message });
-  }
-});
+    }
+  });
 
-// Endpoint to provide analytics interface
-router.get('/analytics', async (req, res) => {
-  if (!featureFlags.airtableIntegration) {
+  // Endpoint to provide analytics interface
+  router.get('/analytics', async (req, res) => {
+    if (!featureFlags.airtableIntegration) {
     return res.status(403).json({ message: 'Airtable integration is disabled' });
-  }
+    }
 
-  try {
+    try {
     const records = await table.select().all();
     const analytics = records.map(record => ({
       id: record.id,
       content: record.fields.Content,
-      createdTime: record._rawJson.createdTime
+      createdTime: record.fields.createdTime || record.createdTime
     }));
     res.status(200).json(analytics);
-  } catch (error) {
+    } catch (error) {
     res.status(500).json({ message: 'Error fetching analytics', error: error.message });
-  }
-});
+    }
+  });
 
 module.exports = router;
