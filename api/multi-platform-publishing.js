@@ -5,7 +5,7 @@ const Sentry = require('@sentry/node');
 const winston = require('winston');
 const axios = require('axios');
 const { verifyJwt } = require('../auth');
-const { featureFlags } = require('./feature-flags');
+const featureFlags = require('./feature-flags');
 
 // Initialize error tracking
 Sentry.init({ dsn: process.env.SENTRY_DSN });
@@ -89,6 +89,8 @@ router.post('/add-to-queue', async (req, res, next) => {
     const queueItem = { id: Date.now(), content, platforms, status: 'pending', createdAt: new Date() };
     global.publishingQueue.push(queueItem);
     logger.info(`Added item ${queueItem.id} to queue with ${platforms.length} platforms`);
+    // Log for debugging as in the improvement
+    console.log('Content added to queue:', { content, platforms });
     res.status(200).json({ message: 'Content added to queue successfully' });
   } catch (err) {
     Sentry.captureException(err);
