@@ -1,3 +1,5 @@
+const featureFlags = global.featureFlags || {};
+
 router.post('/analyze', async (req, res) => {
   try {
     const { parsedData } = req.body;
