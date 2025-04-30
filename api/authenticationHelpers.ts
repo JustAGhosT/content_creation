@@ -1,11 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 
-function authenticateUser(req: Request, res: Response, next: NextFunction): void {  
-    if (!req.user) {  
-        return res.status(401).json({ message: 'Authentication required' });  
-    }  
-    next();  
-}  
+function authenticateUser(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void | Response {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  next();
+}
 
 function authorizeAdmin(req: Request, res: Response, next: NextFunction): void {
     if (!req.user) {
