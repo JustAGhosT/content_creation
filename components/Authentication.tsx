@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const Authentication = () => {
-  const [user, setUser] = useState(null);
-  const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+interface User {
+  id: string;
+  name: string;
+  username: string;
+  role: string;
+}
+
+const Authentication: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const response = await axios.get('/api/auth/user');
         setUser(response.data);
-      } catch (err) {
+      } catch (err: any) {
         setError(err.response?.data?.message || err.message);
       }
     };
@@ -19,14 +26,14 @@ const Authentication = () => {
     fetchUser();
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (username: string, password: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
       const response = await axios.post('/api/auth/login', { username, password });
       setUser(response.data);
-    } catch (err) {
+    } catch (err: any) {
       let errorMessage = 'An error occurred during login.';
       if (err.response) {
         if (err.response.status === 401) {
@@ -51,7 +58,7 @@ const Authentication = () => {
     try {
       await axios.post('/api/auth/logout');
       setUser(null);
-    } catch (err) {
+    } catch (err: any) {
       setError(err.response?.data?.message || err.message);
     }
   };
@@ -72,7 +79,10 @@ const Authentication = () => {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const { username, password } = e.target.elements;
+              const { username, password } = e.target.elements as typeof e.target.elements & {
+                username: { value: string };
+                password: { value: string };
+              };
               login(username.value, password.value);
             }}
           >
@@ -83,7 +93,7 @@ const Authentication = () => {
                 id="username"
                 name="username"
                 autoComplete="username"
-                minLength="4"
+                minLength={4}
                 required
                 disabled={isLoading}
               />
@@ -95,7 +105,7 @@ const Authentication = () => {
                 id="password"
                 name="password"
                 autoComplete="current-password"
-                minLength="8"
+                minLength={8}
                 required
                 disabled={isLoading}
               />

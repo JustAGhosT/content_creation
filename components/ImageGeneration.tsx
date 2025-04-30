@@ -1,20 +1,27 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import PropTypes from 'prop-types';
+import axios, { AxiosResponse } from 'axios';
 
-const ImageGeneration = ({ context }) => {
-  const [image, setImage] = useState(null);
-  const [error, setError] = useState(null);
-  const [feedback, setFeedback] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+interface ImageGenerationProps {
+  context: string;
+}
+
+interface ImageResponse {
+  data: any;
+}
+
+const ImageGeneration: React.FC<ImageGenerationProps> = ({ context }) => {
+  const [image, setImage] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const generateImage = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await axios.post('/api/generate-image', { context });
+      const response: AxiosResponse<ImageResponse> = await axios.post('/api/generate-image', { context });
       setImage(response.data);
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -28,7 +35,7 @@ const ImageGeneration = ({ context }) => {
     try {
       await axios.post('/api/approve-image', { image });
       setFeedback('Image approved successfully');
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -41,7 +48,7 @@ const ImageGeneration = ({ context }) => {
     try {
       await axios.post('/api/reject-image', { image });
       setFeedback('Image rejected successfully');
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message);
     }
   };
@@ -51,17 +58,17 @@ const ImageGeneration = ({ context }) => {
     setError(null);
     setFeedback(null);
     try {
-      const response = await axios.post('/api/regenerate-image', { context });
+      const response: AxiosResponse<ImageResponse> = await axios.post('/api/regenerate-image', { context });
       setImage(response.data);
       setFeedback('Image regenerated successfully');
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const uploadImage = async (file) => {
+  const uploadImage = async (file: File) => {
     setIsLoading(true);
     setError(null);
     setFeedback(null);
@@ -85,14 +92,14 @@ const ImageGeneration = ({ context }) => {
     formData.append('file', file);
 
     try {
-      const response = await axios.post('/api/upload-image', formData, {
+      const response: AxiosResponse<ImageResponse> = await axios.post('/api/upload-image', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       setImage(response.data);
       setFeedback('Image uploaded successfully');
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -127,7 +134,7 @@ const ImageGeneration = ({ context }) => {
             type="file"
             accept="image/*"
             aria-label="Upload custom image"
-            onChange={(e) => uploadImage(e.target.files[0])}
+            onChange={(e) => uploadImage(e.target.files![0])}
             disabled={isLoading}
           />
           <p className="help-text">Upload a JPEG, PNG, or GIF image (max 5MB)</p>
@@ -136,9 +143,5 @@ const ImageGeneration = ({ context }) => {
     </div>
   );
 }
-
-ImageGeneration.propTypes = {
-  context: PropTypes.string.isRequired
-};
 
 export default ImageGeneration;

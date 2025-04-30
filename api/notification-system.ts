@@ -1,8 +1,9 @@
-const express = require('express');
+import express, { Request, Response, NextFunction } from 'express';
+import nodemailer from 'nodemailer';
+import { WebClient } from '@slack/web-api';
+import twilio from 'twilio';
+
 const router = express.Router();
-const nodemailer = require('nodemailer');
-const { WebClient } = require('@slack/web-api');
-const twilio = require('twilio');
 
 // Email configuration
 if (
@@ -43,7 +44,7 @@ const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_A
 
 // Endpoint to send notifications
 // Middleware for validating request
-const validateNotification = (req, res, next) => {
+const validateNotification = (req: Request, res: Response, next: NextFunction) => {
   const { type, message, recipient } = req.body;
   if (!type || !message || !recipient) {
     return res.status(400).json({ message: 'Missing required fields' });
@@ -55,7 +56,7 @@ const validateNotification = (req, res, next) => {
 };
 
 // Middleware for authentication
-const authenticate = (req, res, next) => {
+const authenticate = (req: Request, res: Response, next: NextFunction) => {
   // Add your authentication logic here
   // Example: Check for valid JWT token
   const authHeader = req.headers.authorization;
@@ -71,7 +72,7 @@ router.post(
   '/send-notification',
   authenticate,
   validateNotification,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const { type, message, recipient } = req.body;
 
     try {
@@ -115,9 +116,9 @@ router.post(
 );
 
 // Endpoint to get notifications
-router.get('/notifications', async (req, res) => {
+router.get('/notifications', async (req: Request, res: Response) => {
   // This is a placeholder for fetching notifications from a database or other storage
   res.status(200).json([]);
 });
 
-module.exports = router;
+export default router;

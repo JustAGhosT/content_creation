@@ -1,15 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const PlatformConnectors = ({ content }) => {
-  const [platforms, setPlatforms] = useState([]);
-  const [queue, setQueue] = useState([]);
-  const [error, setError] = useState(null);
+interface Platform {
+  id: number;
+  name: string;
+}
 
-  const [isLoading, setIsLoading] = useState(false);
+interface QueueItem {
+  platform: Platform;
+  content: any;
+}
+
+interface PlatformConnectorsProps {
+  content: any;
+}
+
+const PlatformConnectors: React.FC<PlatformConnectorsProps> = ({ content }) => {
+  const [platforms, setPlatforms] = useState<Platform[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isApproving, setIsApproving] = useState<boolean>(false);
+  const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch available platforms
     const fetchPlatforms = async () => {
       setIsLoading(true);
       setError(null);
@@ -27,7 +41,7 @@ const PlatformConnectors = ({ content }) => {
     fetchPlatforms();
   }, []);
 
-  const addToQueue = (platform) => {
+  const addToQueue = (platform: Platform) => {
     if (!content || Object.keys(content).length === 0) {
       setError('Cannot add to queue: No valid content available');
       return;
@@ -35,13 +49,10 @@ const PlatformConnectors = ({ content }) => {
     setQueue([...queue, { platform, content }]);
   };
 
-  const removeFromQueue = (index) => {
+  const removeFromQueue = (index: number) => {
     const updatedQueue = queue.filter((_, i) => i !== index);
     setQueue(updatedQueue);
   };
-
-  const [isApproving, setIsApproving] = useState(false);
-  const [approvalMessage, setApprovalMessage] = useState(null);
 
   const approveQueue = async () => {
     if (queue.length === 0) {
