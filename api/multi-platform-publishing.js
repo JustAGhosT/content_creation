@@ -25,11 +25,28 @@ router.post('/publish-content', async (req, res) => {
 router.post('/add-to-queue', async (req, res) => {
   const { content, platforms } = req.body;
 
+  // Validate input
+  if (!content || !platforms || !Array.isArray(platforms) || platforms.length === 0) {
+    return res.status(400).json({ error: 'Invalid content or platforms' });
+  }
+
   try {
-    // Simulate adding content to pre-publishing queue
-    console.log('Content added to queue:', { content, platforms });
+    // Example: Store in database
+    // const queueItem = await Queue.create({ content, platforms, status: 'pending', createdAt: new Date() });
+    
+    // For MVP/simulation purposes, you could use an in-memory store
+    if (!global.publishingQueue) {
+      global.publishingQueue = [];
+    }
+    const queueItem = { id: Date.now(), content, platforms, status: 'pending', createdAt: new Date() };
+    global.publishingQueue.push(queueItem);
+    
+    // Log for debugging purposes only
+    console.log(`Added item ${queueItem.id} to queue with ${platforms.length} platforms`);
+    
     res.status(200).json({ message: 'Content added to queue successfully' });
   } catch (error) {
+    console.error('Failed to add content to queue:', error);
     res.status(500).json({ error: 'Failed to add content to queue' });
   }
 });
