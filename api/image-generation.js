@@ -2,6 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { imageGeneration } from './feature-flags';
 import HuggingFaceClient from './huggingface-client';
+import jwt from 'jsonwebtoken'
 
 const router = Router();
 const huggingFaceClient = new HuggingFaceClient();
