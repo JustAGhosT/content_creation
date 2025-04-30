@@ -1,7 +1,6 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const Airtable = require('airtable');
-const { authenticateUser } = require('./authenticationHelpers');
+import Airtable from 'airtable';
 
 // Initialize Airtable
 // Validate required environment variables
@@ -41,12 +40,19 @@ const checkAirtableInitialized = (req, res, next) => {
   next();
 };
 
-// Apply middleware to all routes
-router.use(authenticateUser);
-router.use(checkAirtableInitialized);
+// Endpoint to store published content
+// Middleware to validate content in request body
+function validateContent(req, res, next) {
+  const { content } = req.body;
+  if (!content || typeof content !== 'string' || content.trim() === '') {
+    return res.status(400).json({ message: 'Content is required and must be a non-empty string.' });
+  }
+  req.body.content = content.trim();
+  next();
+}
 
 // Endpoint to store published content
-router.post('/store-content', validateContent, async (req, res) => {
+router.post('/store-content', checkAirtableInitialized, validateContent, async (req, res) => {
   const { content } = req.body;
 
   try {
@@ -62,29 +68,16 @@ router.post('/store-content', validateContent, async (req, res) => {
   }
 });
 
-/**
- * Helper middleware to validate content in the request body.
- */
-function validateContent(req, res, next) {
-  const { content } = req.body;
-  if (!content || typeof content !== 'string' || content.trim() === '') {
-    return res.status(400).json({ message: 'Content is required and must be a non-empty string.' });
-  }
-  req.body.content = content.trim();
-  next();
-}
-
 // Attempt to initialize Airtable on startup
 if (!initializeAirtable()) {
   console.error('Airtable failed to initialize at startup.');
 }
 
 // Endpoint to track published content
-router.get('/track-content', async (req, res) => {
+router.get('/track-content', checkAirtableInitialized, async (req, res) => {
   const { page = 1, pageSize = 20, filter = '' } = req.query;
   const pageNum = parseInt(page, 10);
   const pageSizeNum = parseInt(pageSize, 10);
-
   // Validate pagination parameters
   if (isNaN(pageNum) || pageNum < 1) {
     return res.status(400).json({ message: 'Invalid page number' });
@@ -134,5 +127,4 @@ router.get('/track-content', async (req, res) => {
     res.status(500).json({ message: 'Error tracking content', error: error.message });
   }
 });
-
-module.exports = router;
+export default router;

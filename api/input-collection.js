@@ -2,7 +2,8 @@ import { authenticateUser } from './authenticationHelpers.js';
 
 const { storeRecord } = require('./airtable-integration');
 const express = require('express');
-const featureFlags = global.featureFlags || {};
+const featureFlags = require('./feature-flags');
+// Import feature flags from the dedicated module
 
 // Ensure the inputCollection flag is defined
 if (featureFlags.inputCollection === undefined) {
@@ -38,11 +39,16 @@ router.post('/submit-content', authenticateUser, async (req, res) => {
   }
 
   try {
-
     // Check if the inputCollection feature flag is enabled
     if (!featureFlags.inputCollection) {
       return res.status(403).json({ error: 'Content submission is currently disabled' });
     }
+
+    // Ensure user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
     // Store the submitted content
     const contentId = await storeContent(content);
     console.log(`Content submitted and stored with ID: ${contentId}`);
