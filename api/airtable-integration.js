@@ -58,7 +58,7 @@ router.post('/store-content', async (req, res) => {
   const sanitizedContent = content.trim();
 
   try {
-    const record = await table.create({ Content: content });
++    const record = await table.create({ Content: sanitizedContent });
     // Return only necessary information to avoid exposing sensitive data
     res.status(200).json({
       message: 'Content stored successfully',
