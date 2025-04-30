@@ -16,3 +16,16 @@ async function storeContent(content) {
   });
   return record.id;
 }
+
+const axios = require('axios');
+
+const fetchRSSFeed = async () => {
+  const rssFeedUrl = process.env.RSS_FEED_URL || 'https://example.com/rss-feed';
+  try {
+    const response = await axios.get(rssFeedUrl);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to fetch RSS feed from ${rssFeedUrl}:`, error);
+    throw new Error(`Failed to fetch RSS feed: ${error.message}`);
+  }
+};
