@@ -47,43 +47,43 @@ router.post('/approve-image', async (req, res) => {
 });  
 
 // Endpoint to regenerate image
-router.post('/regenerate-image', async (req, res) => {  
-  // Validate input  
-  if (!req.body || !req.body.context) {  
-    return res.status(400).json({ error: 'Context is required' });  
-  }  
-  const { context } = req.body;  
+router.post('/regenerate-image', async (req, res) => {
+  // Validate input
+  if (!req.body || !req.body.context) {
+    return res.status(400).json({ error: 'Context is required' });
+  }
+  const { context } = req.body;
 
-  try {  
-    // Simulate image regeneration using Hugging Face API  
-    const response = await huggingFaceClient.post('/regenerate-image', { context });  
-    res.json(response.data);  
-  } catch (error) {  
-    console.error('Error regenerating image:', error);  
-    const statusCode = error.response?.status || 500;  
-    const errorMessage = error.response?.data?.error || 'Failed to regenerate image';  
-    res.status(statusCode).json({ error: errorMessage });  
-    }  
-  });  
+  try {
+    // Simulate image regeneration using Hugging Face API
+    const response = await huggingFaceClient.post('/regenerate-image', { context });
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error regenerating image:', error);
+    const statusCode = error.response?.status || 500;
+    const errorMessage = error.response?.data?.error || 'Failed to regenerate image';
+    res.status(statusCode).json({ error: errorMessage });
+  }
+});
 
-  // Endpoint to upload image
-  router.post('/upload-image', async (req, res) => {
-    // Validate input
-    if (!req.body || !req.body.file) {
+// Endpoint to upload image
+router.post('/upload-image', async (req, res) => {
+  // Validate input
+  if (!req.body || !req.body.file) {
     return res.status(400).json({ error: 'File is required' });
-    }
-    const { file } = req.body;
+  }
+  const { file } = req.body;
 
-    try {
+  try {
     const response = await huggingFaceClient.uploadImage(file);
     res.json(response);
-    } catch (error) {
+  } catch (error) {
     console.error('Error uploading image:', error);
     const statusCode = error.response?.status || 500;
     const errorMessage = error.response?.data?.error || 'Failed to upload image';
     res.status(statusCode).json({ error: errorMessage });
-    }
-  });
+  }
+});
 
   // Endpoint to review image
 router.post('/review-image', async (req, res) => {

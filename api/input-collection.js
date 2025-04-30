@@ -33,6 +33,7 @@ router.post('/submit-content', async (req, res) => {
     res.status(500).json({ error: 'Failed to submit content' });
   }
 });
+
 // eslint-disable-next-line no-unused-vars
 router.get('/fetch-content', async (req, res) => {
   try {
