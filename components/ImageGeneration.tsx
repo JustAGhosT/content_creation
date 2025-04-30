@@ -6,11 +6,15 @@ interface ImageGenerationProps {
 }
 
 interface ImageResponse {
-  data: any;
+  data: {
+    url?: string;
+    id?: string;
+    // Add other specific properties from your API response
+  };
 }
 
 const ImageGeneration: React.FC<ImageGenerationProps> = ({ context }) => {
-  const [image, setImage] = useState<any>(null);
+  const [image, setImage] = useState<ImageResponse['data'] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -134,7 +138,7 @@ const ImageGeneration: React.FC<ImageGenerationProps> = ({ context }) => {
             type="file"
             accept="image/*"
             aria-label="Upload custom image"
-            onChange={(e) => uploadImage(e.target.files![0])}
+            onChange={(e) => e.target.files && e.target.files.length > 0 && uploadImage(e.target.files[0])}
             disabled={isLoading}
           />
           <p className="help-text">Upload a JPEG, PNG, or GIF image (max 5MB)</p>

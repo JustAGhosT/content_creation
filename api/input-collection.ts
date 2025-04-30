@@ -80,6 +80,5 @@ router.post('/submit-content', authenticateUser, async (req: Request, res: Respo
   }
 });
 
-router.use('/submit-content', authenticateUser);
 
 export default router;

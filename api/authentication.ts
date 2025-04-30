@@ -9,6 +9,10 @@ const router = express.Router();
 
 // Get JWT secret from environment variables
 const secretKey: string = process.env.JWT_SECRET as string;
+if (!secretKey.trim()) {
+  console.error('JWT_SECRET environment variable is empty');
+  process.exit(1);
+}
 
 // Validate required environment variables
 if (!secretKey) {
