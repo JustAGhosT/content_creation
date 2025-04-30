@@ -110,6 +110,7 @@ const ImageGeneration = ({ context }) => {
         {isLoading ? 'Generating...' : 'Generate Image'}
       </button>
       {error && <p>Error: {error}</p>}
+      {isLoading && <p>Loading...</p>}
       {feedback && <p className="feedback-message">{feedback}</p>}
       {image && (
         <div>
@@ -134,7 +135,7 @@ const ImageGeneration = ({ context }) => {
       )}
     </div>
   );
-};
+}
 
 ImageGeneration.propTypes = {
   context: PropTypes.string.isRequired
