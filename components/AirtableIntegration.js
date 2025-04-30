@@ -31,6 +31,8 @@ const AirtableIntegration = () => {
     <div>
       <h2>Airtable Integration</h2>
       {error && <p>Error: {error}</p>}
+      {loading && <p>Loading records...</p>}
+      {!loading && records.length === 0 && !error && <p>No records found</p>}
       <ul>
         {records.map((record) => (
           <li key={record.id}>
