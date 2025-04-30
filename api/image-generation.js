@@ -33,10 +33,7 @@ const authenticate = (req, res, next) => {
 const validate = (schema) => (req, res, next) => {
   const { error } = schema(req.body);
   if (error) {
-    return res.status(400).json({ error: error });
-  }
-  if (!req.body || !req.body.context) {
-    return res.status(400).json({ error: error ? error.toString() : 'Invalid request body' });
+    return res.status(400).json({ error: error.toString() });
   }
   next();
 };
