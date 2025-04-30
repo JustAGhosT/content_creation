@@ -161,7 +161,12 @@ router.post(
       } else if (action === 'reject') {
         response = await huggingFaceClient.rejectImage(image);
       } else if (action === 'regenerate') {
+      } else if (action === 'regenerate') {
+        if (!image.context) {
+          return res.status(400).json({ error: 'Context is required for regeneration' });
+        }
         response = await huggingFaceClient.regenerateImage(image.context);
+      }
       }
       res.json(response);
     } catch (error) {
