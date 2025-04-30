@@ -69,6 +69,13 @@ router.patch('/feature-flags/:feature', authenticateRequest, (req, res) => {
     return res.status(400).json({ message: 'Enabled status is required' });
   }
 
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ message: 'Enabled status must be a boolean' });
+  }
+
+  // …rest of the handler…
+});
+
   if (Object.hasOwn(featureFlags, feature)) {
     if (typeof featureFlags[feature] === 'object') {
       featureFlags[feature].enabled = enabled;
