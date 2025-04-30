@@ -75,8 +75,9 @@ router.post('/upload-image', async (req, res) => {
   const { file } = req.body;
 
   try {
-    const response = await huggingFaceClient.uploadImage(file);
-    res.json(response);
+    // Simulate image upload process using Hugging Face API
+    const response = await huggingFaceClient.post('/upload-image', { file });
+    res.json(response.data);
   } catch (error) {
     console.error('Error uploading image:', error);
     const statusCode = error.response?.status || 500;
@@ -100,7 +101,8 @@ router.post('/review-image', async (req, res) => {
     } else {
       return res.status(400).json({ error: 'Invalid action' });
     }
-    res.json(response);
+    // No need to send response here, as the delegated endpoint will handle it
+    return;
   } catch (error) {
     res.status(500).json({ error: 'Failed to review image' });
   }
