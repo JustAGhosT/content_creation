@@ -6,14 +6,21 @@ const PlatformConnectors = ({ content }) => {
   const [queue, setQueue] = useState([]);
   const [error, setError] = useState(null);
 
+  const [isLoading, setIsLoading] = useState(false);
+
   useEffect(() => {
     // Fetch available platforms
     const fetchPlatforms = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
         const response = await axios.get('/api/platforms');
         setPlatforms(response.data);
       } catch (err) {
-        setError(err.message);
+        const errorMessage = err.response?.data?.message || err.message;
+        setError(errorMessage);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -21,6 +28,10 @@ const PlatformConnectors = ({ content }) => {
   }, []);
 
   const addToQueue = (platform) => {
+    if (!content || Object.keys(content).length === 0) {
+      setError('Cannot add to queue: No valid content available');
+      return;
+    }
     setQueue([...queue, { platform, content }]);
   };
 
@@ -29,12 +40,28 @@ const PlatformConnectors = ({ content }) => {
     setQueue(updatedQueue);
   };
 
+  const [isApproving, setIsApproving] = useState(false);
+  const [approvalMessage, setApprovalMessage] = useState(null);
+
   const approveQueue = async () => {
+    if (queue.length === 0) {
+      setError('Cannot approve an empty queue');
+      return;
+    }
+
+    setIsApproving(true);
+    setError(null);
+    setApprovalMessage(null);
+
     try {
       const response = await axios.post('/api/approve-queue', { queue });
-      console.log('Queue approved:', response.data);
+      setApprovalMessage('Queue successfully approved!');
+      setQueue([]); // Clear the queue after successful approval
     } catch (err) {
-      setError(err.message);
+      const errorMessage = err.response?.data?.message || err.message;
+      setError(errorMessage);
+    } finally {
+      setIsApproving(false);
     }
   };
 

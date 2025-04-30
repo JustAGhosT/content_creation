@@ -4,29 +4,39 @@ import axios from 'axios';
 const ImageGeneration = ({ context }) => {
   const [image, setImage] = useState(null);
   const [error, setError] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const generateImage = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
       const response = await axios.post('/api/generate-image', { context });
       setImage(response.data);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const approveImage = async () => {
+    setFeedback(null);
+    setError(null);
     try {
-      const response = await axios.post('/api/approve-image', { image });
-      console.log('Image approved:', response.data);
+      await axios.post('/api/approve-image', { image });
+      setFeedback('Image approved successfully');
     } catch (err) {
       setError(err.message);
     }
   };
 
   const rejectImage = async () => {
+    setFeedback(null);
+    setError(null);
     try {
-      const response = await axios.post('/api/reject-image', { image });
-      console.log('Image rejected:', response.data);
+      await axios.post('/api/reject-image', { image });
+      setFeedback('Image rejected successfully');
     } catch (err) {
       setError(err.message);
     }
@@ -42,6 +52,20 @@ const ImageGeneration = ({ context }) => {
   };
 
   const uploadImage = async (file) => {
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    if (file && !allowedTypes.includes(file.type)) {
+      setError('Invalid file type. Please upload a JPEG, PNG, or GIF image.');
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file && file.size > maxSize) {
+      setError('File size too large. Maximum size is 5MB.');
+      return;
+    }
+
     const formData = new FormData();
     formData.append('file', file);
 
@@ -58,19 +82,34 @@ const ImageGeneration = ({ context }) => {
   };
 
   return (
-    <div>
-      <button onClick={generateImage}>Generate Image</button>
+    <div aria-live="polite">
+      <h3>Image Generation</h3>
+      <button
+        onClick={generateImage}
+        aria-label="Generate image based on context"
+        disabled={isLoading}
+      >
+        {isLoading ? 'Generating...' : 'Generate Image'}
+      </button>
       {error && <p>Error: {error}</p>}
+      {feedback && <p className="feedback-message">{feedback}</p>}
       {image && (
         <div>
-          <img src={image.url} alt="Generated" />
+          <img
+            src={image.url}
+            alt="AI generated based on context"
+            onError={() => setError('Failed to load image')}
+          />
           <button onClick={approveImage}>Approve Image</button>
           <button onClick={rejectImage}>Reject Image</button>
           <button onClick={regenerateImage}>Regenerate Image</button>
           <input
             type="file"
+            accept="image/*"
+            aria-label="Upload custom image"
             onChange={(e) => uploadImage(e.target.files[0])}
           />
+          <p className="help-text">Upload a JPEG, PNG, or GIF image (max 5MB)</p>
         </div>
       )}
     </div>

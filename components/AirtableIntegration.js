@@ -33,7 +33,7 @@ const AirtableIntegration = () => {
       {error && <p>Error: {error}</p>}
       <ul>
         {records.map((record) => (
-          <li key={record.id}>{record.fields.Name}</li>
+          <li key={record.id}>{record.fields.Name || record.id || 'Unnamed record'}</li> 
         ))}
       </ul>
     </div>
