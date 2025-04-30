@@ -35,29 +35,36 @@ const logAction = async (req, res, next) => {
   const writeLogEntry = async () => {
     try {
       let logs = [];
-      // Check if file exists before reading
-      if (fs.existsSync(logFilePath)) {
-        try {
+      // Ensure directory exists
+      const dir = path.dirname(logFilePath);
+      try {
+        await fs.promises.mkdir(dir, { recursive: true });
+      } catch (mkdirErr) {
+        // Directory creation failed
+        console.error('Failed to create log directory:', mkdirErr);
+        return;
+      }
+
+      // Read existing logs if file exists
+      try {
+        if (fs.existsSync(logFilePath)) {
           const data = await fs.promises.readFile(logFilePath, 'utf-8');
           logs = JSON.parse(data);
-        } catch (parseErr) {
-          console.error('Failed to parse log file:', parseErr);
-          // Continue with empty logs array
         }
-      } else {
-        // Create directory if it doesn't exist
-        const dir = path.dirname(logFilePath);
-        if (!fs.existsSync(dir)) {
-          await fs.promises.mkdir(dir, { recursive: true });
-        }
+      } catch (readErr) {
+        console.error('Failed to read or parse log file:', readErr);
+        // Continue with empty logs array
       }
 
       logs.push(logEntry);
 
-      // Write asynchronously to prevent blocking
-      await fs.promises.writeFile(logFilePath, JSON.stringify(logs, null, 2));
+      try {
+        await fs.promises.writeFile(logFilePath, JSON.stringify(logs, null, 2));
+      } catch (writeErr) {
+        console.error('Failed to write log entry:', writeErr);
+      }
     } catch (err) {
-      console.error('Failed to write log entry:', err);
+      console.error('Unexpected error in writeLogEntry:', err);
     }
   };
 
