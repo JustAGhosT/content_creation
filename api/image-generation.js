@@ -8,13 +8,20 @@ router.post('/generate-image', async (req, res) => {
   const { context } = req.body;
 
   try {
-    let response;
-    if (featureFlags.imageGeneration === 'huggingface') {
-      // Simulate image generation using Hugging Face API
-      response = await axios.post('https://api.huggingface.co/generate-image', { context });
-    } else {
-      return res.status(400).json({ error: 'Invalid image generation feature flag' });
-    }
+    try {
+      let response;
+      if (featureFlags.imageGeneration) {
+        // Simulate image generation using Hugging Face API
+        response = await axios.post(
+          'https://api.huggingface.co/generate-image',
+          { context }
+        );
+      } else {
+        return res
+          .status(400)
+          .json({ error: 'Image generation is not enabled' });
+      }
+      res.json(response.data);
     res.json(response.data);
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate image' });
