@@ -1,123 +1,45 @@
-import fs from 'fs';
-import path from 'path';
-import express from 'express';
-import { authenticateRequest } from '../middleware/auth.js';  
-const router = express.Router();
+router.post('/feature-flags', authenticateRequest, (req, res) => {
+  const { feature, enabled, implementation } = req.body;
 
-// Path to store feature flags
-const FEATURE_FLAGS_PATH = path.join(__dirname, '../data/feature-flags.json');
-
-// Ensure the data directory exists
-const dataDir = path.dirname(FEATURE_FLAGS_PATH);
-try {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-    console.log(`Created directory: ${dataDir}`);
+  // Validate input
+  if (!feature || typeof feature !== 'string') {
+    return res.status(400).json({ message: 'Feature name must be a non-empty string' });
   }
-} catch (error) {
-  console.error(`Failed to create directory: ${dataDir}`, error);
-}
 
-// Load feature flags from file or use defaults
-let featureFlags;
-try {
-  featureFlags = JSON.parse(fs.readFileSync(FEATURE_FLAGS_PATH, 'utf8'));
-  console.log('Feature flags loaded successfully');
-} catch (error) {
-  // Use default feature flags if file doesn't exist or is invalid
-  console.log('Using default feature flags:', error.message);
-  featureFlags = {
-    textParser: {
-      enabled: true,
-      implementation: 'deepseek' // Options: 'deepseek', 'openai', 'azure'
-    },
-    summarization: true,
-    imageGeneration: true,
-    platformConnectors: true,
-    airtableIntegration: true,
-    authentication: true,
-    notificationSystem: true,
-    feedbackMechanism: true,
-    auditTrail: true,
-    mobileResponsiveness: true,
-  };
-}
-
-// Function to save feature flags to file
-const saveFeatureFlags = () => {
-  try {
-    fs.writeFileSync(FEATURE_FLAGS_PATH, JSON.stringify(featureFlags, null, 2));
-  } catch (error) {
-    console.error('Failed to save feature flags:', error);
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ message: 'Enabled must be a boolean value' });
   }
-};
 
-// Get all feature flags
-router.get('/feature-flags', authenticateRequest, (_req, res) => {
-  res.json(featureFlags);
-});
+  // Only allow known properties
+  const allowedProps = ['feature', 'enabled', 'implementation'];
+  const invalidProps = Object.keys(req.body).filter(prop => !allowedProps.includes(prop));
+  if (invalidProps.length > 0) {
+    return res.status(400).json({ message: `Invalid properties in request body: ${invalidProps.join(', ')}` });
+  }
 
-// Update a feature flag  
-router.patch('/feature-flags/:feature', authenticateRequest, (req, res) => {  
-  // Validate content type  
-  if (!req.is('application/json')) {  
-    return res.status(415).json({ message: 'Content type must be application/json' });  
-  }  
-
-  // Validate request body structure  
-  const allowedProps = ['enabled', 'implementation'];  
-  const invalidProps = Object.keys(req.body).filter(prop => !allowedProps.includes(prop));  
-  if (invalidProps.length > 0) {  
-    return res.status(400).json({  
-      message: `Invalid properties in request body: ${invalidProps.join(', ')}`  
-    });  
-  }  
-
-  const { feature } = req.params;  
-  const { enabled, implementation } = req.body;  
-
-  if (!feature) {  
-    return res.status(400).json({ message: 'Feature name is required' });  
-  }  
-
-  if (typeof enabled === 'undefined') {  
-    return res.status(400).json({ message: 'Enabled status is required' });  
-  }  
-
-  if (typeof enabled !== 'boolean') {  
-    return res.status(400).json({ message: 'Enabled status must be a boolean' });  
-  }  
-
-  if (Object.hasOwn(featureFlags, feature)) {  
-    if (typeof featureFlags[feature] === 'object') {  
-      featureFlags[feature].enabled = enabled;  
-      if (implementation) {  
-        // Validate implementation values for textParser  
-        if (  
-          feature === 'textParser' &&  
-          !['deepseek', 'openai', 'azure'].includes(implementation)  
-        ) {  
-          return res.status(400).json({ message: 'Invalid implementation value' });  
-        }  
-        featureFlags[feature].implementation = implementation;  
-      }  
-    } else {  
-      featureFlags[feature] = enabled;  
-    }  
-
-    // Persist changes  
-    saveFeatureFlags();  
-    const saveSuccess = saveFeatureFlags();
-    if (saveSuccess) {
-      return res.status(200).json({ message: 'Feature flag updated successfully' });
+  if (Object.prototype.hasOwnProperty.call(featureFlags, feature)) {
+    if (typeof featureFlags[feature] === 'object') {
+      featureFlags[feature].enabled = enabled;
+      if (typeof implementation !== 'undefined') {
+        // Validate implementation values for textParser
+        if (
+          feature === 'textParser' &&
+          !['deepseek', 'openai', 'azure'].includes(implementation)
+        ) {
+          return res.status(400).json({ message: 'Invalid implementation value' });
+        }
+        featureFlags[feature].implementation = implementation;
+      }
     } else {
-      return res.status(500).json({
-      message: 'Feature flag updated in memory but failed to persist changes'
-      });
+      featureFlags[feature] = enabled;
     }
-
-    return res.status(400).json({ message: 'Invalid feature flag' });  
+    try {
+      saveFeatureFlags();
+      return res.status(200).json({ message: 'Feature flag updated successfully' });
+    } catch (err) {
+      return res.status(500).json({ message: 'Failed to persist feature flags' });
+    }
+  } else {
+    return res.status(400).json({ message: 'Invalid feature flag' });
   }
-});  
-
-export default router;
+});
