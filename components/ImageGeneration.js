@@ -22,6 +22,7 @@ const ImageGeneration = ({ context }) => {
   };
 
   const approveImage = async () => {
+    setIsLoading(true);
     setFeedback(null);
     setError(null);
     try {
@@ -29,6 +30,8 @@ const ImageGeneration = ({ context }) => {
       setFeedback('Image approved successfully');
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -110,13 +113,12 @@ const ImageGeneration = ({ context }) => {
       {feedback && <p className="feedback-message">{feedback}</p>}
       {image && (
         <div>
-          <img
-            src={image.url}
-            alt="AI generated based on context"
-            onError={() => setError('Failed to load image')}
-          />
-          <button onClick={approveImage}>Approve Image</button>
-          <button onClick={rejectImage}>Reject Image</button>
+          <button onClick={approveImage} disabled={isLoading}>
+            Approve Image
+          </button>
+          <button onClick={rejectImage} disabled={isLoading}>
+            Reject Image
+          </button>
           <button onClick={regenerateImage} disabled={isLoading}>
             {isLoading ? 'Regenerating...' : 'Regenerate Image'}
           </button>
