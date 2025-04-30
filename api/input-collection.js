@@ -1,7 +1,5 @@
-import { storeRecord } from './airtable-integration.js';
-import express from 'express';
-
-// Ensure the featureFlags object exists
+const { storeRecord } = require('./airtable-integration');
+const express = require('express');
 const featureFlags = global.featureFlags || {};
 
 // Ensure the inputCollection flag is defined
