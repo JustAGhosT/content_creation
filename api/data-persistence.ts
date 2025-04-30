@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import Airtable from 'airtable';
 import { FeatureFlags } from './feature-flags';
 
@@ -84,7 +84,10 @@ router.get('/track-content-page', async (req: AnalyticsRequest, res: Response) =
     }).firstPage();
 
     // Get the next offset for pagination
-    const nextOffset = result.length === parseInt(pageSize, 10) ? result[result.length - 1].getId() : null;
+    const pageSizeNum = parseInt(pageSize, 10);
+    const nextOffset = result.length > 0 && result.length === (isNaN(pageSizeNum) ? 20 : pageSizeNum)
+      ? result[result.length - 1].getId()
+      : null;
 
     res.status(200).json({
       records: result,

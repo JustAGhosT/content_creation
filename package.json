@@ -11,11 +11,14 @@
     "deploy": "npm run build && npm run export"
   },
   "dependencies": {
+    "express": "^5.1.0",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest"
   },
   "devDependencies": {
+    "@types/airtable": "^0.10.5",
+    "@types/express": "^5.0.1",
     "eslint": "latest",
     "eslint-config-next": "latest"
   },
