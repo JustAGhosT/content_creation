@@ -19,16 +19,14 @@ const authenticate = (req, res, next) => {
   if (!authHeader) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  // Add token verification logic here
-  // Example: JWT verification (pseudo-code)
-  // try {
-  //   const user = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET);
-  //   req.user = user;
-  //   next();
-  // } catch (err) {
-  //   return res.status(401).json({ error: 'Invalid token' });
-  // }
-  next();
+  try {
+    const token = authHeader.split(' ')[1];
+    const user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
 };
 
 // Simple validation middleware
@@ -36,6 +34,9 @@ const validate = (schema) => (req, res, next) => {
   const { error } = schema(req.body);
   if (error) {
     return res.status(400).json({ error: error });
+  }
+  if (!req.body || !req.body.context) {
+    return res.status(400).json({ error: error ? error.toString() : 'Invalid request body' });
   }
   next();
 };
