@@ -30,35 +30,57 @@ const authenticate = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-// Simple validation middleware
-const validate = (schema: (body: any) => { error?: string }) => (req: Request, res: Response, next: NextFunction) => {
-  const { error } = schema(req.body);
+// Define interfaces for request body validation
+interface ValidationResult {
+  error?: string;
+}
+
+interface ContextRequest {
+  context?: string;
+}
+
+interface ImageRequest {
+  image?: Record<string, any>;
+}
+
+interface FileRequest {
+  file?: any;
+}
+
+interface ReviewRequest {
+  image?: Record<string, any>;
+  action?: 'approve' | 'reject' | 'regenerate';
+}
+
+// Update the validate middleware to use a generic type
+const validate = <T>(schema: (body: T) => ValidationResult) => (req: Request, res: Response, next: NextFunction) => {
+  const { error } = schema(req.body as T);
   if (error) {
     return res.status(400).json({ error: error.toString() });
   }
   next();
 };
 
-// Validation schemas
-const validateContext = (body: any) => {
+// Validation schemas with proper typing
+const validateContext = (body: ContextRequest): ValidationResult => {
   if (!body || typeof body.context !== 'string' || !body.context.trim()) {
     return { error: 'Context is required and must be a non-empty string' };
   }
   return {};
 };
-const validateImage = (body: any) => {
+const validateImage = (body: ImageRequest): ValidationResult => {
   if (!body || typeof body.image !== 'object' || !body.image) {
     return { error: 'Invalid image data provided' };
   }
   return {};
 };
-const validateFile = (body: any) => {
+const validateFile = (body: FileRequest): ValidationResult => {
   if (!body || !body.file) {
     return { error: 'File is required' };
   }
   return {};
 };
-const validateReview = (body: any) => {
+const validateReview = (body: ReviewRequest): ValidationResult => {
   if (!body || !body.image || !body.action) {
     return { error: 'Image and action are required' };
   }
@@ -72,10 +94,9 @@ const validateReview = (body: any) => {
 router.use(authenticate);
 router.use(apiLimiter);
 
-// Endpoint to generate image
 router.post(
   '/generate-image',
-  validate(validateContext),
+  validate<ContextRequest>(validateContext),
   async (req: Request, res: Response) => {
     const { context } = req.body;
     try {
@@ -95,10 +116,9 @@ router.post(
   }
 );
 
-// Endpoint to approve image
 router.post(
   '/approve-image',
-  validate(validateImage),
+  validate<ImageRequest>(validateImage),
   async (req: Request, res: Response) => {
     const { image } = req.body;
     try {
@@ -113,10 +133,9 @@ router.post(
   }
 );
 
-// Endpoint to regenerate image
 router.post(
   '/regenerate-image',
-  validate(validateContext),
+  validate<ContextRequest>(validateContext),
   async (req: Request, res: Response) => {
     const { context } = req.body;
     try {
@@ -131,10 +150,9 @@ router.post(
   }
 );
 
-// Endpoint to upload image
 router.post(
   '/upload-image',
-  validate(validateFile),
+  validate<FileRequest>(validateFile),
   async (req: Request, res: Response) => {
     const { file } = req.body;
     try {
@@ -149,10 +167,9 @@ router.post(
   }
 );
 
-// Endpoint to review image
 router.post(
   '/review-image',
-  validate(validateReview),
+  validate<ReviewRequest>(validateReview),
   async (req: Request, res: Response) => {
     const { image, action } = req.body;
     try {
