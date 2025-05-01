@@ -1,33 +1,18 @@
-import axios from 'axios';
 import { NextApiRequest, NextApiResponse } from 'next';
-import {
-  getPlatformConfig,
-  Platform,
-  platforms
-} from '../config/platforms';
+import axios from 'axios';
+import { withAuth } from '../../middleware/withAuth';
+import { getPlatformConfig } from '../../config/platforms';
+import { QueueItem, PublishResult } from '../../types';
+import featureFlags from '../../utils/featureFlags';
 
-// Define content structure
-interface ContentType {
-  id?: string;
-  title?: string;
-  description?: string;
-  // Add other relevant fields
-}
-
-interface QueueItem {
-  platform: Platform;
-  content: ContentType;
-}
-
-interface PublishResult {
-  item: QueueItem;
-  error?: string;
-}
-
-// Handler for the approve-queue endpoint
-export async function approveQueue(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
+  }
+
+  // Check if platform connectors feature is enabled
+  if (!featureFlags.platformConnectors) {
+    return res.status(403).json({ message: 'Platform connectors feature is disabled' });
   }
 
   const { queue } = req.body as { queue: QueueItem[] };
@@ -81,7 +66,6 @@ export async function approveQueue(req: NextApiRequest, res: NextApiResponse) {
         results.failed.push({ item, error: errorMessage });
       }
     }
-
     if (results.failed.length === 0) {
       res.status(200).json({ message: 'Queue approved and published successfully', results });
     } else if (results.success.length === 0) {
@@ -94,51 +78,4 @@ export async function approveQueue(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-// Handler for the platforms endpoint
-export function getPlatforms(_req: NextApiRequest, res: NextApiResponse) {
-  res.json(platforms);
-}
-
-// Handler for the platform capabilities endpoint
-export function getPlatformCapabilities(req: NextApiRequest, res: NextApiResponse) {
-  const { id } = req.query;
-  const platformId = parseInt(id as string);
-  
-  if (isNaN(platformId)) {
-    return res.status(400).json({ message: 'Invalid platform ID' });
-  }
-  
-  const platform = platforms.find(p => p.id === platformId);
-  
-  if (!platform) {
-    return res.status(404).json({ message: 'Platform not found' });
-  }
-  
-  const config = getPlatformConfig(platform.name);
-  
-  if (!config) {
-    return res.status(404).json({ message: 'Platform configuration not found' });
-  }
-  
-  res.json({
-    platform,
-    capabilities: config.capabilities || []
-  });
-}
-
-// Main handler function that routes to the appropriate handler based on the request
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { method, query } = req;
-  
-  // Route to the appropriate handler based on the path and method
-  if (req.url?.endsWith('/approve-queue') && method === 'POST') {
-    return approveQueue(req, res);
-  } else if (req.url?.endsWith('/platforms') && method === 'GET') {
-    return getPlatforms(req, res);
-  } else if (req.url?.includes('/platforms/') && req.url?.includes('/capabilities') && method === 'GET') {
-    return getPlatformCapabilities(req, res);
-  }
-  
-  // If no route matches, return 404
-  return res.status(404).json({ message: 'Not found' });
-}
+export default withAuth(handler);
