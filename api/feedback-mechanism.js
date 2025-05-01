@@ -25,7 +25,7 @@ router.get('/feedback', async (req, res) => {
   const { reviewId } = req.query;
 
   try {
-    const feedbackItems = await getFeedback(reviewId ? { reviewId } : {});
+    const feedbackItems: FeedbackItem[] = await getFeedback(reviewId ? { reviewId: reviewId as string } : {});
     res.status(200).json(feedbackItems);
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving feedback', error: error.message });
