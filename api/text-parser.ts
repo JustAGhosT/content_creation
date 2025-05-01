@@ -1,6 +1,25 @@
 import express, { Request, Response, NextFunction } from 'express';
 import axios, { AxiosResponse } from 'axios';
 
+// Add this at the beginning of the file for environment variable validation
+function validateEnvironmentVariables(): void {
+  const requiredVars = [
+    'DEEPSEEK_API_ENDPOINT',
+    'OPENAI_API_ENDPOINT',
+    'AZURE_CONTENT_API_ENDPOINT'
+  ];
+  
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    process.exit(1);
+  }
+}
+
+// Validate environment variables at startup
+validateEnvironmentVariables();
+
 const router = express.Router();
 const featureFlags: { [key: string]: any } = global.featureFlags || {};
 
@@ -19,6 +38,15 @@ interface ParseRequest extends Request {
     rawInput: string;
   };
 }
+
+// Helper function to get API endpoints with fallbacks
+const getApiEndpoints = () => {
+  return {
+    deepseek: process.env.DEEPSEEK_API_ENDPOINT,
+    openai: process.env.OPENAI_API_ENDPOINT,
+    azure: process.env.AZURE_CONTENT_API_ENDPOINT
+  };
+};
 
 router.post('/analyze', async (req: AnalyzeRequest, res: Response) => {
   try {
@@ -71,19 +99,21 @@ router.post('/parse', async (req: ParseRequest, res: Response) => {
       return res.status(400).json({ error: 'Text parser feature is disabled' });
     }
 
+    const apiEndpoints = getApiEndpoints();
+    
     if (featureFlags.textParser.implementation === 'deepseek') {
       response = await axios.post(
-        process.env.DEEPSEEK_API_ENDPOINT!,
+        apiEndpoints.deepseek,
         { data: parsedData }
       );
     } else if (featureFlags.textParser.implementation === 'openai') {
       response = await axios.post(
-        process.env.OPENAI_API_ENDPOINT!,
+        apiEndpoints.openai,
         { data: parsedData }
       );
     } else if (featureFlags.textParser.implementation === 'azure') {
       response = await axios.post(
-        process.env.AZURE_CONTENT_API_ENDPOINT!,
+        apiEndpoints.azure,
         { data: parsedData }
       );
     } else {
@@ -106,7 +136,7 @@ router.post('/parse', async (req: ParseRequest, res: Response) => {
 
     res.status(status).json({
       error: message,
-      details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+      details: process.env.NODE_ENV !== 'production' ? (error as Error).message : undefined,
       service: featureFlags?.textParser?.implementation
     });
   }

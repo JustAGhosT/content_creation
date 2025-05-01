@@ -127,8 +127,11 @@ router.get('/analytics', async (req: AnalyticsRequest, res: Response) => {
       createdTime: record.fields.createdTime || record.createdTime
     }));
 
-    // Get the next offset for pagination
-    const nextOffset = result.length === parseInt(pageSize, 10) ? result[result.length - 1].getId() : null;
+    // Get the next offset for pagination - Fixed to handle empty array case
+    const pageSizeNum = parseInt(pageSize, 10);
+    const nextOffset = result.length > 0 && result.length === (isNaN(pageSizeNum) ? 20 : pageSizeNum)
+      ? result[result.length - 1].getId()
+      : null;
 
     res.status(200).json({
       analytics,
