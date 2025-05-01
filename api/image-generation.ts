@@ -1,12 +1,27 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction, RequestHandler } from 'express';
 import rateLimit from 'express-rate-limit';
 import { imageGeneration } from './feature-flags';
-import HuggingFaceClient from './huggingface-client';
-import jwt from 'jsonwebtoken';
+import HuggingFaceClient from './huggingface-api-client';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import { AxiosError } from 'axios';
 
 const router = Router();
 const huggingFaceClient = new HuggingFaceClient();
 
+// Define a custom interface for the user object
+interface UserPayload {
+  [key: string]: any;
+  isAdmin?: boolean;
+}
+
+// Extend the Express Request interface to include our user type
+declare global {
+  namespace Express {
+    interface Request {
+      user?: UserPayload;
+    }
+  }
+}
 // Rate limiting middleware
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -14,19 +29,28 @@ const apiLimiter = rateLimit({
   message: 'Too many requests, please try again later'
 });
 
-// Authentication middleware
-const authenticate = (req: Request, res: Response, next: NextFunction) => {
+// Authentication middleware - fixed to handle JWT payload properly
+const authenticate: RequestHandler = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
-    return res.status(401).json({ error: 'Authentication required' });
+    res.status(401).json({ error: 'Authentication required' });
+    return;
   }
   try {
     const token = authHeader.split(' ')[1];
-    const user = jwt.verify(token, process.env.JWT_SECRET as string);
-    req.user = user;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+    
+    // Convert the JWT payload to our UserPayload type
+    if (typeof decoded === 'string') {
+      // If it's a string, create a simple user object
+      req.user = { id: decoded };
+    } else {
+      // If it's a JwtPayload, use it directly
+      req.user = decoded as UserPayload;
+    }
     next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
+  } catch (err: unknown) {
+    res.status(401).json({ error: 'Invalid token' });
   }
 };
 
@@ -52,11 +76,12 @@ interface ReviewRequest {
   action?: 'approve' | 'reject' | 'regenerate';
 }
 
-// Update the validate middleware to use a generic type
-const validate = <T>(schema: (body: T) => ValidationResult) => (req: Request, res: Response, next: NextFunction) => {
+// Update the validate middleware to not return a value
+const validate = <T>(schema: (body: T) => ValidationResult): RequestHandler => (req, res, next) => {
   const { error } = schema(req.body as T);
   if (error) {
-    return res.status(400).json({ error: error.toString() });
+    res.status(400).json({ error: error.toString() });
+    return;
   }
   next();
 };
@@ -94,83 +119,104 @@ const validateReview = (body: ReviewRequest): ValidationResult => {
 router.use(authenticate);
 router.use(apiLimiter);
 
+// Fixed route handlers to be properly typed as RequestHandler with proper error handling
 router.post(
   '/generate-image',
   validate<ContextRequest>(validateContext),
-  async (req: Request, res: Response) => {
+  (async (req: Request, res: Response) => {
     const { context } = req.body;
     try {
       if (!imageGeneration) {
-        return res
-          .status(400)
-          .json({ error: 'Image generation is not enabled' });
+        res.status(400).json({ error: 'Image generation is not enabled' });
+        return;
       }
       const response = await huggingFaceClient.generateImage(context);
       res.json(response.data || response);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error generating image:', error);
-      const statusCode = error.response?.status || 500;
-      const errorMessage = error.response?.data?.error || 'Failed to generate image';
+      let statusCode = 500;
+      let errorMessage = 'Failed to generate image';
+      
+      if (error instanceof AxiosError) {
+        statusCode = error.response?.status || 500;
+        errorMessage = error.response?.data?.error || errorMessage;
+      }
       res.status(statusCode).json({ error: errorMessage });
     }
-  }
+  }) as RequestHandler
 );
 
 router.post(
   '/approve-image',
   validate<ImageRequest>(validateImage),
-  async (req: Request, res: Response) => {
+  (async (req: Request, res: Response) => {
     const { image } = req.body;
     try {
       const response = await huggingFaceClient.approveImage(image);
       res.json(response);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error approving image:', error);
-      const statusCode = error.response?.status || 500;
-      const errorMessage = error.response?.data?.error || 'Failed to approve image';
+      let statusCode = 500;
+      let errorMessage = 'Failed to approve image';
+      
+      if (error instanceof AxiosError) {
+        statusCode = error.response?.status || 500;
+        errorMessage = error.response?.data?.error || errorMessage;
+      }
       res.status(statusCode).json({ error: errorMessage });
     }
-  }
+  }) as RequestHandler
 );
 
 router.post(
   '/regenerate-image',
   validate<ContextRequest>(validateContext),
-  async (req: Request, res: Response) => {
+  (async (req: Request, res: Response) => {
     const { context } = req.body;
     try {
       const response = await huggingFaceClient.post('/regenerate-image', { context });
       res.json(response.data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error regenerating image:', error);
-      const statusCode = error.response?.status || 500;
-      const errorMessage = error.response?.data?.error || 'Failed to regenerate image';
+      let statusCode = 500;
+      let errorMessage = 'Failed to regenerate image';
+      
+      if (error instanceof AxiosError) {
+        statusCode = error.response?.status || 500;
+        errorMessage = error.response?.data?.error || errorMessage;
+      }
       res.status(statusCode).json({ error: errorMessage });
     }
-  }
+  }) as RequestHandler
 );
 
 router.post(
   '/upload-image',
   validate<FileRequest>(validateFile),
-  async (req: Request, res: Response) => {
+  (async (req: Request, res: Response) => {
     const { file } = req.body;
     try {
       const response = await huggingFaceClient.uploadImage(file);
       res.json(response);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error uploading image:', error);
-      const statusCode = error.response?.status || 500;
-      const errorMessage = error.response?.data?.error || 'Failed to upload image';
+      let statusCode = 500;
+      let errorMessage = 'Failed to upload image';
+      
+      if (error instanceof AxiosError) {
+        statusCode = error.response?.status || 500;
+        errorMessage = error.response?.data?.error || errorMessage;
+      }
+      
       res.status(statusCode).json({ error: errorMessage });
     }
-  }
+  }) as RequestHandler
 );
 
 router.post(
   '/review-image',
   validate<ReviewRequest>(validateReview),
-  async (req: Request, res: Response) => {
+  (async (req: Request, res: Response) => {
     const { image, action } = req.body;
     try {
       let response;
@@ -180,18 +226,24 @@ router.post(
         response = await huggingFaceClient.rejectImage(image);
       } else if (action === 'regenerate') {
         if (!image.context) {
-          return res.status(400).json({ error: 'Context is required for regeneration' });
+          res.status(400).json({ error: 'Context is required for regeneration' });
+          return;
         }
         response = await huggingFaceClient.regenerateImage(image.context);
       }
       res.json(response);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`Error processing ${action} action:`, error);
-      const statusCode = error.response?.status || 500;
-      const errorMessage = error.response?.data?.error || `Failed to ${action} image`;
+      let statusCode = 500;
+      let errorMessage = `Failed to ${action} image`;
+      
+      if (error instanceof AxiosError) {
+        statusCode = error.response?.status || 500;
+        errorMessage = error.response?.data?.error || errorMessage;
+      }
+      
       res.status(statusCode).json({ error: errorMessage });
     }
-  }
+  }) as RequestHandler
 );
-
 export default router;

@@ -1,48 +1,23 @@
 import express, { Request, Response, NextFunction } from 'express';
 import axios from 'axios';
+import { 
+  platforms, 
+  getPlatformConfig, 
+  Platform, 
+  PlatformConfig 
+} from '../config/platforms';
 
 const router = express.Router();
-
-interface Platform {
-  id: number;
-  name: string;
-}
 
 interface QueueItem {
   platform: Platform;
   content: string;
 }
 
-interface PlatformConfig {
-  apiUrl: string;
-  apiKey: string;
-  headers?: Record<string, string>;
-}
-
 interface PublishResult {
   item: QueueItem;
   error?: string;
 }
-
-const platforms: Platform[] = [
-  { id: 1, name: 'Facebook' },
-  { id: 2, name: 'Instagram' },
-  { id: 3, name: 'LinkedIn' },
-  { id: 4, name: 'Twitter' },
-  { id: 5, name: 'Custom Channel' }
-];
-
-const platformConfigurations: Record<string, PlatformConfig> = {
-  facebook: {
-    apiUrl: 'https://api.facebook.com/publish',
-    apiKey: process.env.FACEBOOK_API_KEY || '',
-  },
-  'custom channel': {
-    apiUrl: 'https://api.customchannel.com/publish',
-    apiKey: process.env.CUSTOM_CHANNEL_API_KEY || '',
-    headers: { 'Authorization': `Bearer ${process.env.CUSTOM_CHANNEL_API_KEY}` }
-  }
-};
 
 router.post('/approve-queue', async (req: Request, res: Response, next: NextFunction) => {
   const { queue }: { queue: QueueItem[] } = req.body;
@@ -60,9 +35,20 @@ router.post('/approve-queue', async (req: Request, res: Response, next: NextFunc
         continue;
       }
 
-      const platformConfig = platformConfigurations[item.platform.name.toLowerCase()];
+      const platformName = item.platform.name.toLowerCase();
+      const platformConfig = getPlatformConfig(platformName);
+      
       if (!platformConfig) {
-        results.failed.push({ item, error: 'Platform configuration not found' });
+        results.failed.push({ item, error: `Platform configuration not found for ${platformName}` });
+        continue;
+      }
+
+      // Check if API key is missing for a required platform
+      if (platformConfig.required && !platformConfig.apiKey) {
+        results.failed.push({ 
+          item, 
+          error: `API key for ${platformName} is not configured. Please set the ${platformName.toUpperCase().replace(/\s+/g, '_')}_API_KEY environment variable.` 
+        });
         continue;
       }
 
@@ -72,12 +58,18 @@ router.post('/approve-queue', async (req: Request, res: Response, next: NextFunc
         }, {
           headers: {
             ...platformConfig.headers,
-            'Authorization': `Bearer ${platformConfig.apiKey}`
+            'Authorization': platformConfig.headers?.Authorization || `Bearer ${platformConfig.apiKey}`
           }
         });
         results.success.push(item);
       } catch (err) {
-        results.failed.push({ item, error: (err as Error).message });
+        const error = err as Error;
+        // Add more context to the error if it might be API key related
+        const errorMessage = !platformConfig.apiKey 
+          ? `${error.message} (This may be due to missing API key)`
+          : error.message;
+        
+        results.failed.push({ item, error: errorMessage });
       }
     }
 
@@ -93,8 +85,34 @@ router.post('/approve-queue', async (req: Request, res: Response, next: NextFunc
   }
 });
 
-router.get('/platforms', (req: Request, res: Response) => {
+router.get('/platforms', (_req: Request, res: Response) => {
   res.json(platforms);
+});
+
+// New endpoint to get platform capabilities
+router.get('/platforms/:id/capabilities', (req: Request, res: Response) => {
+  const platformId = parseInt(req.params.id);
+  
+  if (isNaN(platformId)) {
+    return res.status(400).json({ message: 'Invalid platform ID' });
+  }
+  
+  const platform = platforms.find(p => p.id === platformId);
+  
+  if (!platform) {
+    return res.status(404).json({ message: 'Platform not found' });
+  }
+  
+  const config = getPlatformConfig(platform.name);
+  
+  if (!config) {
+    return res.status(404).json({ message: 'Platform configuration not found' });
+  }
+  
+  res.json({
+    platform,
+    capabilities: config.capabilities || []
+  });
 });
 
 export default router;
