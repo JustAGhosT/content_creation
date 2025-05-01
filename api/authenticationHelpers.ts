@@ -1,12 +1,13 @@
+import { Request, Response, NextFunction } from 'express';
 
-function authenticateUser(req, res, next) {  
+function authenticateUser(req: Request, res: Response, next: NextFunction): void {  
     if (!req.user) {  
         return res.status(401).json({ message: 'Authentication required' });  
     }  
     next();  
 }  
 
-function authorizeAdmin(req, res, next) {
+function authorizeAdmin(req: Request, res: Response, next: NextFunction): void {
     if (!req.user) {
         return res.status(401).json({ message: 'Authentication required' });
     }
@@ -16,7 +17,7 @@ function authorizeAdmin(req, res, next) {
     next();
 }
 
-module.exports = {
+export {
     authenticateUser,
     authorizeAdmin,
 };

@@ -1,20 +1,20 @@
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+import express, { Request, Response, NextFunction } from 'express';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import rateLimit from 'express-rate-limit';
+import { findUserByUsername, verifyUserCredentials, getUserById } from '../models/user';
+import { addToTokenBlacklist, isTokenBlacklisted } from './authenticationHelpers';
+
 const router = express.Router();
-const { findUserByUsername, verifyUserCredentials, getUserById } = require('../models/user');
-const { addToTokenBlacklist, isTokenBlacklisted } = require('./authenticationHelpers');
 
 // Get JWT secret from environment variables
-const secretKey = process.env.JWT_SECRET;
+const secretKey: string = process.env.JWT_SECRET as string;
 
 // Validate required environment variables
 if (!secretKey) {
   console.error('JWT_SECRET environment variable is required');
   process.exit(1);
 }
-
-const rateLimit = require('express-rate-limit');
 
 // Rate limiter for login attempts
 const loginLimiter = rateLimit({
@@ -25,8 +25,8 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-router.post('/login', loginLimiter, async (req, res) => {
-  const { username, password } = req.body;
+router.post('/login', loginLimiter, async (req: Request, res: Response) => {
+  const { username, password }: { username: string; password: string } = req.body;
 
   // Validate inputs
   if (!username || !password) {
@@ -76,7 +76,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 });
 
 // Middleware for verifying JWT token
-const authenticateToken = async (req, res, next) => {
+const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -89,7 +89,7 @@ const authenticateToken = async (req, res, next) => {
       return res.status(401).json({ message: 'Token has been revoked' });
     }
 
-    const decoded = jwt.verify(token, secretKey);
+    const decoded = jwt.verify(token, secretKey) as JwtPayload;
 
     // Check if token has expired
     const now = Math.floor(Date.now() / 1000);
@@ -105,7 +105,7 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
-router.get('/user', authenticateToken, async (req, res) => {
+router.get('/user', authenticateToken, async (req: Request, res: Response) => {
   try {
     // Get user from database by ID
     const user = await getUserById(req.user.id);
@@ -126,7 +126,7 @@ router.get('/user', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/logout', authenticateToken, async (req, res) => {  
+router.post('/logout', authenticateToken, async (req: Request, res: Response) => {  
   try {  
     // Add the token to a blacklist in Redis or another fast database  
     // Extract token from authorization header  
@@ -134,7 +134,7 @@ router.post('/logout', authenticateToken, async (req, res) => {
     
     if (token) {  
       // Calculate remaining time until token expiration  
-      const decoded = jwt.decode(token);  
+      const decoded = jwt.decode(token) as JwtPayload;  
       
       // Ensure decoded contains expiration
       if (!decoded || !decoded.exp) {
@@ -160,4 +160,4 @@ router.post('/logout', authenticateToken, async (req, res) => {
   }  
 });
 
-module.exports = router;
+export default router;

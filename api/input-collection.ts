@@ -1,16 +1,33 @@
-import { authenticateUser } from './authenticationHelpers.js';
+import { Request, Response, NextFunction, Router } from 'express';
+import { authenticateUser } from './authenticationHelpers';
+import { storeRecord } from './airtable-integration';
+import featureFlags from './feature-flags';
 
-const { storeRecord } = require('./airtable-integration');
-const express = require('express');
-const featureFlags = require('./feature-flags');
-// Import feature flags from the dedicated module
+interface Content {
+  title: string;
+  body: string;
+}
+
+interface User {
+  id: string;
+  username: string;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+    }
+  }
+}
 
 // Ensure the inputCollection flag is defined
 if (featureFlags.inputCollection === undefined) {
   console.warn('`inputCollection` feature flag is not defined; defaulting to false.');
   featureFlags.inputCollection = false;
 }
-async function storeContent(content) {
+
+async function storeContent(content: Content): Promise<string> {
   const record = await storeRecord('ContentTable', {
     title: content.title,
     body: content.body,
@@ -19,10 +36,10 @@ async function storeContent(content) {
   return record.id;
 }
 
-const router = express.Router();
+const router = Router();
 
 // HTTP Endpoint for manual content submission
-router.post('/submit-content', authenticateUser, async (req, res) => {
+router.post('/submit-content', authenticateUser, async (req: Request, res: Response, next: NextFunction) => {
   const { content } = req.body;
 
   if (!content) {
@@ -62,7 +79,7 @@ router.post('/submit-content', authenticateUser, async (req, res) => {
     res.status(500).json({ error: 'Failed to submit content' });
   }
 });
+
 router.use('/submit-content', authenticateUser);
-// No duplicate helper function needed; already defined above
 
 export default router;

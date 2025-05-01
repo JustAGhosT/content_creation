@@ -1,11 +1,11 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import { Request, Response, NextFunction } from 'express';
 
 /**
  * API route handler for the mobile responsiveness endpoint.
  *
  * Responds with a JSON confirmation message for GET requests. Returns a 405 status code with an error message for all other HTTP methods.
  */
-export default function handler(req, res) {
+export default function handler(req: Request, res: Response, next: NextFunction) {
   if (req.method === 'GET') {
     res.status(200).json({ message: 'Mobile responsiveness API is working' });
   } else {

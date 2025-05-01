@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const NotificationSystem = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [error, setError] = useState(null);
+interface Notification {
+  type: string;
+  message: string;
+}
+
+const NotificationSystem: React.FC = () => {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -11,19 +16,19 @@ const NotificationSystem = () => {
         const response = await axios.get('/api/notifications');
         setNotifications(response.data);
       } catch (err) {
-        setError(err.message);
+        setError((err as Error).message);
       }
     };
 
     fetchNotifications();
   }, []);
 
-  const sendNotification = async (type, message) => {
+  const sendNotification = async (type: string, message: string) => {
     try {
       const response = await axios.post('/api/notifications', { type, message });
       setNotifications([...notifications, response.data]);
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     }
   };
 
@@ -36,7 +41,10 @@ const NotificationSystem = () => {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const { type, message } = e.target.elements;
+            const { type, message } = e.target.elements as typeof e.target.elements & {
+              type: { value: string };
+              message: { value: string };
+            };
             sendNotification(type.value, message.value);
           }}
         >

@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { imageGeneration } from './feature-flags';
 import HuggingFaceClient from './huggingface-client';
-import jwt from 'jsonwebtoken'
+import jwt from 'jsonwebtoken';
 
 const router = Router();
 const huggingFaceClient = new HuggingFaceClient();
@@ -15,14 +15,14 @@ const apiLimiter = rateLimit({
 });
 
 // Authentication middleware
-const authenticate = (req, res, next) => {
+const authenticate = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     return res.status(401).json({ error: 'Authentication required' });
   }
   try {
     const token = authHeader.split(' ')[1];
-    const user = jwt.verify(token, process.env.JWT_SECRET);
+    const user = jwt.verify(token, process.env.JWT_SECRET as string);
     req.user = user;
     next();
   } catch (err) {
@@ -31,7 +31,7 @@ const authenticate = (req, res, next) => {
 };
 
 // Simple validation middleware
-const validate = (schema) => (req, res, next) => {
+const validate = (schema: (body: any) => { error?: string }) => (req: Request, res: Response, next: NextFunction) => {
   const { error } = schema(req.body);
   if (error) {
     return res.status(400).json({ error: error.toString() });
@@ -40,25 +40,25 @@ const validate = (schema) => (req, res, next) => {
 };
 
 // Validation schemas
-const validateContext = (body) => {
+const validateContext = (body: any) => {
   if (!body || typeof body.context !== 'string' || !body.context.trim()) {
     return { error: 'Context is required and must be a non-empty string' };
   }
   return {};
 };
-const validateImage = (body) => {
+const validateImage = (body: any) => {
   if (!body || typeof body.image !== 'object' || !body.image) {
     return { error: 'Invalid image data provided' };
   }
   return {};
 };
-const validateFile = (body) => {
+const validateFile = (body: any) => {
   if (!body || !body.file) {
     return { error: 'File is required' };
   }
   return {};
 };
-const validateReview = (body) => {
+const validateReview = (body: any) => {
   if (!body || !body.image || !body.action) {
     return { error: 'Image and action are required' };
   }
@@ -76,7 +76,7 @@ router.use(apiLimiter);
 router.post(
   '/generate-image',
   validate(validateContext),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const { context } = req.body;
     try {
       if (!imageGeneration) {
@@ -87,18 +87,19 @@ router.post(
       const response = await huggingFaceClient.generateImage(context);
       res.json(response.data || response);
     } catch (error) {
-    console.error('Error generating image:', error);
-    const statusCode = error.response?.status || 500;
-    const errorMessage = error.response?.data?.error || 'Failed to generate image';
-   res.status(statusCode).json({ error: errorMessage });
+      console.error('Error generating image:', error);
+      const statusCode = error.response?.status || 500;
+      const errorMessage = error.response?.data?.error || 'Failed to generate image';
+      res.status(statusCode).json({ error: errorMessage });
+    }
   }
-});
+);
 
 // Endpoint to approve image
 router.post(
   '/approve-image',
   validate(validateImage),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const { image } = req.body;
     try {
       const response = await huggingFaceClient.approveImage(image);
@@ -116,7 +117,7 @@ router.post(
 router.post(
   '/regenerate-image',
   validate(validateContext),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const { context } = req.body;
     try {
       const response = await huggingFaceClient.post('/regenerate-image', { context });
@@ -134,7 +135,7 @@ router.post(
 router.post(
   '/upload-image',
   validate(validateFile),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const { file } = req.body;
     try {
       const response = await huggingFaceClient.uploadImage(file);
@@ -152,7 +153,7 @@ router.post(
 router.post(
   '/review-image',
   validate(validateReview),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const { image, action } = req.body;
     try {
       let response;

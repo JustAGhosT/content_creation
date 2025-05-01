@@ -1,9 +1,30 @@
-const express = require('express');
-const router = express.Router();
-const axios = require('axios');
+import express, { Request, Response, NextFunction } from 'express';
+import axios from 'axios';
 
-// Mock data for platforms
-const platforms = [
+const router = express.Router();
+
+interface Platform {
+  id: number;
+  name: string;
+}
+
+interface QueueItem {
+  platform: Platform;
+  content: string;
+}
+
+interface PlatformConfig {
+  apiUrl: string;
+  apiKey: string;
+  headers?: Record<string, string>;
+}
+
+interface PublishResult {
+  item: QueueItem;
+  error?: string;
+}
+
+const platforms: Platform[] = [
   { id: 1, name: 'Facebook' },
   { id: 2, name: 'Instagram' },
   { id: 3, name: 'LinkedIn' },
@@ -11,39 +32,34 @@ const platforms = [
   { id: 5, name: 'Custom Channel' }
 ];
 
-// Platform-specific configurations (mocked for demonstration)
-const platformConfigurations = {
+const platformConfigurations: Record<string, PlatformConfig> = {
   facebook: {
     apiUrl: 'https://api.facebook.com/publish',
-    apiKey: process.env.FACEBOOK_API_KEY,
+    apiKey: process.env.FACEBOOK_API_KEY || '',
   },
   'custom channel': {
     apiUrl: 'https://api.customchannel.com/publish',
-    apiKey: process.env.CUSTOM_CHANNEL_API_KEY,
+    apiKey: process.env.CUSTOM_CHANNEL_API_KEY || '',
     headers: { 'Authorization': `Bearer ${process.env.CUSTOM_CHANNEL_API_KEY}` }
   }
 };
-// Endpoint to approve pre-publishing queue
-router.post('/approve-queue', async (req, res) => {
-  const { queue } = req.body;
 
-  // Validate queue structure
+router.post('/approve-queue', async (req: Request, res: Response, next: NextFunction) => {
+  const { queue }: { queue: QueueItem[] } = req.body;
+
   if (!Array.isArray(queue) || !queue.length) {
     return res.status(400).json({ message: 'Queue must be a non-empty array' });
   }
 
-  const results = { success: [], failed: [] };
+  const results: { success: QueueItem[]; failed: PublishResult[] } = { success: [], failed: [] };
 
   try {
-    // Simulate publishing to each platform
     for (const item of queue) {
-      // Validate item structure
       if (!item.platform || !item.platform.name || !item.content) {
         results.failed.push({ item, error: 'Invalid item structure' });
         continue;
       }
 
-      // Get platform-specific configuration instead of constructing URL
       const platformConfig = platformConfigurations[item.platform.name.toLowerCase()];
       if (!platformConfig) {
         results.failed.push({ item, error: 'Platform configuration not found' });
@@ -61,11 +77,10 @@ router.post('/approve-queue', async (req, res) => {
         });
         results.success.push(item);
       } catch (err) {
-        results.failed.push({ item, error: err.message });
+        results.failed.push({ item, error: (err as Error).message });
       }
     }
 
-    // Return appropriate response based on results
     if (results.failed.length === 0) {
       res.status(200).json({ message: 'Queue approved and published successfully', results });
     } else if (results.success.length === 0) {
@@ -74,15 +89,12 @@ router.post('/approve-queue', async (req, res) => {
       res.status(207).json({ message: 'Some items published successfully', results });
     }
   } catch (error) {
-    res.status(500).json({ message: 'Error publishing queue', error: error.message });
+    next(error);
   }
 });
 
-// Endpoint to get available platforms
-router.get('/platforms', (req, res) => {
+router.get('/platforms', (req: Request, res: Response) => {
   res.json(platforms);
 });
 
-
-
-module.exports = router;
+export default router;

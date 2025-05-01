@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import Airtable from 'airtable';
+import Airtable, { FieldSet, Records } from 'airtable';
 
-const AirtableIntegration = () => {
-  const [records, setRecords] = useState([]);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+interface Record {
+  id: string;
+  fields: {
+    Name?: string;
+  };
+}
+
+const AirtableIntegration: React.FC = () => {
+  const [records, setRecords] = useState<Record[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchRecords = async () => {
@@ -15,10 +22,10 @@ const AirtableIntegration = () => {
         }).base(process.env.REACT_APP_AIRTABLE_BASE_ID);
         const table = base(process.env.REACT_APP_AIRTABLE_TABLE_NAME);
 
-        const records = await table.select().all();
-        setRecords(records);
+        const records: Records<FieldSet> = await table.select().all();
+        setRecords(records as Record[]);
       } catch (err) {
-        setError(err.message);
+        setError((err as Error).message);
       } finally {
         setLoading(false);
       }

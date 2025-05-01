@@ -1,13 +1,44 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 const router = express.Router();
-import Airtable from 'airtable';
+import Airtable, { FieldSet, Records, Table } from 'airtable';
+
+interface ContentRequest extends Request {
+  body: {
+    content: string;
+  };
+}
+
+interface TrackContentRequest extends Request {
+  query: {
+    page?: string;
+    pageSize?: string;
+    filter?: string;
+    nextToken?: string;
+  };
+}
+
+interface QueryOptions {
+  maxRecords: number;
+  pageSize: number;
+  offset?: string;
+}
+
+interface Pagination {
+  page: number;
+  pageSize: number;
+  hasMorePages: boolean;
+}
+
+interface TrackContentResponse {
+  data: Records<FieldSet>;
+  pagination: Pagination;
+}
 
 // Initialize Airtable
-// Validate required environment variables
-let base;
-let table;
+let base: Airtable.Base | undefined;
+let table: Table<FieldSet> | undefined;
 
-function initializeAirtable() {
+function initializeAirtable(): boolean {
   if (
     !process.env.AIRTABLE_API_KEY ||
     !process.env.AIRTABLE_BASE_ID ||
@@ -30,7 +61,7 @@ function initializeAirtable() {
 }
 
 // Middleware to check if Airtable is initialized
-const checkAirtableInitialized = (req, res, next) => {
+const checkAirtableInitialized = (req: Request, res: Response, next: NextFunction) => {
   if (!base || !table) {
     return res.status(503).json({
       message: 'Airtable integration not available',
@@ -40,9 +71,8 @@ const checkAirtableInitialized = (req, res, next) => {
   next();
 };
 
-// Endpoint to store published content
 // Middleware to validate content in request body
-function validateContent(req, res, next) {
+function validateContent(req: ContentRequest, res: Response, next: NextFunction) {
   const { content } = req.body;
   if (!content || typeof content !== 'string' || content.trim() === '') {
     return res.status(400).json({ message: 'Content is required and must be a non-empty string.' });
@@ -52,12 +82,11 @@ function validateContent(req, res, next) {
 }
 
 // Endpoint to store published content
-router.post('/store-content', checkAirtableInitialized, validateContent, async (req, res) => {
+router.post('/store-content', checkAirtableInitialized, validateContent, async (req: ContentRequest, res: Response) => {
   const { content } = req.body;
 
   try {
-    const record = await table.create({ Content: content });
-    // Return only necessary information to avoid exposing sensitive data
+    const record = await table!.create({ Content: content });
     res.status(200).json({
       message: 'Content stored successfully',
       recordId: record.id
@@ -74,11 +103,11 @@ if (!initializeAirtable()) {
 }
 
 // Endpoint to track published content
-router.get('/track-content', checkAirtableInitialized, async (req, res) => {
-  const { page = 1, pageSize = 20, filter = '' } = req.query;
+router.get('/track-content', checkAirtableInitialized, async (req: TrackContentRequest, res: Response) => {
+  const { page = '1', pageSize = '20', filter = '' } = req.query;
   const pageNum = parseInt(page, 10);
   const pageSizeNum = parseInt(pageSize, 10);
-  // Validate pagination parameters
+
   if (isNaN(pageNum) || pageNum < 1) {
     return res.status(400).json({ message: 'Invalid page number' });
   }
@@ -87,10 +116,7 @@ router.get('/track-content', checkAirtableInitialized, async (req, res) => {
   }
 
   try {
-    // Fetch records from Airtable
-    // Do not use user input in Airtable formula to avoid injection risks.
-    // Fetch records without filtering; filter will be applied in application code below.
-    const queryOptions = {
+    const queryOptions: QueryOptions = {
       maxRecords: pageSizeNum + 1,
       pageSize: pageSizeNum + 1
     };
@@ -99,9 +125,8 @@ router.get('/track-content', checkAirtableInitialized, async (req, res) => {
       queryOptions.offset = req.query.nextToken;
     }
 
-    let records = await table.select(queryOptions).all();
+    let records = await table!.select(queryOptions).all();
 
-    // Filter in application code if filter is provided
     if (filter && typeof filter === 'string' && filter.trim() !== '') {
       const filterLower = filter.trim().toLowerCase();
       records = records.filter(record => {
@@ -110,21 +135,23 @@ router.get('/track-content', checkAirtableInitialized, async (req, res) => {
       });
     }
 
-    // Check if there are more pages
     const hasMore = records.length > pageSizeNum;
     const resultsToReturn = hasMore ? records.slice(0, pageSizeNum) : records;
 
-    res.status(200).json({
+    const response: TrackContentResponse = {
       data: resultsToReturn,
       pagination: {
         page: pageNum,
         pageSize: pageSizeNum,
         hasMorePages: hasMore
       }
-    });
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     console.error('Airtable retrieval error:', error);
     res.status(500).json({ message: 'Error tracking content', error: error.message });
   }
 });
+
 export default router;

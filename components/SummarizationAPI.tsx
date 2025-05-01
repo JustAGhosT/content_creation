@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import PropTypes from 'prop-types';
 
-const SummarizationAPI = ({ rawText }) => {
-  const [summary, setSummary] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [approvalStatus, setApprovalStatus] = useState(null);
+interface SummarizationAPIProps {
+  rawText: string;
+}
+
+const SummarizationAPI: React.FC<SummarizationAPIProps> = ({ rawText }) => {
+  const [summary, setSummary] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
 
   const generateSummary = async () => {
     if (!rawText || rawText.trim() === '') {
@@ -69,14 +72,6 @@ const SummarizationAPI = ({ rawText }) => {
       )}
     </div>
   );
-};
-
-SummarizationAPI.propTypes = {
-  rawText: PropTypes.string.isRequired
-};
-
-SummarizationAPI.defaultProps = {
-  rawText: ''
 };
 
 export default SummarizationAPI;

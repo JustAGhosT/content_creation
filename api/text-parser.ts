@@ -1,9 +1,26 @@
-const express = require('express');  
-const axios   = require('axios');  
-const router  = express.Router();  
-const featureFlags = global.featureFlags || {};
+import express, { Request, Response, NextFunction } from 'express';
+import axios, { AxiosResponse } from 'axios';
 
-router.post('/analyze', async (req, res) => {
+const router = express.Router();
+const featureFlags: { [key: string]: any } = global.featureFlags || {};
+
+interface ParsedData {
+  [key: string]: any;
+}
+
+interface AnalyzeRequest extends Request {
+  body: {
+    parsedData: ParsedData;
+  };
+}
+
+interface ParseRequest extends Request {
+  body: {
+    rawInput: string;
+  };
+}
+
+router.post('/analyze', async (req: AnalyzeRequest, res: Response) => {
   try {
     const { parsedData } = req.body;
 
@@ -15,9 +32,8 @@ router.post('/analyze', async (req, res) => {
       return res.status(400).json({ error: 'Invalid input: parsedData must be a non-empty object' });
     }
 
-    // Example analysis: count keys and value types
     const keyCount = Object.keys(parsedData).length;
-    const valueTypes = {};
+    const valueTypes: { [key: string]: string } = {};
     for (const [key, value] of Object.entries(parsedData)) {
       valueTypes[key] = Array.isArray(value) ? 'array' : typeof value;
     }
@@ -30,13 +46,13 @@ router.post('/analyze', async (req, res) => {
     console.error('Analysis error:', error);
     res.status(500).json({
       error: 'Failed to analyze text',
-      details: process.env.NODE_ENV !== 'production' ? error.message : undefined,
-      service: (global.featureFlags || {})?.textParser?.implementation
+      details: process.env.NODE_ENV !== 'production' ? (error as Error).message : undefined,
+      service: featureFlags?.textParser?.implementation
     });
   }
 });
 
-router.post('/parse', async (req, res) => {
+router.post('/parse', async (req: ParseRequest, res: Response) => {
   try {
     const { rawInput } = req.body;
 
@@ -44,33 +60,30 @@ router.post('/parse', async (req, res) => {
       return res.status(400).json({ error: 'Invalid input: rawInput must be a non-empty string' });
     }
 
-    // Optional: Add size limit validation
-    if (rawInput.length > 1000000) { // 1MB limit example
+    if (rawInput.length > 1000000) {
       return res.status(413).json({ error: 'Input too large' });
     }
 
-    // Simulate parsing JSON/XML to extract structured data
     const parsedData = JSON.parse(rawInput);
-    let response;
-    // Reject early if the text-parser feature is disabled
+    let response: AxiosResponse;
+
     if (!featureFlags?.textParser?.enabled) {
       return res.status(400).json({ error: 'Text parser feature is disabled' });
     }
 
-    // Dispatch based on the enabled implementation
     if (featureFlags.textParser.implementation === 'deepseek') {
       response = await axios.post(
-        process.env.DEEPSEEK_API_ENDPOINT,
+        process.env.DEEPSEEK_API_ENDPOINT!,
         { data: parsedData }
       );
     } else if (featureFlags.textParser.implementation === 'openai') {
       response = await axios.post(
-        process.env.OPENAI_API_ENDPOINT,
+        process.env.OPENAI_API_ENDPOINT!,
         { data: parsedData }
       );
     } else if (featureFlags.textParser.implementation === 'azure') {
       response = await axios.post(
-        process.env.AZURE_CONTENT_API_ENDPOINT,
+        process.env.AZURE_CONTENT_API_ENDPOINT!,
         { data: parsedData }
       );
     } else {
@@ -82,12 +95,12 @@ router.post('/parse', async (req, res) => {
     let status = 500;
     let message = 'Failed to parse text';
 
-    if (error.response) {
+    if (axios.isAxiosError(error) && error.response) {
       status = error.response.status || 500;
       message = error.response.data?.error || error.response.statusText || message;
-    } else if (error.request) {
+    } else if (axios.isAxiosError(error) && error.request) {
       message = 'No response received from upstream service';
-    } else if (error.message) {
+    } else if (error instanceof Error) {
       message = error.message;
     }
 
@@ -99,4 +112,4 @@ router.post('/parse', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
