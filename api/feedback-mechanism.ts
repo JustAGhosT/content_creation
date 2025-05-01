@@ -1,24 +1,13 @@
 import express, { Request, Response, NextFunction } from 'express';
+import { saveFeedback, getFeedback, Feedback } from './data-persistence';
+
 const router = express.Router();
 
-interface Feedback {
-  reviewId: string;
-  feedback: string;
-}
-
-// Use the Feedback interface directly, or create a type alias if needed
+// Use the Feedback interface directly from data-persistence
 type FeedbackItem = Feedback;
 
-interface SaveFeedback {
-  (feedback: Feedback): Promise<void>;
-}
-
-interface GetFeedback {
-  (filter: Partial<Feedback>): Promise<FeedbackItem[]>;
-}
-
 // Endpoint to submit feedback
-router.post('/submit-feedback', (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/submit-feedback', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { reviewId, feedback }: Feedback = req.body;
 
   // Validate input
@@ -28,7 +17,6 @@ router.post('/submit-feedback', (async (req: Request, res: Response, next: NextF
   }
 
   try {
-    const { saveFeedback }: { saveFeedback: SaveFeedback } = require('./data-persistence');
     await saveFeedback({ reviewId, feedback });
     res.status(200).json({ message: 'Feedback submitted successfully' });
   } catch (error) {
@@ -41,7 +29,6 @@ router.get('/feedback', async (req: Request, res: Response, next: NextFunction) 
   const { reviewId } = req.query;
 
   try {
-    const { getFeedback }: { getFeedback: GetFeedback } = require('./data-persistence');
     const feedbackItems: FeedbackItem[] = await getFeedback(reviewId ? { reviewId: reviewId as string } : {});
     res.status(200).json(feedbackItems);
   } catch (error) {
