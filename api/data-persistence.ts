@@ -27,6 +27,12 @@ interface AnalyticsResponse {
   createdTime: string;
 }
 
+// Define the Feedback interface
+export interface Feedback {
+  reviewId: string;
+  feedback: string;
+}
+
 let airtableInitialized = false;
 // Define a specific interface matching your Airtable schema
 interface AirtableRecord {
@@ -36,6 +42,7 @@ interface AirtableRecord {
 }
 
 let table: Airtable.Table<AirtableRecord>;
+let feedbackTable: Airtable.Table<any>;
 
 if (!process.env.AIRTABLE_API_KEY ||
   !process.env.AIRTABLE_BASE_ID ||
@@ -45,6 +52,7 @@ if (!process.env.AIRTABLE_API_KEY ||
   const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY })
   .base(process.env.AIRTABLE_BASE_ID);
   table = base(process.env.AIRTABLE_TABLE_NAME);
+  feedbackTable = base('Feedback'); // Assuming there's a Feedback table
   airtableInitialized = true;
 }
 
@@ -131,5 +139,60 @@ router.get('/analytics', async (req: AnalyticsRequest, res: Response) => {
     res.status(500).json({ message: 'Error fetching analytics', error: error.message });
   }
 });
+
+/**
+ * Persist feedback for a given review.
+ */
+export async function saveFeedback({ reviewId, feedback }: Feedback): Promise<void> {
+  if (!airtableInitialized) {
+    throw new Error('Airtable is not initialized');
+  }
+  
+  if (!FeatureFlags.airtableIntegration) {
+    throw new Error('Airtable integration is disabled');
+  }
+
+  try {
+    await feedbackTable.create({
+      ReviewId: reviewId,
+      Feedback: feedback,
+      CreatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error saving feedback:', error);
+    throw new Error('Failed to save feedback');
+  }
+}
+
+/**
+ * Retrieve feedback by reviewId.
+ */
+export async function getFeedback(filter: Partial<Feedback>): Promise<Feedback[]> {
+  if (!airtableInitialized) {
+    throw new Error('Airtable is not initialized');
+  }
+  
+  if (!FeatureFlags.airtableIntegration) {
+    throw new Error('Airtable integration is disabled');
+  }
+
+  try {
+    let selectParams: any = {};
+    
+    if (filter.reviewId) {
+      selectParams.filterByFormula = `{ReviewId} = '${filter.reviewId}'`;
+    }
+
+    const records = await feedbackTable.select(selectParams).all();
+    
+    return records.map(record => ({
+      reviewId: record.get('ReviewId') as string,
+      feedback: record.get('Feedback') as string
+    }));
+  } catch (error) {
+    console.error('Error retrieving feedback:', error);
+    throw new Error('Failed to retrieve feedback');
+  }
+}
 
 export default router;
