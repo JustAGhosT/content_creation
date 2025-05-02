@@ -1,13 +1,12 @@
 import React from 'react';
-import type { NextPage } from 'next';
-
-const AutomationPage: NextPage = () => {
+import Head from 'next/head';
+const AutomationPage: React.FC = () => {
   return (
-    <html>
-      <head>
-        <style>
-          {`
-            body {
+    <>
+      <Head>
+        <title>Workflow Automation</title>
+        <style>{`
+          body {
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
               line-height: 1.6;
               color: #333;
@@ -91,10 +90,8 @@ const AutomationPage: NextPage = () => {
                 grid-template-columns: 1fr;
               }
             }
-          `}
-        </style>
-      </head>
-      <body>
+        `}</style>
+      </Head>
         <div className="container">
           <div className="section">
             <div className="automation">
@@ -184,8 +181,7 @@ const AutomationPage: NextPage = () => {
             </div>
           </div>
         </div>
-      </body>
-    </html>
+    </>
   );
 };
 
