@@ -6,7 +6,6 @@ interface Platform {
   name: string;
 }
 
-// New specific interface for content
 interface ContentItem {
   id: string;
   title: string;
@@ -45,10 +44,14 @@ const PlatformConnectors: React.FC<PlatformConnectorsProps> = ({ content }) => {
         const response = await axios.get('/api/platforms');
         setPlatforms(response.data);
       } catch (err) {
-        const errorMessage = axios.isAxiosError(err) 
-          ? err.response?.data?.message || err.message 
-          : 'An unexpected error occurred';
-        setError(errorMessage);
+        if (axios.isAxiosError(err)) {
+          const errorMessage = err.response?.data?.message || err.message;
+          setError(errorMessage);
+        } else if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('An unknown error occurred');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -85,10 +88,14 @@ const PlatformConnectors: React.FC<PlatformConnectorsProps> = ({ content }) => {
       setApprovalMessage('Queue successfully approved!');
       setQueue([]); // Clear the queue after successful approval
     } catch (err) {
-      const errorMessage = axios.isAxiosError(err) 
-        ? err.response?.data?.message || err.message 
-        : 'An unexpected error occurred';
-      setError(errorMessage);
+      if (axios.isAxiosError(err)) {
+        const errorMessage = err.response?.data?.message || err.message;
+        setError(errorMessage);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred');
+      }
     } finally {
       setIsApproving(false);
     }

@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import AirtableIntegration from '../components/AirtableIntegration';
 
-const PerformanceDashboard = () => {
-  const [engagementMetrics, setEngagementMetrics] = useState([]);
-  const [error, setError] = useState(null);
+interface EngagementMetric {
+  platform: string;
+  value: number | string;
+}
+
+const PerformanceDashboard: React.FC = () => {
+  const [engagementMetrics, setEngagementMetrics] = useState<EngagementMetric[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchEngagementMetrics = async () => {
@@ -12,7 +17,7 @@ const PerformanceDashboard = () => {
         const data = await response.json();
         setEngagementMetrics(data);
       } catch (err) {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
       }
     };
 

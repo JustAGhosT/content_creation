@@ -1,21 +1,27 @@
-import { useState } from 'react';
-import Header from '../components/Header';
+import React, { useState } from 'react';
 import Footer from '../components/Footer';
+import Header from '../components/Header';
 import SeriesForm from '../components/SeriesForm';
 
-const SeriesPage = () => {
-  const [series, setSeries] = useState([]);
+interface Series {
+  title: string;
+  description: string;
+  [key: string]: any;
+}
 
-  const addSeries = (newSeries) => {
+const SeriesPage: React.FC = () => {
+  const [series, setSeries] = useState<Series[]>([]);
+
+  const addSeries = (newSeries: Series) => {
     setSeries([...series, newSeries]);
   };
 
-  const editSeries = (index, updatedSeries) => {
+  const editSeries = (index: number, updatedSeries: Series) => {
     const updatedSeriesList = series.map((s, i) => (i === index ? updatedSeries : s));
     setSeries(updatedSeriesList);
   };
 
-  const deleteSeries = (index) => {
+  const deleteSeries = (index: number) => {
     const updatedSeriesList = series.filter((_, i) => i !== index);
     setSeries(updatedSeriesList);
   };
