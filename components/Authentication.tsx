@@ -18,21 +18,16 @@ const Authentication: React.FC = () => {
       try {
         const response = await axios.get('/api/auth/user');
         setUser(response.data);
-try {
-  const response = await axios.get('/api/auth/user');
-  setUser(response.data);
-} catch (err: unknown) {
-  const error = err as Error & {
-    response?: {
-      data?: { message?: string },
-      status?: number
-    }
-  };
-  setError(error.response?.data?.message || error.message);
-}
+      } catch (err: unknown) {
+        const error = err as Error & {
+          response?: {
+            data?: { message?: string },
+            status?: number
+          }
+        };
+        setError(error.response?.data?.message || error.message);
       }
     };
-
     fetchUser();
   }, []);
 
@@ -43,31 +38,30 @@ try {
     try {
       const response = await axios.post('/api/auth/login', { username, password });
       setUser(response.data);
-      const response = await axios.post('/api/auth/login', { username, password });
-      setUser(response.data);
     } catch (err: unknown) {
-      const error = err as Error & { 
-        response?: { 
+      const error = err as Error & {
+        response?: {
           data?: { message?: string },
           status?: number
         },
         request?: unknown
       };
-      // …now update the rest of the error handling below to use `error` instead of `err`
+      
       let errorMessage = 'An error occurred during login.';
-      if (err.response) {
-        if (err.response.status === 401) {
+      if (error.response) {
+        if (error.response.status === 401) {
           errorMessage = 'Invalid username or password.';
-        } else if (err.response.data?.message) {
-          errorMessage = err.response.data.message;
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
         } else {
-          errorMessage = `Server error: ${err.response.status}`;
+          errorMessage = `Server error: ${error.response.status}`;
         }
-      } else if (err.request) {
+      } else if (error.request) {
         errorMessage = 'No response from server. Please check your connection.';
       } else {
-        errorMessage = err.message;
+        errorMessage = error.message;
       }
+      
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -78,9 +72,6 @@ try {
     try {
       await axios.post('/api/auth/logout');
       setUser(null);
-    try {
-      await axios.post('/api/auth/logout');
-      setUser(null);
     } catch (err: unknown) {
       const error = err as Error & {
         response?: {
@@ -88,8 +79,6 @@ try {
         }
       };
       setError(error.response?.data?.message || error.message);
-    }
-      setError(err.response?.data?.message || err.message);
     }
   };
 
@@ -109,11 +98,10 @@ try {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const { username, password } = e.target.elements as typeof e.target.elements & {
-                username: { value: string };
-                password: { value: string };
-              };
-              login(username.value, password.value);
+              const form = e.target as HTMLFormElement;
+              const username = (form.elements.namedItem('username') as HTMLInputElement).value;
+              const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+              login(username, password);
             }}
           >
             <div>
@@ -149,5 +137,4 @@ try {
     </div>
   );
 };
-
 export default Authentication;
