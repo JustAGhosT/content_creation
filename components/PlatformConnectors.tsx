@@ -1,18 +1,32 @@
-import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import React, { useEffect, useState } from 'react';
 
 interface Platform {
   id: number;
   name: string;
 }
 
+// New specific interface for content
+interface ContentItem {
+  id: string;
+  title: string;
+  description: string;
+  body: string;
+  metadata: {
+    tags?: string[];
+    publishDate?: string;
+    author?: string;
+    [key: string]: any; // For any additional metadata fields
+  };
+}
+
 interface QueueItem {
   platform: Platform;
-  content: any;
+  content: ContentItem;
 }
 
 interface PlatformConnectorsProps {
-  content: any;
+  content: ContentItem;
 }
 
 const PlatformConnectors: React.FC<PlatformConnectorsProps> = ({ content }) => {
@@ -31,7 +45,9 @@ const PlatformConnectors: React.FC<PlatformConnectorsProps> = ({ content }) => {
         const response = await axios.get('/api/platforms');
         setPlatforms(response.data);
       } catch (err) {
-        const errorMessage = err.response?.data?.message || err.message;
+        const errorMessage = axios.isAxiosError(err) 
+          ? err.response?.data?.message || err.message 
+          : 'An unexpected error occurred';
         setError(errorMessage);
       } finally {
         setIsLoading(false);
@@ -69,7 +85,9 @@ const PlatformConnectors: React.FC<PlatformConnectorsProps> = ({ content }) => {
       setApprovalMessage('Queue successfully approved!');
       setQueue([]); // Clear the queue after successful approval
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message;
+      const errorMessage = axios.isAxiosError(err) 
+        ? err.response?.data?.message || err.message 
+        : 'An unexpected error occurred';
       setError(errorMessage);
     } finally {
       setIsApproving(false);
@@ -80,16 +98,21 @@ const PlatformConnectors: React.FC<PlatformConnectorsProps> = ({ content }) => {
     <div>
       <h2>Platform Connectors</h2>
       {error && <p>Error: {error}</p>}
+      {approvalMessage && <p className="success-message">{approvalMessage}</p>}
       <div>
         <h3>Available Platforms</h3>
-        <ul>
-          {platforms.map((platform) => (
-            <li key={platform.id}>
-              {platform.name}
-              <button onClick={() => addToQueue(platform)}>Add to Queue</button>
-            </li>
-          ))}
-        </ul>
+        {isLoading ? (
+          <p>Loading platforms...</p>
+        ) : (
+          <ul>
+            {platforms.map((platform) => (
+              <li key={platform.id}>
+                {platform.name}
+                <button onClick={() => addToQueue(platform)}>Add to Queue</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <div>
         <h3>Pre-Publishing Queue</h3>
@@ -101,10 +124,14 @@ const PlatformConnectors: React.FC<PlatformConnectorsProps> = ({ content }) => {
             </li>
           ))}
         </ul>
-        <button onClick={approveQueue}>Approve Queue</button>
+        <button 
+          onClick={approveQueue} 
+          disabled={queue.length === 0 || isApproving}
+        >
+          {isApproving ? 'Processing...' : 'Approve Queue'}
+        </button>
       </div>
     </div>
   );
 };
-
 export default PlatformConnectors;
