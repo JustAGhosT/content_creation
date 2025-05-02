@@ -24,7 +24,9 @@ class ApiClient {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+    this.baseUrl = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE_URL 
+      ? process.env.NEXT_PUBLIC_API_BASE_URL 
+      : '';
     
     // Create axios instance with default config
     this.client = axios.create({
@@ -35,47 +37,50 @@ class ApiClient {
       timeout: 30000, // 30 seconds
     });
 
-    // Add request interceptor to include auth token
-    this.client.interceptors.request.use(
-      (config) => {
-        // Get token from localStorage in browser environment
-        if (typeof window !== 'undefined') {
-          const token = localStorage.getItem('auth-token');
-          if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+    // Check if client was properly initialized
+    if (this.client && this.client.interceptors) {
+      // Add request interceptor to include auth token
+      this.client.interceptors.request.use(
+        (config) => {
+          // Get token from localStorage in browser environment
+          if (typeof window !== 'undefined' && window.localStorage) {
+            const token = window.localStorage.getItem('auth-token');
+            if (token) {
+              config.headers.Authorization = `Bearer ${token}`;
+            }
           }
+          return config;
+        },
+        (error) => {
+          return Promise.reject(error);
         }
-        return config;
-      },
-      (error) => {
-        return Promise.reject(error);
-      }
-    );
+      );
 
-    // Add response interceptor for error handling
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error: AxiosError) => {
-        // Handle specific error cases
-        if (error.response?.status === 401) {
-          // Unauthorized - redirect to login
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('auth-token');
-            window.location.href = '/login';
+      // Add response interceptor for error handling
+      this.client.interceptors.response.use(
+        (response) => response,
+        (error: AxiosError) => {
+          // Handle specific error cases
+          if (error.response?.status === 401) {
+            // Unauthorized - redirect to login
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.removeItem('auth-token');
+              window.location.href = '/login';
+            }
           }
+          
+          // Format error for consistent handling
+          const apiError: ApiError = {
+            message: error.response?.data?.message || error.message,
+            status: error.response?.status || 500,
+            details: error.response?.data?.details,
+            code: error.response?.data?.code,
+          };
+          
+          return Promise.reject(apiError);
         }
-        
-        // Format error for consistent handling
-        const apiError: ApiError = {
-          message: error.response?.data?.message || error.message,
-          status: error.response?.status || 500,
-          details: error.response?.data?.details,
-          code: error.response?.data?.code,
-        };
-        
-        return Promise.reject(apiError);
-      }
-    );
+      );
+    }
   }
 
   /**
@@ -134,8 +139,8 @@ class ApiClient {
     const response = await this.post<{ user: any; token: string }>('/api/auth', { username, password });
     
     // Store token in localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('auth-token', response.token);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('auth-token', response.token);
     }
     
     return response;
@@ -149,8 +154,8 @@ class ApiClient {
     const response = await this.delete<{ message: string }>('/api/auth');
     
     // Remove token from localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth-token');
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem('auth-token');
     }
     
     return response;
