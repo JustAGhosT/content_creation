@@ -3,84 +3,28 @@ import { withErrorHandling, Errors } from '../_utils/errors';
 import { validateString } from '../_utils/validation';
 import { createLogEntry, logToAuditTrail } from '../_utils/audit';
 import { isAuthenticated } from '../_utils/auth';
-import axios, { AxiosError } from 'axios';
-
-// Import feature flag utility
-// Note: This assumes you have a featureFlags utility in lib/
-// You may need to adjust the import path based on your project structure
 import featureFlags from '../../../utils/featureFlags';
 
-// Create a HuggingFace client class
-// This is a simplified version of the client from your api/huggingface-client.ts
-class HuggingFaceClient {
-  private apiKey: string;
-  private baseUrl: string = 'https://api-inference.huggingface.co/models';
-  
-  constructor() {
-    this.apiKey = process.env.HUGGINGFACE_API_KEY || '';
-    
-    if (!this.apiKey) {
-      console.warn('HUGGINGFACE_API_KEY environment variable not set');
-    }
-  }
-  
-  async generateImage(context: string) {
-    // Use a text-to-image model like stable-diffusion
-    const model = process.env.HUGGINGFACE_IMAGE_MODEL || 'stabilityai/stable-diffusion-2';
-    
-    return axios.post(`${this.baseUrl}/${model}`, {
-      inputs: context,
-      options: {
-        wait_for_model: true
-      }
-    }, {
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-  }
-  
-  async approveImage(image: Record<string, any>) {
-    // This would typically interact with your own database or service
-    console.log('Image approved:', image);
-    return {
-      success: true,
-      message: 'Image approved successfully'
-    };
-  }
-  
-  async rejectImage(image: Record<string, any>) {
-    // This would typically interact with your own database or service
-    console.log('Image rejected:', image);
-    return {
-      success: true,
-      message: 'Image rejected successfully'
-    };
-  }
-  
-  async regenerateImage(context: string) {
-    // Simply call generateImage with the same context
-    return this.generateImage(context);
-  }
-}
+// Import HuggingFaceClient using a different path that Jest can resolve
+// In a real app, you'd use a more direct import path
+import { HuggingFaceClient } from '../../../lib/clients/huggingface';
 
 // Initialize the HuggingFace client
 const huggingFaceClient = new HuggingFaceClient();
 
 // Generate image endpoint
 export const POST = withErrorHandling(async (request: Request) => {
-  // Check authentication
-  if (!isAuthenticated()) {
-    return Errors.unauthorized('Authentication required to generate images');
-  }
-  
-  // Check if image generation feature is enabled
-  if (!featureFlags.imageGeneration) {
-    return Errors.forbidden('Image generation feature is disabled');
-  }
-  
   try {
+    // Check authentication
+    if (!isAuthenticated()) {
+      return Errors.unauthorized('Authentication required to generate images');
+    }
+    
+    // Check if image generation feature is enabled
+    if (!featureFlags.imageGeneration) {
+      return Errors.forbidden('Image generation feature is disabled');
+    }
+    
     const body = await request.json();
     const { context } = body;
     
@@ -100,26 +44,18 @@ export const POST = withErrorHandling(async (request: Request) => {
     return NextResponse.json(response.data);
   } catch (error) {
     console.error('Error generating image:', error);
-    
-    // Handle specific error types
-    if (error instanceof AxiosError) {
-      const statusCode = error.response?.status || 500;
-      const errorMessage = error.response?.data?.error || 'Failed to generate image';
-      return Errors.createErrorResponse(errorMessage, statusCode);
-    }
-    
     return Errors.internalServerError('Failed to generate image');
   }
 });
 
 // Review image endpoint (approve, reject, regenerate)
 export const PUT = withErrorHandling(async (request: Request) => {
-  // Check authentication
-  if (!isAuthenticated()) {
-    return Errors.unauthorized('Authentication required to review images');
-  }
-  
   try {
+    // Check authentication
+    if (!isAuthenticated()) {
+      return Errors.unauthorized('Authentication required to review images');
+    }
+    
     const body = await request.json();
     const { image, action } = body;
     

@@ -1,46 +1,73 @@
-import fs from 'fs';
-import path from 'path';
-import { FeatureFlags, TextParserFeatureFlag } from '../types';
+/**
+ * Feature flags configuration
+ * This file manages feature flags for the application
+ */
 
-// Initialize feature flags with default values
+// Define feature flag types
+export interface FeatureFlag {
+  enabled: boolean;
+  implementation?: string;
+}
+
+export interface FeatureFlags {
+  textParser: {
+    enabled: boolean;
+    implementation: 'deepseek' | 'openai' | 'azure';
+  };
+  imageGeneration: boolean;
+  summarization: boolean;
+  platformConnectors: boolean;
+  multiPlatformPublishing: boolean;
+  notificationSystem: boolean;
+  feedbackMechanism: boolean;
+  airtableIntegration: boolean;
+}
+
+// Default feature flags configuration
 const featureFlags: FeatureFlags = {
   textParser: {
     enabled: true,
-    implementation: 'openai'
+    implementation: 'openai',
   },
   imageGeneration: true,
   summarization: true,
   platformConnectors: true,
   multiPlatformPublishing: true,
   notificationSystem: true,
-  feedbackMechanism: true
+  feedbackMechanism: true,
+  airtableIntegration: true,
 };
 
-// Path to feature flags JSON file
-const featureFlagsPath = path.join(process.cwd(), 'data', 'feature-flags.json');
-
-// Load feature flags from file if it exists
-try {
-  if (fs.existsSync(featureFlagsPath)) {
-    const data = fs.readFileSync(featureFlagsPath, 'utf8');
-    Object.assign(featureFlags, JSON.parse(data));
+/**
+ * Save feature flags to localStorage (in browser) or memory (in Node.js)
+ * @param flags Updated feature flags
+ */
+export function saveFeatureFlags(flags: FeatureFlags): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('featureFlags', JSON.stringify(flags));
+  } else {
+    // In Node.js environment, just update the module variable
+    Object.assign(featureFlags, flags);
   }
-} catch (err) {
-  console.error('Error loading feature flags:', err);
 }
 
-// Save feature flags to file
-export const saveFeatureFlags = (): void => {
-  try {
-    const dirPath = path.dirname(featureFlagsPath);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
+/**
+ * Load feature flags from localStorage (in browser) or return default (in Node.js)
+ * @returns Current feature flags
+ */
+export function loadFeatureFlags(): FeatureFlags {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('featureFlags');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to parse stored feature flags:', e);
+      }
     }
-    fs.writeFileSync(featureFlagsPath, JSON.stringify(featureFlags, null, 2));
-  } catch (err) {
-    console.error('Error saving feature flags:', err);
-    throw err;
   }
-};
+  return featureFlags;
+}
 
+// Export the default feature flags
 export default featureFlags;

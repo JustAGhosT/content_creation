@@ -37,9 +37,9 @@ jest.mock('next/headers', () => ({
 }));
 
 // Helper function to create a mock request
-function createMockRequest(body: any): NextRequest {
+function createMockRequest(body: Record<string, unknown>): NextRequest {
   return {
-    json: jest.fn().mockResolvedValue(body),
+    json: jest.fn<() => Promise<Record<string, unknown>>>().mockResolvedValue(body),
     cookies: {
       get: jest.fn(),
       set: jest.fn(),
