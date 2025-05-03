@@ -1,0 +1,12 @@
+{
+  "textParser": {
+    "enabled": true,
+    "implementation": "openai"
+  },
+  "imageGeneration": false,
+  "summarization": true,
+  "platformConnectors": true,
+  "multiPlatformPublishing": true,
+  "notificationSystem": true,
+  "feedbackMechanism": true
+}
