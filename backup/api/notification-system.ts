@@ -1,6 +1,6 @@
-import express, { Request, Response, NextFunction } from 'express';
-import nodemailer from 'nodemailer';
 import { WebClient } from '@slack/web-api';
+import express, { NextFunction, Request, Response } from 'express';
+import nodemailer from 'nodemailer';
 import twilio from 'twilio';
 
 const router = express.Router();
@@ -40,7 +40,12 @@ const slackClient = process.env.SLACK_TOKEN
   : null;
 
 // Twilio configuration
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+ if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+   console.error('Twilio credentials not configured. SMS notifications will not work.');
+ }
+ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+   : null;
 
 // Endpoint to send notifications
 // Middleware for validating request
@@ -68,6 +73,39 @@ const authenticate = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // Endpoint to send notifications
+ async function sendEmailNotification(recipient: string, message: string) {
+   if (!transporter) {
+     throw new Error('Email service not configured');
+   }
+   return transporter.sendMail({
+     from: process.env.EMAIL_USER,
+     to: recipient,
+     subject: 'Notification',
+     text: message
+   });
+ }
+
+ async function sendSlackNotification(recipient: string, message: string) {
+   if (!slackClient) {
+     throw new Error('Slack service not configured');
+   }
+   return slackClient.chat.postMessage({
+     channel: recipient,
+     text: message
+   });
+ }
+
+ async function sendSmsNotification(recipient: string, message: string) {
+   if (!twilioClient) {
+     throw new Error('SMS service not configured');
+   }
+   return twilioClient.messages.create({
+     body: message,
+     from: process.env.TWILIO_PHONE_NUMBER,
+     to: recipient
+   });
+ }
+
 router.post(
   '/send-notification',
   authenticate,
@@ -76,42 +114,40 @@ router.post(
     const { type, message, recipient } = req.body;
 
     try {
-      if (type === 'email') {
-        if (!transporter) {
-          return res.status(503).json({ message: 'Email service not configured' });
-        }
-        await transporter.sendMail({
-          from: process.env.EMAIL_USER,
-          to: recipient,
-          subject: 'Notification',
-          text: message
-        });
-      } else if (type === 'slack') {
-        if (!slackClient) {
-          return res.status(503).json({ message: 'Slack service not configured' });
-        }
-        await slackClient.chat.postMessage({
-          channel: recipient,
-          text: message
-        });
-      } else if (type === 'sms') {
-        if (!twilioClient) {
-          return res.status(503).json({ message: 'SMS service not configured' });
-        }
-        await twilioClient.messages.create({
-          body: message,
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: recipient
-        });
-      } else {
-        return res.status(400).json({ message: 'Invalid notification type' });
+      switch (type) {
+        case 'email':
+          try {
+            await sendEmailNotification(recipient, message);
+          } catch (error) {
+            return res.status(503).json({ message: 'Email service not configured' });
+          }
+          break;
+        case 'slack':
+          try {
+            await sendSlackNotification(recipient, message);
+          } catch (error) {
+            return res.status(503).json({ message: 'Slack service not configured' });
+          }
+          break;
+        case 'sms':
+          try {
+            await sendSmsNotification(recipient, message);
+          } catch (error) {
+            return res.status(503).json({ message: 'SMS service not configured' });
+          }
+          break;
+        default:
+          return res.status(400).json({ message: 'Invalid notification type' });
       }
 
       res.status(200).json({ message: 'Notification sent successfully' });
     } catch (error) {
       console.error('Notification error:', error);
-      res.status(500).json({ message: 'Error sending notification', error: error.message });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({ message: 'Error sending notification', error: errorMessage });
     }
+  }
+);
   }
 );
 

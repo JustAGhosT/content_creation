@@ -1,5 +1,5 @@
 // Test for the API client
-import { describe, expect, test, jest, beforeEach, afterEach } from '@jest/globals';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 
 // Mock axios module
 const mockAxiosGet = jest.fn();
@@ -115,12 +115,13 @@ describe('API Client', () => {
     expect(mockAxiosPost.mock.calls[0][1]).toEqual({ username: 'admin', password: 'admin123' });
     expect(result).toEqual(mockLoginResponse);
     
-    // Check localStorage directly instead of using toHaveBeenCalledWith
-    expect(localStorageMock.setItem).toHaveBeenCalled();
-    const calls = localStorageMock.setItem.mock.calls;
-    expect(calls.length).toBeGreaterThan(0);
-    expect(calls[0][0]).toBe('auth-token');
-    expect(calls[0][1]).toBe('mock-token');
+    // Check localStorage directly with individual assertions to verify both key and value
+    // This approach provides more granular feedback when tests fail compared to toHaveBeenCalledWith
+     expect(localStorageMock.setItem).toHaveBeenCalled();
+     const calls = localStorageMock.setItem.mock.calls;
+     expect(calls.length).toBeGreaterThan(0);
+     expect(calls[0][0]).toBe('auth-token');
+     expect(calls[0][1]).toBe('mock-token');
   });
 
   test('updateFeatureFlag should update a feature flag', async () => {
