@@ -1,0 +1,40 @@
+{
+  "steps": [
+    {
+      "id": "input",
+      "label": "Input Content"
+    },
+    {
+      "id": "parsing",
+      "label": "Parse Text"
+    },
+    {
+      "id": "summarizing",
+      "label": "Generate Summary"
+    },
+    {
+      "id": "generating",
+      "label": "Generate Image"
+    },
+    {
+      "id": "approving",
+      "label": "Approve Content"
+    },
+    {
+      "id": "approved",
+      "label": "Published"
+    }
+  ],
+  "apiEndpoints": {
+    "parse": "/api/parse",
+    "summarize": "/api/summarize",
+    "generateImage": "/api/generate-image",
+    "approveContent": "/api/approve-content"
+  },
+  "defaultMessages": {
+    "loadingText": "Processing your request...",
+    "errorText": "An error occurred. Please try again.",
+    "successText": "Content successfully approved!",
+    "emptyInputText": "Please enter content to process"
+  }
+}
