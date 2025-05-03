@@ -80,6 +80,11 @@ export const POST = withErrorHandling(async (request: Request) => {
     return Errors.internalServerError('Airtable integration not available');
   }
   
+  // Only check feature flags directly related to content storage
+  if (!featureFlags.storage.notion.enabled) {
+    return Errors.forbidden('Notion storage feature is disabled');
+  }
+  
   try {
     const body = await request.json();
     const { content } = body;
