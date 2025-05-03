@@ -1,15 +1,25 @@
 import '../styles/globals.css';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
 import type { AppProps } from 'next/app';
 import { Inter } from 'next/font/google';
-import Image from 'next/image'; // Practice #2: Image optimization
-import dynamic from 'next/dynamic'; // Practice #5: Code splitting
+import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
-import styles from '../styles/App.module.css'; // Extracted CSS
-import siteConfig from '../content/siteConfig.json'; // Extracted JSON content
+import styles from '../styles/App.module.css';
+import siteConfig from '../content/siteConfig.json';
+import { ReactElement, ReactNode } from 'react';
+import type { NextPage } from 'next';
+import MainLayout from '../components/layouts/MainLayout';
+
+// Define types for pages with layouts
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: ReactElement) => ReactNode;
+};
+
+type AppPropsWithLayout = AppProps & {
+  Component: NextPageWithLayout;
+};
 
 // Practice #5: Code splitting with dynamic imports
 const Analytics = dynamic(() => import('../components/Analytics'), {
@@ -24,7 +34,7 @@ const inter = Inter({
   variable: '--font-inter',
 });
 
-export default function MyApp({ Component, pageProps }: AppProps) {
+export default function MyApp({ Component, pageProps }: AppPropsWithLayout) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -44,30 +54,20 @@ export default function MyApp({ Component, pageProps }: AppProps) {
     };
   }, [router]);
 
-  // Practice #4: SEO improvements
-  const pageTitle = pageProps.title 
-    ? `${pageProps.title} | ${siteConfig.siteName}`
-    : siteConfig.siteName;
-  
-  const pageDescription = pageProps.description || siteConfig.siteDescription;
+  // Use the layout defined at the page level, or fallback to MainLayout
+  const getLayout = Component.getLayout || ((page) => (
+    <MainLayout 
+      title={pageProps.title || ''}
+      description={pageProps.description || ''}
+    >
+      {page}
+    </MainLayout>
+  ));
   return (
     <>
-      <Head>
-        <title>{pageTitle}</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="description" content={pageDescription} />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={pageDescription} />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content={`${siteConfig.siteUrl}${router.asPath}`} />
-        <meta property="og:image" content={`${siteConfig.siteUrl}/images/og-image.jpg`} />
-        <link rel="canonical" href={`${siteConfig.siteUrl}${router.asPath}`} />
-      </Head>
       <div className={`${inter.variable} ${styles.appContainer} font-sans`}>
-        <Header />
         {isLoading && (
           <div className={styles.loadingOverlay}>
-            {/* Practice #2: Image optimization */}
             <div className={styles.loadingImageContainer}>
               <Image 
                 src="/images/loading-spinner.svg"
@@ -76,14 +76,10 @@ export default function MyApp({ Component, pageProps }: AppProps) {
                 height={50}
                 priority
               />
-      </div>
+            </div>
           </div>
         )}
-        <main className={styles.mainContent}>
-          <Component {...pageProps} />
-        </main>
-        <Footer />
-        
+        {getLayout(<Component {...pageProps} />)}
         {/* Practice #5: Code splitting - only load analytics in production */}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </div>

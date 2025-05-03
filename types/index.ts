@@ -1,3 +1,7 @@
+import { NextPage } from "next";
+import { AppProps } from "next/app";
+import { ReactElement, ReactNode } from "react";
+
 // Platform types
 export interface Platform {
   id: number;
@@ -62,3 +66,13 @@ export interface UserPayload {
   [key: string]: any;
   isAdmin?: boolean;
 }
+
+// Define a type for pages with getLayout function
+export type NextPageWithLayout<P = {}, IP = P> = NextPage<P, IP> & {
+  getLayout?: (page: ReactElement) => ReactNode;
+};
+
+// Define a type for App props with layout
+export type AppPropsWithLayout = AppProps & {
+  Component: NextPageWithLayout;
+};

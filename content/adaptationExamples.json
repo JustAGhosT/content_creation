@@ -2,10 +2,10 @@
   "examples": [
     {
       "platform": "LinkedIn",
-      "type": "Professional",
+      "title": "Professional Adaptation",
       "original": "The implementation of dependency injection in enterprise applications requires careful consideration of lifecycle management and scope hierarchies.",
       "adaptation": "\"3 Critical Factors When Implementing DI in Enterprise Systems:<br/><br/>1. Lifecycle Management<br/>2. Scope Hierarchies<br/>3. Performance Implications<br/><br/>In my latest article, I break down how these factors impact your architecture decisions... [link]\"",
-      "elements": [
+      "notes": [
         "Transformed into list format for scannability",
         "Added value proposition (3 Critical Factors)",
         "Professional tone maintained but more conversational",
@@ -15,10 +15,10 @@
     },
     {
       "platform": "Twitter",
-      "type": "Concise",
+      "title": "Concise Adaptation",
       "original": "Feature flags provide a mechanism for deploying code to production while controlling its visibility and activation through configuration rather than deployment.",
       "adaptation": "1/ Feature flags aren't just for A/B testing—they're a deployment strategy that separates code deployment from feature activation.<br/><br/>2/ This means you can deploy code on Tuesday but activate the feature next Monday without additional deployments.<br/><br/>3/ The real power? Gradual rollouts, instant rollbacks, and personalized experiences—all without touching your codebase.<br/><br/>4/ I've detailed 5 implementation patterns in my new article: [link] #DevOps #FeatureFlags",
-      "elements": [
+      "notes": [
         "Broken into thread format for engagement",
         "Each tweet provides standalone value",
         "Technical concept explained through benefits",
@@ -28,10 +28,10 @@
     },
     {
       "platform": "Medium",
-      "type": "Expanded",
+      "title": "Expanded Adaptation",
       "original": "When implementing backward compatibility in APIs, versioning strategies must be carefully considered.",
       "adaptation": "<strong>The Hidden Costs of API Versioning</strong><br/><br/>Last month, our team had to support three different API versions simultaneously. The technical debt was crushing us.<br/><br/>This experience taught me that versioning isn't just a technical decision—it's a business strategy with real implications for your development velocity.<br/><br/>Here's what we learned about balancing backward compatibility with innovation pace...",
-      "elements": [
+      "notes": [
         "Added personal narrative and experience",
         "Highlighted business impact beyond technical details",
         "Created emotional hook with \"crushing\" technical debt",

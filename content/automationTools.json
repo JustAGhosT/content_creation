@@ -1,6 +1,144 @@
 {
   "tools": [
     {
+      "id": "text-generation",
+      "name": "AI Text Generation",
+      "description": "Generate initial drafts, outlines, or sections of content based on prompts and guidelines.",
+      "capabilities": [
+        "Create article outlines from topic prompts",
+        "Generate section drafts based on detailed guidelines",
+        "Suggest alternative phrasings and approaches",
+        "Develop examples and explanations for technical concepts"
+      ],
+      "bestPractices": [
+        "Provide detailed prompts with specific requirements",
+        "Review and edit all generated content for accuracy",
+        "Use as a starting point rather than final copy",
+        "Combine with human expertise for technical validation"
+      ],
+      "limitations": [
+        "May produce technically inaccurate information",
+        "Quality varies based on prompt specificity",
+        "Can lack depth in highly specialized topics",
+        "May generate generic content without proper guidance"
+      ]
+    },
+    {
+      "id": "content-optimization",
+      "name": "Content Optimization Tools",
+      "description": "Analyze and enhance content for readability, SEO, and engagement metrics.",
+      "capabilities": [
+        "Analyze readability scores and suggest improvements",
+        "Identify SEO optimization opportunities",
+        "Check grammar, style, and consistency",
+        "Suggest headline improvements for engagement"
+      ],
+      "bestPractices": [
+        "Run optimization checks before final publication",
+        "Balance SEO recommendations with readability",
+        "Maintain your authentic voice while incorporating suggestions",
+        "Use A/B testing to validate optimization changes"
+      ],
+      "limitations": [
+        "May prioritize SEO over technical accuracy",
+        "Generic recommendations might not fit specialized content",
+        "Can't evaluate technical depth or accuracy",
+        "Overoptimization can make content feel unnatural"
+      ]
+    },
+    {
+      "id": "image-generation",
+      "name": "AI Image Generation",
+      "description": "Create custom illustrations, diagrams, and visual assets for technical content.",
+      "capabilities": [
+        "Generate custom illustrations for technical concepts",
+        "Create consistent visual assets across content series",
+        "Produce diagrams based on textual descriptions",
+        "Develop featured images for articles and social media"
+      ],
+      "bestPractices": [
+        "Provide detailed prompts with technical specificity",
+        "Maintain consistent style across related images",
+        "Verify technical accuracy in diagrams and illustrations",
+        "Combine with text for enhanced concept explanation"
+      ],
+      "limitations": [
+        "May struggle with complex technical diagrams",
+        "Inconsistent quality for highly specific technical visuals",
+        "Limited control over precise technical details",
+        "May require significant prompt engineering"
+      ]
+    },
+    {
+      "id": "content-distribution",
+      "name": "Multi-platform Distribution",
+      "description": "Automate the adaptation and distribution of content across multiple platforms.",
+      "capabilities": [
+        "Reformat content for different platform requirements",
+        "Schedule coordinated publishing across channels",
+        "Track cross-platform analytics in unified dashboard",
+        "Generate platform-specific metadata and tags"
+      ],
+      "bestPractices": [
+        "Create platform-specific templates for consistency",
+        "Maintain voice consistency across adaptations",
+        "Review automated adaptations before publishing",
+        "Use staggered scheduling for maximum visibility"
+      ],
+      "limitations": [
+        "May miss platform-specific nuances and opportunities",
+        "Limited creativity in platform adaptations",
+        "Requires initial setup of quality templates",
+        "Analytics integration can be complex across platforms"
+      ]
+    },
+    {
+      "id": "research-assistant",
+      "name": "Research Assistant",
+      "description": "Gather, organize, and synthesize research materials for technical content.",
+      "capabilities": [
+        "Collect relevant sources and references",
+        "Summarize key points from technical papers",
+        "Monitor industry news for relevant developments",
+        "Organize research materials by topic and relevance"
+      ],
+      "bestPractices": [
+        "Verify all research findings independently",
+        "Use as a starting point for deeper investigation",
+        "Combine with expert knowledge for context",
+        "Maintain citation tracking for attribution"
+      ],
+      "limitations": [
+        "May miss nuanced technical distinctions",
+        "Limited to publicly available information",
+        "Quality depends on search query specificity",
+        "Requires human validation for technical accuracy"
+      ]
+    },
+    {
+      "id": "code-examples",
+      "name": "Code Example Generator",
+      "description": "Create, test, and explain code examples for technical tutorials and articles.",
+      "capabilities": [
+        "Generate code examples based on requirements",
+        "Create explanations for code functionality",
+        "Suggest alternative implementations",
+        "Identify potential issues and edge cases"
+      ],
+      "bestPractices": [
+        "Test all generated code thoroughly",
+        "Verify best practices and security considerations",
+        "Adapt examples to match your coding style",
+        "Add comments explaining complex logic"
+      ],
+      "limitations": [
+        "May generate outdated or deprecated approaches",
+        "Security vulnerabilities in untested code",
+        "Limited awareness of latest framework features",
+        "May not follow project-specific conventions"
+      ]
+    },
+    {
       "id": "content-transformation",
       "name": "Content Transformation Pipeline",
       "description": "Automate the adaptation of your primary content for different platforms.",

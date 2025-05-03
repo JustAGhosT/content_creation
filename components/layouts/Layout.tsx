@@ -14,7 +14,7 @@ interface LayoutProps {
 /**
  * Shared layout component for consistent page structure
  */
-const Layout: React.FC<LayoutProps> = ({ 
+const MainLayout: React.FC<LayoutProps> = ({ 
   children, 
   title, 
   description,
@@ -42,4 +42,5 @@ const Layout: React.FC<LayoutProps> = ({
   );
 };
 
-export default Layout;
+// Re-export MainLayout as Layout for backward compatibility
+export default MainLayout;

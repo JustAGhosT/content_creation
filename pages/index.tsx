@@ -1,16 +1,27 @@
 import React from 'react';
-import Header from '../components/Header';
+import MainLayout from '../components/layouts/MainLayout';
 import Hero from '../components/Hero';
-import Footer from '../components/Footer';
 import type { NextPage } from 'next';
+import { ReactElement } from 'react';
 
-const Home: NextPage = () => {
+// Define a type for pages with getLayout function
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: ReactElement) => ReactElement;
+};
+
+const Home: NextPageWithLayout = () => {
+  return <Hero />;
+};
+
+// Define the getLayout function
+Home.getLayout = function getLayout(page: ReactElement): ReactElement {
   return (
-    <div>
-      <Header />
-      <Hero />
-      <Footer />
-    </div>
+    <MainLayout 
+      title="Home"
+      description="Content Creation Platform - Streamline your content workflow"
+    >
+      {page}
+    </MainLayout>
   );
 };
 

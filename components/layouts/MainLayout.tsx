@@ -1,27 +1,47 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import Head from 'next/head';
+import Header from '../Header';
+import Footer from '../Footer';
+import styles from '../../styles/Layout.module.css';
+import siteConfig from '../../content/siteConfig.json';
 
 interface MainLayoutProps {
-  children: React.ReactNode;
-  title: string;
+  children: ReactNode;
+  title?: string;
   description?: string;
+  ogImage?: string;
 }
 
+/**
+ * Main shared layout component with consistent header and footer
+ * To be used across all pages in the application
+ */
 const MainLayout: React.FC<MainLayoutProps> = ({ 
   children, 
-  title, 
-  description 
+  title,
+  description,
+  ogImage
 }) => {
+  const pageTitle = title 
+    ? `${title} | ${siteConfig.siteName}`
+    : siteConfig.siteName;
+  
+  const pageDescription = description || siteConfig.siteDescription;
   return (
-    <>
+    <div className={styles.layoutContainer}>
       <Head>
-        <title>{title}</title>
-        <meta name="description" content={description || title} />
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDescription} />
+        {ogImage && <meta property="og:image" content={ogImage} />}
       </Head>
-      <div className="container">
+      
+      <Header />
+      <main className={styles.mainContent}>
         {children}
-      </div>
-    </>
+      </main>
+      
+      <Footer />
+    </div>
   );
 };
 
