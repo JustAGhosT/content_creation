@@ -80,6 +80,31 @@ export const POST = withErrorHandling(async (request: Request) => {
     return Errors.internalServerError('Airtable integration not available');
   }
   
+  // Check feature flags
+  if (!featureFlags.trigger.cron.enabled) {
+    return Errors.forbidden('CRON trigger feature is disabled');
+  }
+  
+  if (!featureFlags.trigger.rss.enabled) {
+    return Errors.forbidden('RSS trigger feature is disabled');
+  }
+  
+  if (!featureFlags.scraping.enabled) {
+    return Errors.forbidden('Scraping feature is disabled');
+  }
+  
+  if (!featureFlags.storage.notion.enabled) {
+    return Errors.forbidden('Notion storage feature is disabled');
+  }
+  
+  if (!featureFlags.writing.openai.enabled) {
+    return Errors.forbidden('OpenAI writing feature is disabled');
+  }
+  
+  if (!featureFlags.distribution.telegram.enabled) {
+    return Errors.forbidden('Telegram distribution feature is disabled');
+  }
+  
   try {
     const body = await request.json();
     const { content } = body;
