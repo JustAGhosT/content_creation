@@ -1,11 +1,10 @@
-import { NextResponse } from 'next/server';
-import { withErrorHandling, Errors } from '../_utils/errors';
-import { isAuthenticated } from '../_utils/auth';
-import { createLogEntry, logToAuditTrail } from '../_utils/audit';
 import axios from 'axios';
+import { NextResponse } from 'next/server';
+import { createLogEntry, logToAuditTrail } from '../_utils/audit';
+import { isAuthenticated } from '../_utils/auth';
+import { Errors, withErrorHandling } from '../_utils/errors';
 
 // Import feature flags
-// Note: Adjust the import path as needed for your project structure
 import featureFlags from '../../../utils/featureFlags';
 
 // Helper function to get API endpoints with fallbacks
@@ -62,12 +61,14 @@ export const POST = withErrorHandling(async (request: Request) => {
     }
     
     // Check input size
-    if (rawInput.length > 1000000) {
-      return Errors.badRequest('Input too large', { maxSize: 1000000, actualSize: rawInput.length });
-    }
+    const MAX_INPUT_LENGTH = 1_000_000; // 1 MB
+    if (rawInput.length > MAX_INPUT_LENGTH) {
+      return Errors.badRequest('Input too large', { maxSize: MAX_INPUT_LENGTH, actualSize: rawInput.length });
+     }
     
     // Log the parse request
-    await logToAuditTrail(createLogEntry('PARSE_TEXT', { inputLength: rawInput.length }));
+    const logEntry = await createLogEntry('PARSE_TEXT', { inputLength: rawInput.length });
+    await logToAuditTrail(logEntry);
     
     // Parse the input
     let parsedData;
@@ -81,30 +82,23 @@ export const POST = withErrorHandling(async (request: Request) => {
     const apiEndpoints = getApiEndpoints();
     
     // Determine which implementation to use based on feature flags
-    let response;
     const implementation = featureFlags.textParser.implementation;
+    const endpointMap: Record<'deepseek' | 'openai' | 'azure', string | undefined> = {
+      deepseek: apiEndpoints.deepseek,
+      openai: apiEndpoints.openai,
+      azure: apiEndpoints.azure
+    };
     
-    if (implementation === 'deepseek') {
-      response = await axios.post(
-        apiEndpoints.deepseek!,
-        { data: parsedData }
-      );
-    } else if (implementation === 'openai') {
-      response = await axios.post(
-        apiEndpoints.openai!,
-        { data: parsedData }
-      );
-    } else if (implementation === 'azure') {
-      response = await axios.post(
-        apiEndpoints.azure!,
-        { data: parsedData }
-      );
-    } else {
+    const endpoint = endpointMap[implementation as keyof typeof endpointMap];
+    if (!endpoint) {
       return Errors.badRequest('Invalid text parser implementation');
     }
     
+    const response = await axios.post(endpoint, { data: parsedData });
+    
     // Log successful parsing
-    await logToAuditTrail(createLogEntry('PARSE_TEXT_SUCCESS', { implementation }));
+    const successLogEntry = await createLogEntry('PARSE_TEXT_SUCCESS', { implementation });
+    await logToAuditTrail(successLogEntry);
     
     // Return the parsed data
     return NextResponse.json(response.data);
@@ -124,14 +118,24 @@ export const POST = withErrorHandling(async (request: Request) => {
     }
     
     // Log parsing failure
-    await logToAuditTrail(createLogEntry('PARSE_TEXT_FAILURE', { 
+    const errorLogEntry = await createLogEntry('PARSE_TEXT_FAILURE', { 
       error: message,
       implementation: featureFlags.textParser.implementation
-    }));
-    
-    return Errors.createErrorResponse(message, status, {
-      service: featureFlags.textParser.implementation
     });
+    await logToAuditTrail(errorLogEntry);
+    
+    // Use the appropriate error method based on status code
+    if (status === 400) {
+      return Errors.badRequest(message, { service: featureFlags.textParser.implementation });
+    } else if (status === 401) {
+      return Errors.unauthorized(message, { service: featureFlags.textParser.implementation });
+    } else if (status === 403) {
+      return Errors.forbidden(message, { service: featureFlags.textParser.implementation });
+    } else if (status === 404) {
+      return Errors.notFound(message, { service: featureFlags.textParser.implementation });
+    } else {
+      return Errors.internalServerError(message, { service: featureFlags.textParser.implementation });
+    }
   }
 });
 
@@ -152,9 +156,10 @@ export const PUT = withErrorHandling(async (request: Request) => {
     }
     
     // Log the analyze request
-    await logToAuditTrail(createLogEntry('ANALYZE_PARSED_DATA', { 
+    const analyzeLogEntry = await createLogEntry('ANALYZE_PARSED_DATA', { 
       keyCount: Object.keys(parsedData).length 
-    }));
+    });
+    await logToAuditTrail(analyzeLogEntry);
     
     // Analyze the data
     const keyCount = Object.keys(parsedData).length;
@@ -173,9 +178,10 @@ export const PUT = withErrorHandling(async (request: Request) => {
     console.error('Analysis error:', error);
     
     // Log analysis failure
-    await logToAuditTrail(createLogEntry('ANALYZE_PARSED_DATA_FAILURE', { 
+    const failureLogEntry = await createLogEntry('ANALYZE_PARSED_DATA_FAILURE', { 
       error: (error as Error).message
-    }));
+    });
+    await logToAuditTrail(failureLogEntry);
     
     return Errors.internalServerError('Failed to analyze text', {
       service: featureFlags?.textParser?.implementation
