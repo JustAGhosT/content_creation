@@ -1,5 +1,4 @@
-import Airtable, { FieldSet, Records } from 'airtable';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createLogEntry, logToAuditTrail } from '../_utils/audit';
 import { isAuthenticated } from '../_utils/auth';
 import { Errors, withErrorHandling } from '../_utils/errors';
@@ -8,6 +7,7 @@ import { validateString } from '../_utils/validation';
 // Import feature flags
 // Note: Adjust the import path as needed for your project structure
 import featureFlags from '../../../utils/featureFlags';
+import Airtable, { FieldSet, Records } from 'airtable';
 
 // Interface definitions
 interface Pagination {
@@ -82,9 +82,11 @@ function checkAirtableInitialized(): boolean {
  */
 function withAuthAndFeature(
   featureFlag: keyof typeof featureFlags,
-  handler: (request: Request, airtableTable: Airtable.Table<FieldSet>) => Promise<NextResponse>
-): (request: Request) => Promise<NextResponse> {
-  return async (request: Request) => {
+  handler: (request: NextRequest, airtableTable: Airtable.Table<FieldSet>) => Promise<NextResponse>
+): (req: Request, context?: { params: Record<string, string> }) => Promise<NextResponse> {
+  return async (req: Request, context?: { params: Record<string, string> }) => {
+    // Convert Request to NextRequest
+    const request = req as unknown as NextRequest;
     // Check authentication
     if (!(await isAuthenticated())) {
       return Errors.unauthorized('Authentication required');
@@ -106,7 +108,7 @@ function withAuthAndFeature(
 }
     
 // Store content handler
-async function storeContent(request: Request, airtableTable: Airtable.Table<FieldSet>): Promise<NextResponse> {
+async function storeContent(request: NextRequest, airtableTable: Airtable.Table<FieldSet>): Promise<NextResponse> {
   try {
     const body = await request.json();
     const { content } = body;
@@ -143,7 +145,7 @@ async function storeContent(request: Request, airtableTable: Airtable.Table<Fiel
 }
 
 // Track content handler
-async function trackContent(request: Request, airtableTable: Airtable.Table<FieldSet>): Promise<NextResponse> {
+async function trackContent(request: NextRequest, airtableTable: Airtable.Table<FieldSet>): Promise<NextResponse> {
   try {
     // Get query parameters
     const url = new URL(request.url);

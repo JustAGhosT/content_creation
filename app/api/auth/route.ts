@@ -71,10 +71,8 @@ function getJwtSecret() {
 export const POST = apiErrorHandler(async (request: NextRequest) => {
   try {
     const { username, password } = await request.json();
-    // Validate input
     const validationError = await validateInput(username, password);
     if (validationError) return validationError;
-    // Authenticate user
     const user = await authenticateUser(username, password);
     if (user instanceof NextResponse) return user;
     
@@ -90,10 +88,8 @@ export const POST = apiErrorHandler(async (request: NextRequest) => {
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode(getJwtSecret()));
     
-    // Set auth cookie
     await setAuthCookie(token);
     
-    // Record successful login
     await recordAuditEvent(await createAuditLog("LOGIN_SUCCESS", { username, userId: user.id }));
     
     return NextResponse.json({
@@ -123,8 +119,7 @@ export const DELETE = apiErrorHandler(async (request: NextRequest) => {
       path: '/'
     });
     
-    await LR(await hn("LOGOUT"));
-    
+    await recordAuditEvent(await createAuditLog("LOGOUT"));
     return NextResponse.json({ message: "Logged out successfully" });
   } catch (error) {
     console.error("Logout error:", error);

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Creates an error response
@@ -49,20 +49,25 @@ export const I = {
 };
 
 /**
- * API error handler wrapper
+ * API error handler wrapper - updated to work with NextRequest
  * @param handler API route handler function
  * @returns Wrapped handler with error handling
  */
-export function Uj(handler: Function) {
-  return async (request: Request, context: any) => {
+export function Uj(
+  handler: (req: NextRequest, context?: { params: Record<string, string> }) => Promise<NextResponse>
+) {
+  return async (
+    req: NextRequest,
+    context?: { params: Record<string, string> }
+  ): Promise<NextResponse> => {
     try {
-      return await handler(request, context);
+      return await handler(req, context);
     } catch (error: any) {
       console.error('API Error:', {
         error,
         timestamp: new Date().toISOString(),
-        url: request?.url || 'unknown',
-        method: request?.method || 'unknown'
+        url: req?.url || 'unknown',
+        method: req?.method || 'unknown'
       });
       
       if (error.name === 'ValidationError') {

@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[500],{7500:(e,t,l)=>{l.r(t),l.d(t,{default:()=>n});var s=l(4232),a=l(9099),u=l(1868);let n=()=>{let e=(0,a.useRouter)();return(0,s.useEffect)(()=>{u.zS.X&&console.log("Analytics initialized for",e.asPath)},[e.asPath]),null}}}]);
