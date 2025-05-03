@@ -1,10 +1,14 @@
-import { describe, expect, test, jest, beforeEach } from '@jest/globals';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { NextRequest } from 'next/server';
 import { GET, POST } from '../../app/api/feature-flags/route';
 import '../setup';
 
 // Mock isAdmin function
 jest.mock('../../app/api/_utils/auth', () => ({
   isAdmin: jest.fn(() => true),
+  // Add any other functions from the module that might be used
+  verifyToken: jest.fn(),
+  getTokenFromRequest: jest.fn(),
 }));
 
 // Mock logToAuditTrail function
@@ -13,6 +17,28 @@ jest.mock('../../app/api/_utils/audit', () => ({
   logToAuditTrail: jest.fn(),
 }));
 
+// Helper function to create a mock request
+function createMockRequest(method: string, body: Record<string, any>): NextRequest {
+  const mockRequest: Partial<NextRequest> = {
+    method,
+    // Explicitly type the json method to return a Promise
+    json: jest.fn<() => Promise<Record<string, any>>>().mockResolvedValue(body),
+    headers: {
+      get: jest.fn((name: string) => 'mock-value'),
+      append: jest.fn(),
+      delete: jest.fn(),
+      has: jest.fn(() => false),
+      set: jest.fn(),
+      entries: jest.fn(() => [][Symbol.iterator]()),
+      forEach: jest.fn(),
+      keys: jest.fn(() => [][Symbol.iterator]()),
+      values: jest.fn(() => [][Symbol.iterator]()),
+      getSetCookie: jest.fn(() => []),
+      [Symbol.iterator]: jest.fn(() => [][Symbol.iterator]()),
+    },
+  };
+  return mockRequest as NextRequest;
+}
 describe('Feature Flags API', () => {
   beforeEach(() => {
     // Clear all mocks before each test
@@ -117,7 +143,7 @@ describe('Feature Flags API', () => {
     });
 
     test('should require admin privileges', async () => {
-      // Mock isAdmin to return false
+      // Mock isAdmin to return false for this specific test
       const { isAdmin } = require('../../app/api/_utils/auth');
       (isAdmin as jest.Mock).mockReturnValueOnce(false);
       

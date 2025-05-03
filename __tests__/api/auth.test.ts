@@ -1,6 +1,8 @@
-import { describe, expect, test, jest, beforeEach } from '@jest/globals';
-import { POST, DELETE } from '../../app/api/auth/route';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { RequestCookie } from 'next/dist/compiled/@edge-runtime/cookies';
+import { RequestCookies } from 'next/dist/server/web/spec-extension/cookies';
 import { NextRequest } from 'next/server';
+import { DELETE, POST } from '../../app/api/auth/route';
 import '../setup';
 
 // Mock findUserByUsername and verifyUserCredentials
@@ -25,29 +27,68 @@ jest.mock('../../app/api/_utils/audit', () => ({
   logToAuditTrail: jest.fn(),
 }));
 
+// Create a mock for cookies function
+const mockCookiesSet = jest.fn();
+const mockCookiesGet = jest.fn();
+const mockCookies = {
+  set: mockCookiesSet,
+  get: mockCookiesGet,
+};
+
 // Mock cookies function
 jest.mock('next/headers', () => ({
-  cookies: jest.fn(() => ({
-    set: jest.fn(),
-    get: jest.fn(),
-  })),
+  cookies: jest.fn(() => mockCookies),
   headers: jest.fn(() => ({
-    get: jest.fn(),
+    get: jest.fn((name: string) => ({ name, value: 'mock-value' } as RequestCookie)),
   })),
 }));
 
 // Helper function to create a mock request
 function createMockRequest(body: Record<string, unknown>): NextRequest {
-  return {
+  // Create a mock RequestCookies object with the correct method signatures
+  const cookiesObj = {
+    get: jest.fn((name: string) => ({ name, value: 'mock-value' } as unknown as RequestCookie | undefined)),
+    getAll: jest.fn(() => []),
+    has: jest.fn(() => false),
+    // For delete, handle single string or array of strings correctly
+    delete: jest.fn((names: string | string[]): boolean => {
+      return true; // Always return boolean, not an array
+    }),
+    // For clear and set, return the cookies object for chaining
+    clear: jest.fn(),
+    set: jest.fn(),
+    // Use Object.defineProperty for read-only size property
+    [Symbol.iterator]: jest.fn(() => [][Symbol.iterator]()),
+  };
+
+  // Define size as a getter (read-only property)
+  Object.defineProperty(cookiesObj, 'size', {
+    get: () => 0,
+    enumerable: true,
+    configurable: true,
+  });
+
+  // Set up clear and set to return the cookies object for chaining
+  cookiesObj.clear.mockReturnValue(cookiesObj);
+  cookiesObj.set.mockReturnValue(cookiesObj);
+  const mockRequest: Partial<NextRequest> = {
     json: jest.fn<() => Promise<Record<string, unknown>>>().mockResolvedValue(body),
-    cookies: {
-      get: jest.fn(),
-      set: jest.fn(),
-    },
+    cookies: cookiesObj as unknown as RequestCookies,
     headers: {
-      get: jest.fn(),
+      get: jest.fn((name: string) => 'mock-value'),
+      append: jest.fn(),
+      delete: jest.fn(),
+      has: jest.fn(() => false),
+      set: jest.fn(),
+      entries: jest.fn(() => [][Symbol.iterator]()),
+      forEach: jest.fn(),
+      keys: jest.fn(() => [][Symbol.iterator]()),
+      values: jest.fn(() => [][Symbol.iterator]()),
+      getSetCookie: jest.fn(() => []),
+      [Symbol.iterator]: jest.fn(() => [][Symbol.iterator]()),
     },
-  } as unknown as NextRequest;
+  };
+  return mockRequest as NextRequest;
 }
 
 describe('Auth API', () => {
@@ -150,13 +191,18 @@ describe('Auth API', () => {
     test('should log out a user successfully', async () => {
       // Execute the handler
       const response = await DELETE();
-      
+  
       // Parse the JSON response
       const data = await response.json();
-      
+  
       // Assertions
       expect(response.status).toBe(200);
       expect(data).toHaveProperty('message', 'Logged out successfully');
+ 
+      // Verify that cookies.set was called with appropriate parameters to clear the token
+      expect(mockCookiesSet).toHaveBeenCalledWith('token', '', expect.objectContaining({
+        maxAge: 0,
+      }));
     });
   });
 });

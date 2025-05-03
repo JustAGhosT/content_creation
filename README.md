@@ -60,20 +60,66 @@ The key features of this project are:
 * **Summarization**: The project includes endpoints to generate and approve summaries of raw text. This is implemented in `api/summarization.js` and `components/SummarizationAPI.js`.
 * **Text parsing**: The project provides functionality to parse and analyze text, with support for different implementations like DeepSeek, OpenAI, and Azure. This is implemented in `api/text-parser.js`.
 
-## Detailed Deployment Process to Azure Web App
+## Comprehensive Deployment Guide to Azure Web App
 
-To document the deployment process for this project, follow these steps:
+### Prerequisites
 
-* **Prerequisites**: Ensure you have the necessary environment variables set up, including `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`, `AIRTABLE_TABLE_NAME`, `JWT_SECRET`, `EMAIL_USER`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `SLACK_TOKEN`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_PHONE_NUMBER`.
-* **GitHub Actions**: The deployment process is automated using GitHub Actions. The workflow file is located at `.github/workflows/azure-webapps-node.yml`.
-* **Environment selection**: The workflow supports deployment to different environments (`dev`, `test`, `prod`). You can specify the environment using the `environment` input in the workflow dispatch.
-* **Build process**: The build job sets up Node.js, installs dependencies, builds the project, runs tests, and zips the artifact for deployment.
-* **Infrastructure setup**: The infrastructure job creates the necessary Azure resources using a Bicep template located at `infra/main.bicep`. It generates resource names using the script `infra/naming.sh` and deploys the resources.
-* **Deployment**: The deploy job logs into Azure, generates resource names, and deploys the application to Azure Web App using the `azure/webapps-deploy@v3` action.
-* **Configuration**: Ensure the `parameters.json` file in the `infra` directory is correctly configured with the appropriate values for `appName`, `location`, `sku`, and `linuxFxVersion`.
-* **Running the workflow**: To trigger the deployment workflow, push changes to the `main` branch or manually dispatch the workflow from the GitHub Actions tab.
+Before deploying, ensure you have the necessary environment variables set up:
 
-For more detailed instructions, refer to the comments and steps in the `.github/workflows/azure-webapps-node.yml` file. Additionally, ensure that all required environment variables are set in the GitHub repository secrets.
+* `AZURE_CLIENT_ID`
+* `AZURE_TENANT_ID`
+* `AZURE_SUBSCRIPTION_ID`
+* `AIRTABLE_API_KEY`
+* `AIRTABLE_BASE_ID`
+* `AIRTABLE_TABLE_NAME`
+* `JWT_SECRET`
+* `EMAIL_USER`
+* `GMAIL_CLIENT_ID`
+* `GMAIL_CLIENT_SECRET`
+* `GMAIL_REFRESH_TOKEN`
+* `SLACK_TOKEN`
+* `TWILIO_ACCOUNT_SID`
+* `TWILIO_AUTH_TOKEN`
+* `TWILIO_PHONE_NUMBER`
+
+### Deployment Process
+
+The deployment process is automated using GitHub Actions with the following workflow:
+
+1. **Environment Setup**:
+   - Clone the repository and install dependencies
+   - Set up all required environment variables in GitHub repository secrets
+
+2. **GitHub Actions Workflow**:
+   - The workflow file is located at `.github/workflows/azure-webapps-node.yml`
+   - Supports deployment to different environments (`dev`, `test`, `prod`) via the `environment` input
+
+3. **Build Process**:
+   - Sets up Node.js
+   - Installs dependencies
+   - Builds the project
+   - Runs tests
+   - Zips the artifact for deployment
+
+4. **Infrastructure Setup**:
+   - Creates necessary Azure resources using a Bicep template at `infra/main.bicep`
+   - Generates resource names using the script `infra/naming.sh`
+   - Deploys the resources to Azure
+
+5. **Application Deployment**:
+   - Logs into Azure
+   - Generates resource names
+   - Deploys the application to Azure Web App using the `azure/webapps-deploy@v3` action
+
+6. **Configuration**:
+   - Ensure the `parameters.json` file in the `infra` directory is correctly configured with appropriate values for `appName`, `location`, `sku`, and `linuxFxVersion`
+
+7. **Running the Deployment**:
+   - Push changes to the `main` branch or manually dispatch the workflow from the GitHub Actions tab
+   - Monitor the workflow progress in the GitHub Actions tab
+   - Once complete, access the application using the provided Azure Web App URL
+
+For more detailed instructions, refer to the comments and steps in the `.github/workflows/azure-webapps-node.yml` file.
 
 ## Detailed Feature Descriptions
 
@@ -179,68 +225,6 @@ The text parsing feature provides functionality to parse and analyze text, with 
 * **Parse text**: Use the `/parse-text` endpoint to parse and analyze the provided text. This endpoint is defined in `api/text-parser.js` and requires the `text` field in the request body.
 
 For more detailed instructions, refer to the comments and code in the `api/text-parser.js` file.
-
-## Step-by-Step Deployment Guide
-
-### Prerequisites
-
-Ensure you have the necessary environment variables set up, including:
-
-* `AZURE_CLIENT_ID`
-* `AZURE_TENANT_ID`
-* `AZURE_SUBSCRIPTION_ID`
-* `AIRTABLE_API_KEY`
-* `AIRTABLE_BASE_ID`
-* `AIRTABLE_TABLE_NAME`
-* `JWT_SECRET`
-* `EMAIL_USER`
-* `GMAIL_CLIENT_ID`
-* `GMAIL_CLIENT_SECRET`
-* `GMAIL_REFRESH_TOKEN`
-* `SLACK_TOKEN`
-* `TWILIO_ACCOUNT_SID`
-* `TWILIO_AUTH_TOKEN`
-* `TWILIO_PHONE_NUMBER`
-
-### Environment Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/githubnext/workspace-blank.git
-   cd workspace-blank
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Set up environment variables:
-   ```bash
-   export AZURE_CLIENT_ID=<your-azure-client-id>
-   export AZURE_TENANT_ID=<your-azure-tenant-id>
-   export AZURE_SUBSCRIPTION_ID=<your-azure-subscription-id>
-   export AIRTABLE_API_KEY=<your-airtable-api-key>
-   export AIRTABLE_BASE_ID=<your-airtable-base-id>
-   export AIRTABLE_TABLE_NAME=<your-airtable-table-name>
-   export JWT_SECRET=<your-jwt-secret>
-   export EMAIL_USER=<your-email-user>
-   export GMAIL_CLIENT_ID=<your-gmail-client-id>
-   export GMAIL_CLIENT_SECRET=<your-gmail-client-secret>
-   export GMAIL_REFRESH_TOKEN=<your-gmail-refresh-token>
-   export SLACK_TOKEN=<your-slack-token>
-   export TWILIO_ACCOUNT_SID=<your-twilio-account-sid>
-   export TWILIO_AUTH_TOKEN=<your-twilio-auth-token>
-   export TWILIO_PHONE_NUMBER=<your-twilio-phone-number>
-   ```
-
-### Running the Deployment Workflow
-
-1. Push changes to the `main` branch or manually dispatch the workflow from the GitHub Actions tab.
-
-2. Monitor the workflow progress in the GitHub Actions tab.
-
-3. Once the deployment is complete, you can access the application using the provided Azure Web App URL.
 
 ## Troubleshooting Tips
 
@@ -365,6 +349,7 @@ To use the notification system, follow these steps:
 To use the platform connectors, follow these steps:
 
 1. Set up environment variables:
+
    ```bash
    export FACEBOOK_API_URL=<your-facebook-api-url>
    export FACEBOOK_API_KEY=<your-facebook-api-key>
@@ -405,6 +390,7 @@ To use the summarization feature, follow these steps:
 To use the text parsing feature, follow these steps:
 
 1. Set up environment variables:
+
    ```bash
    export DEEPSEEK_API_URL=<your-deepseek-api-url>
    export OPENAI_API_URL=<your-openai-api-url>
