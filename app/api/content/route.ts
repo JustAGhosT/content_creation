@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
-import { withErrorHandling, Errors } from '../_utils/errors';
-import { isAuthenticated } from '../_utils/auth';
-import { createLogEntry, logToAuditTrail } from '../_utils/audit';
-import { validateString } from '../_utils/validation';
 import Airtable, { FieldSet, Records } from 'airtable';
+import { NextResponse } from 'next/server';
+import { createLogEntry, logToAuditTrail } from '../_utils/audit';
+import { isAuthenticated } from '../_utils/auth';
+import { Errors, withErrorHandling } from '../_utils/errors';
+import { validateString } from '../_utils/validation';
 
 // Import feature flags
 // Note: Adjust the import path as needed for your project structure
@@ -14,6 +14,7 @@ interface Pagination {
   page: number;
   pageSize: number;
   hasMorePages: boolean;
+  nextToken?: string;
 }
 
 interface TrackContentResponse {
@@ -21,12 +22,22 @@ interface TrackContentResponse {
   pagination: Pagination;
 }
 
-interface QueryOptions {
-  maxRecords: number;
-  pageSize: number;
-  offset?: string;
+// Define our own query params interface to match what Airtable actually expects
+interface AirtableQueryParams {
+  maxRecords?: number;
+  pageSize?: number;
+  offset?: string;  // Airtable API actually expects string for offset
+  view?: string;
+  filterByFormula?: string;
+  sort?: any[];
+  fields?: string[];
 }
 
+// Error type guard
+function isError(error: unknown): error is Error {
+  return error instanceof Error || (typeof error === 'object' && 
+         error !== null && 'message' in error);
+}
 // Initialize Airtable
 let base: Airtable.Base | undefined;
 let table: Airtable.Table<FieldSet> | undefined;
@@ -63,23 +74,39 @@ function checkAirtableInitialized(): boolean {
   return true;
 }
 
-// Store content endpoint
-export const POST = withErrorHandling(async (request: Request) => {
-  // Check authentication
-  if (!isAuthenticated()) {
-    return Errors.unauthorized('Authentication required to store content');
-  }
+/**
+ * Higher-order function that wraps a handler with authentication and feature flag checks
+ * @param featureFlag The feature flag to check
+ * @param handler The handler function to wrap
+ * @returns A function that performs auth and feature checks before calling the handler
+ */
+function withAuthAndFeature(
+  featureFlag: keyof typeof featureFlags,
+  handler: (request: Request, airtableTable: Airtable.Table<FieldSet>) => Promise<NextResponse>
+): (request: Request) => Promise<NextResponse> {
+  return async (request: Request) => {
+    // Check authentication
+    if (!(await isAuthenticated())) {
+      return Errors.unauthorized('Authentication required');
+    }
   
-  // Check if Airtable integration feature is enabled
-  if (!featureFlags.airtableIntegration) {
-    return Errors.forbidden('Airtable integration feature is disabled');
-  }
+    // Check if feature is enabled
+    if (!featureFlags[featureFlag]) {
+      return Errors.forbidden(`${featureFlag} feature is disabled`);
+    }
   
-  // Check if Airtable is initialized
-  if (!checkAirtableInitialized()) {
-    return Errors.internalServerError('Airtable integration not available');
-  }
+    // Check if Airtable is initialized
+    if (!checkAirtableInitialized() || !table) {
+      return Errors.internalServerError('Airtable integration not available');
+    }
   
+    // Call the handler with the Airtable table
+    return handler(request, table);
+  };
+}
+    
+// Store content handler
+async function storeContent(request: Request, airtableTable: Airtable.Table<FieldSet>): Promise<NextResponse> {
   try {
     const body = await request.json();
     const { content } = body;
@@ -91,50 +118,32 @@ export const POST = withErrorHandling(async (request: Request) => {
     }
     
     // Log the content storage request
-    await logToAuditTrail(createLogEntry('STORE_CONTENT', { contentLength: content.length }));
-    
+    await logToAuditTrail(await createLogEntry('STORE_CONTENT', { contentLength: content.length }));
     // Store the content in Airtable
-    const record = await table!.create({ Content: content });
+    const record = await airtableTable.create({ Content: content });
     
     // Log successful content storage
-    await logToAuditTrail(createLogEntry('STORE_CONTENT_SUCCESS', { recordId: record.id }));
+    await logToAuditTrail(await createLogEntry('STORE_CONTENT_SUCCESS', { recordId: record.id }));
     
-    // Return success response
-    return NextResponse.json({
-      message: 'Content stored successfully',
-      recordId: record.id
-    });
+    // Return success response with 201 Created status
+    return NextResponse.json(
+      { message: 'Content stored successfully', recordId: record.id },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Airtable storage error:', error);
     
     // Log content storage failure
-    await logToAuditTrail(createLogEntry('STORE_CONTENT_FAILURE', { 
-      error: (error as Error).message
-    }));
-    
+    const errorMessage = isError(error) ? error.message : 'Unknown error';
+    await logToAuditTrail(await createLogEntry('STORE_CONTENT_FAILURE', { error: errorMessage }));
     return Errors.internalServerError('Error storing content', {
-      details: (error as Error).message
+      details: errorMessage
     });
   }
-});
+}
 
-// Track content endpoint
-export const GET = withErrorHandling(async (request: Request) => {
-  // Check authentication
-  if (!isAuthenticated()) {
-    return Errors.unauthorized('Authentication required to track content');
-  }
-  
-  // Check if Airtable integration feature is enabled
-  if (!featureFlags.airtableIntegration) {
-    return Errors.forbidden('Airtable integration feature is disabled');
-  }
-  
-  // Check if Airtable is initialized
-  if (!checkAirtableInitialized()) {
-    return Errors.internalServerError('Airtable integration not available');
-  }
-  
+// Track content handler
+async function trackContent(request: Request, airtableTable: Airtable.Table<FieldSet>): Promise<NextResponse> {
   try {
     // Get query parameters
     const url = new URL(request.url);
@@ -156,7 +165,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     }
     
     // Log the track content request
-    await logToAuditTrail(createLogEntry('TRACK_CONTENT', { 
+    await logToAuditTrail(await createLogEntry('TRACK_CONTENT', { 
       page: pageNum,
       pageSize: pageSizeNum,
       filter: filter || undefined,
@@ -164,7 +173,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     }));
     
     // Set up query options
-    const queryOptions: QueryOptions = {
+    const queryOptions: AirtableQueryParams = {
       maxRecords: pageSizeNum + 1,
       pageSize: pageSizeNum + 1
     };
@@ -174,13 +183,14 @@ export const GET = withErrorHandling(async (request: Request) => {
     }
     
     // Fetch records from Airtable
-    let records = await table!.select(queryOptions).all();
+    // Use type assertion here since we know our params match what Airtable expects
+    let records = await airtableTable.select(queryOptions as any).all();
     
     // Apply filter if provided
     if (filter && filter.trim() !== '') {
       const filterLower = filter.trim().toLowerCase();
       records = records.filter(record => {
-        const content = (record.fields.Content as string || '').toLowerCase();
+        const content = ((record.fields.Content as string) || '').toLowerCase();
         return content.includes(filterLower);
       });
     }
@@ -195,12 +205,13 @@ export const GET = withErrorHandling(async (request: Request) => {
       pagination: {
         page: pageNum,
         pageSize: pageSizeNum,
-        hasMorePages: hasMore
+        hasMorePages: hasMore,
+        nextToken: hasMore ? records[pageSizeNum].getId() : undefined
       }
     };
     
     // Log successful content tracking
-    await logToAuditTrail(createLogEntry('TRACK_CONTENT_SUCCESS', { 
+    await logToAuditTrail(await createLogEntry('TRACK_CONTENT_SUCCESS', { 
       recordCount: resultsToReturn.length,
       hasMore
     }));
@@ -211,12 +222,15 @@ export const GET = withErrorHandling(async (request: Request) => {
     console.error('Airtable retrieval error:', error);
     
     // Log content tracking failure
-    await logToAuditTrail(createLogEntry('TRACK_CONTENT_FAILURE', { 
-      error: (error as Error).message
-    }));
+    const errorMessage = isError(error) ? error.message : 'Unknown error';
+    await logToAuditTrail(await createLogEntry('TRACK_CONTENT_FAILURE', { error: errorMessage }));
     
     return Errors.internalServerError('Error tracking content', {
-      details: (error as Error).message
+      details: errorMessage
     });
   }
-});
+}
+
+// Export route handlers with proper error handling
+export const POST = withErrorHandling(withAuthAndFeature('airtableIntegration', storeContent));
+export const GET = withErrorHandling(withAuthAndFeature('airtableIntegration', trackContent));

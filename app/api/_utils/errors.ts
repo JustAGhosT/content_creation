@@ -65,13 +65,18 @@ export const Errors = {
  * @returns A function that handles errors consistently
  */
 export function withErrorHandling(
-  handler: (...args: any[]) => Promise<NextResponse>
-): (...args: any[]) => Promise<NextResponse> {
-  return async (...args: any[]) => {
+  handler: (req: Request, context?: { params: Record<string, string> }) => Promise<NextResponse>
+): (req: Request, context?: { params: Record<string, string> }) => Promise<NextResponse> {
+  return async (req: Request, context?: { params: Record<string, string> }) => {
     try {
-      return await handler(...args);
+      return await handler(req, context);
     } catch (error: any) {
-      console.error('API Error:', error);
+      console.error('API Error:', {
+        error,
+        timestamp: new Date().toISOString(),
+        url: req?.url || 'unknown',
+        method: req?.method || 'unknown'
+      });
       
       // Handle specific known errors
       if (error.name === 'ValidationError') {
@@ -80,7 +85,8 @@ export function withErrorHandling(
       
       // Default to internal server error
       return Errors.internalServerError(
-        error.message || 'An unexpected error occurred'
+        error.message || 'An unexpected error occurred',
+        error.cause
       );
     }
   };

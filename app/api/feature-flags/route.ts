@@ -1,14 +1,31 @@
 import { NextResponse } from 'next/server';
-import { TextParserFeatureFlag } from '../../../types';
-import featureFlags, { saveFeatureFlags } from '../../../utils/featureFlags';
+import featureFlags, { FeatureFlag, FeatureFlags, saveFeatureFlags } from '../../../utils/featureFlags';
+import { createLogEntry, logToAuditTrail } from '../_utils/audit';
 import { isAdmin } from '../_utils/auth';
 import { Errors, withErrorHandling } from '../_utils/errors';
-import { validateBoolean, validateString, validateEnum, validateAllowedProperties } from '../_utils/validation';
-import { withAuditLogging, createLogEntry, logToAuditTrail } from '../_utils/audit';
+import { validateAllowedProperties } from '../_utils/validation';
+import { z } from 'zod';
 
+// Define schema for feature flag updates
+const FeatureFlagSchema = z.object({
+  feature: z.string(),
+  enabled: z.boolean(),
+  implementation: z.enum(['deepseek', 'openai', 'azure']).optional()
+});
+
+// Type for parsed feature flag update
+type FeatureFlagUpdate = z.infer<typeof FeatureFlagSchema>;
+
+// Helper function to check if a property exists in an object
+function hasProperty<T extends object, K extends PropertyKey>(
+  obj: T,
+  prop: K
+): obj is T & Record<K, unknown> {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
 export const GET = withErrorHandling(async () => {
   // Log the access to feature flags
-  await logToAuditTrail(createLogEntry('GET_FEATURE_FLAGS'));
+  await logToAuditTrail(await createLogEntry('GET_FEATURE_FLAGS'));
   
   // Return all feature flags
   return NextResponse.json(featureFlags);
@@ -16,25 +33,17 @@ export const GET = withErrorHandling(async () => {
 
 export const POST = withErrorHandling(async (request: Request) => {
   // Check admin authorization
-  if (!isAdmin()) {
+  if (!(await isAdmin())) {
     return Errors.forbidden('Admin privileges required to update feature flags');
   }
 
   // Parse the request body
   const body = await request.json();
-  const { feature, enabled, implementation } = body;
-
-  // Validate feature name
-  const featureError = validateString(feature, 'Feature name');
-  if (featureError) {
-    return Errors.badRequest(featureError);
+  const parseResult = FeatureFlagSchema.safeParse(body);
+  if (!parseResult.success) {
+    return Errors.badRequest(parseResult.error.message);
   }
-
-  // Validate enabled flag
-  const enabledError = validateBoolean(enabled, 'Enabled flag');
-  if (enabledError) {
-    return Errors.badRequest(enabledError);
-  }
+  const { feature, enabled, implementation } = parseResult.data;
 
   // Validate allowed properties
   const allowedProps = ['feature', 'enabled', 'implementation'];
@@ -44,47 +53,50 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
 
   // Check if feature exists
-  if (!Object.prototype.hasOwnProperty.call(featureFlags, feature)) {
+  if (!hasProperty(featureFlags, feature)) {
     return Errors.badRequest('Invalid feature flag');
   }
 
-  // Handle implementation for textParser feature
-  if (implementation !== undefined && feature === 'textParser') {
-    const implementationError = validateEnum(
-      implementation, 
-      ['deepseek', 'openai', 'azure'], 
-      'Implementation'
-    );
-    
-    if (implementationError) {
-      return Errors.badRequest(implementationError);
-    }
-  }
-
   // Log the update action
-  await logToAuditTrail(createLogEntry('UPDATE_FEATURE_FLAG', body));
+  await logToAuditTrail(await createLogEntry('UPDATE_FEATURE_FLAG', body));
 
   // Update the feature flag
   try {
-    if (typeof featureFlags[feature] === 'object') {
-      (featureFlags[feature] as any).enabled = enabled;
-      if (typeof implementation !== 'undefined' && feature === 'textParser') {
-        (featureFlags[feature] as TextParserFeatureFlag).implementation = implementation as 'deepseek' | 'openai' | 'azure';
+    // Get the current value of the feature flag
+    const currentValue = featureFlags[feature];
+    
+    // Update based on type
+    if (typeof currentValue === 'object' && currentValue !== null) {
+      // Handle complex feature flags (like textParser)
+      if (feature === 'textParser') {
+        // We know this is the text parser feature flag
+        const textParserFlag = featureFlags.textParser;
+        textParserFlag.enabled = enabled;
+        
+        if (implementation !== undefined) {
+          textParserFlag.implementation = implementation;
+        }
+      } else {
+        // Generic object feature flag
+        const flagObject = currentValue as FeatureFlag;
+        flagObject.enabled = enabled;
       }
-    } else {
+    } else if (typeof currentValue === 'boolean') {
+      // Handle simple boolean feature flags
       featureFlags[feature] = enabled;
     }
     
     // Save the updated feature flags
-    saveFeatureFlags();
+    await saveFeatureFlags();
     
     return NextResponse.json({ 
       message: 'Feature flag updated successfully',
       feature,
       enabled,
-      ...(implementation ? { implementation } : {})
+      ...(implementation !== undefined ? { implementation } : {})
     });
   } catch (err) {
+    console.error('Failed to persist feature flags:', err);
     return Errors.internalServerError('Failed to persist feature flags');
   }
 });

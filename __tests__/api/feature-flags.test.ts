@@ -47,8 +47,11 @@ describe('Feature Flags API', () => {
 
   describe('GET /api/feature-flags', () => {
     test('should return all feature flags', async () => {
+      // Create a mock request for GET
+      const request = createMockRequest('GET', {});
+      
       // Execute the handler
-      const response = await GET();
+      const response = await GET(request);
       
       // Parse the JSON response
       const data = await response.json();

@@ -4,14 +4,14 @@ import { headers } from 'next/headers';
  * Log entry structure for API audit trail
  */
 export interface LogEntry {
-  action: string;
-  user: string;
-  timestamp: string;
-  path: string;
-  method: string;
-  body?: any;
-  result?: string;
-  statusCode?: number;
+   action: string;
+   user: string;
+   timestamp: string;
+   path: string;
+   method: string;
+   body?: Record<string, unknown>;
+   result?: string;
+   statusCode?: number;
 }
 
 /**
@@ -20,23 +20,28 @@ export interface LogEntry {
  * @returns Sanitized body object
  */
 export function sanitizeRequestBody(body: any): any {
-  if (!body) return body;
-  
-  const sensitiveFields = ['password', 'token', 'apiKey', 'secret', 'authorization'];
-  const sanitized = { ...body };
-  
-  // Recursively sanitize nested objects
-  for (const [key, value] of Object.entries(sanitized)) {
-    const lowerKey = key.toLowerCase();
-    
+   if (!body) return body;
+   
+   const sensitiveFields = ['password', 'token', 'apiKey', 'secret', 'authorization'];
+   const sanitized = { ...body };
+   
+   // Recursively sanitize nested objects
+   for (const [key, value] of Object.entries(sanitized)) {
+     const lowerKey = key.toLowerCase();
+     
+    // Check for sensitive fields first
     if (sensitiveFields.some(field => lowerKey.includes(field))) {
-      sanitized[key] = '[REDACTED]';
-    } else if (typeof value === 'object' && value !== null) {
-      sanitized[key] = sanitizeRequestBody(value);
+       sanitized[key] = '[REDACTED]';
+      continue;
     }
-  }
-  
-  return sanitized;
+    
+    // Process nested objects
+    if (typeof value === 'object' && value !== null) {
+       sanitized[key] = sanitizeRequestBody(value);
+     }
+   }
+   
+   return sanitized;
 }
 
 /**
@@ -47,13 +52,13 @@ export function sanitizeRequestBody(body: any): any {
  * @param statusCode The HTTP status code
  * @returns Log entry object
  */
-export function createLogEntry(
+export async function createLogEntry(
   action: string,
   body?: any,
   result?: string,
   statusCode?: number
-): LogEntry {
-  const headersList = headers();
+): Promise<LogEntry> {
+  const headersList = await headers();
   const path = headersList.get('x-invoke-path') || 'unknown';
   const method = headersList.get('x-http-method') || 'unknown';
   const user = headersList.get('x-user-id') || 'anonymous';
@@ -75,13 +80,35 @@ export function createLogEntry(
  * @param entry The log entry to record
  */
 export async function logToAuditTrail(entry: LogEntry): Promise<void> {
-  // In a production environment, you would:
-  // 1. Store this in a database
-  // 2. Send to a logging service
-  // 3. Write to a secure audit log file
+  // Determine environment from NODE_ENV
+  const isProd = process.env.NODE_ENV === 'production';
   
-  // For now, we'll just console.log it
-  console.log('[AUDIT]', JSON.stringify(entry));
+  if (isProd) {
+    // In production, we might:
+    // 1. Store in database
+    // TODO: Implement database logging
+    
+    // 2. Send to a logging service
+    try {
+      // Placeholder for actual logging service integration
+      await fetch('/api/internal/audit-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+      });
+    } catch (error) {
+      // Fallback to console in case of service failure
+      console.error('[AUDIT SERVICE ERROR]', error);
+      console.log('[AUDIT FALLBACK]', JSON.stringify(entry));
+    }
+  } else {
+    // In development/test, just log to console
+    console.log('[AUDIT]', JSON.stringify(entry));
+  }
+}
+
+interface ResultWithStatus {
+  status?: number;
 }
 
 /**
@@ -96,21 +123,30 @@ export function withAuditLogging<T>(
 ): (body?: any) => Promise<T> {
   return async (body?: any) => {
     // Log the start of the action
-    const entry = createLogEntry(action, body);
+    const entry = await createLogEntry(action, body);
     await logToAuditTrail(entry);
-    
+     
     // Execute the handler
     const result = await handler(body);
-    
+     
     // Log the completion of the action
     const completionEntry = {
       ...entry,
       timestamp: new Date().toISOString(),
       result: result ? 'success' : 'failure',
-      statusCode: (result as any)?.status || 200
+      statusCode: isResultWithStatus(result) ? result.status : 200
     };
     await logToAuditTrail(completionEntry);
-    
+     
     return result;
   };
+}
+
+/**
+ * Type guard to check if a result has a status property
+ */
+function isResultWithStatus(result: unknown): result is ResultWithStatus {
+  return typeof result === 'object' && 
+         result !== null && 
+         'status' in result;
 }

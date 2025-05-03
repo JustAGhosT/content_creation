@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { withErrorHandling, Errors } from '../_utils/errors';
-import { createLogEntry, logToAuditTrail } from '../_utils/audit';
-import { validateString } from '../_utils/validation';
 import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { createLogEntry, logToAuditTrail } from '../_utils/audit';
+import { Errors, withErrorHandling } from '../_utils/errors';
+import { validateString } from '../_utils/validation';
 
 // Import Request type from Next.js
 import type { NextRequest } from 'next/server';
@@ -16,17 +16,17 @@ function getJwtSecret(): string {
   }
   return secretKey;
 }
+// Define users in one place to avoid duplication
+const MOCK_USERS = [
+  { id: '1', username: 'admin', password: 'admin123', role: 'admin' },
+  { id: '2', username: 'user', password: 'user123', role: 'user' }
+];
 
 // Helper function to find user by username
 // This is a placeholder - replace with actual database lookup
 async function findUserByUsername(username: string): Promise<any> {
   // This would be replaced with actual database lookup
-  const users = [
-    { id: '1', username: 'admin', password: 'hashed_password', role: 'admin' },
-    { id: '2', username: 'user', password: 'hashed_password', role: 'user' }
-  ];
-  
-  return users.find(user => user.username === username);
+  return MOCK_USERS.find(user => user.username === username);
 }
 
 // Helper function to verify user credentials
@@ -38,74 +38,121 @@ async function verifyUserCredentials(username: string, password: string): Promis
   // 3. Compare the hashed password with the stored hash
   
   // For now, we'll just do a simple check against our mock users
-  const users = [
-    { username: 'admin', password: 'admin123', role: 'admin' },
-    { username: 'user', password: 'user123', role: 'user' }
-  ];
-  
-  const user = users.find(u => u.username === username);
+  const user = MOCK_USERS.find(u => u.username === username);
   return user ? user.password === password : false;
 }
 
-// Login endpoint
-export const POST = withErrorHandling(async (request: NextRequest) => {
+/**
+ * Validates login input parameters
+ * @param username Username to validate
+ * @param password Password to validate
+ * @returns Error response or null if valid
+ */
+async function validateLoginInput(username: string, password: string): Promise<NextResponse | null> {
+  // Validate username
+  const usernameError = validateString(username, 'Username');
+  if (usernameError) {
+    return Errors.badRequest(usernameError);
+  }
+    
+  // Validate password
+  const passwordError = validateString(password, 'Password');
+  if (passwordError) {
+    return Errors.badRequest(passwordError);
+  }
+    
+  return null;
+}
+
+/**
+ * Authenticates a user
+ * @param username Username to authenticate
+ * @param password Password to verify
+ * @returns User object or error response
+ */
+async function authenticateUser(username: string, password: string): Promise<any | NextResponse> {
+  // Log the login attempt (without the password)
+  await logToAuditTrail(await createLogEntry('LOGIN_ATTEMPT', { username }));
+    
+  // Find user
+  const user = await findUserByUsername(username);
+  if (!user) {
+    await logToAuditTrail(await createLogEntry('LOGIN_FAILED', { username, reason: 'User not found' }));
+    return Errors.unauthorized('Invalid username or password');
+  }
+    
+  // Verify credentials
+  const isPasswordValid = await verifyUserCredentials(username, password);
+  if (!isPasswordValid) {
+    await logToAuditTrail(await createLogEntry('LOGIN_FAILED', { username, reason: 'Invalid password' }));
+    return Errors.unauthorized('Invalid username or password');
+  }
+    
+  return user;
+}
+
+/**
+ * Generates a JWT token for a user
+ * @param user User object
+ * @returns JWT token
+ */
+function generateToken(user: any): string {
+  return jwt.sign(
+    {
+      id: user.id,
+      role: user.role,
+      username: user.username,
+      iat: Math.floor(Date.now() / 1000)
+    },
+    getJwtSecret(),
+    { expiresIn: '1h' }
+  );
+}
+    
+/**
+ * Sets the authentication cookie
+ * @param token JWT token
+ */
+async function setAuthCookie(token: string): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set({
+    name: 'auth-token',
+    value: token,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60, // 1 hour
+    path: '/'
+  });
+}
+    
+// Login endpoint - handle login request
+async function handleLogin(request: Request): Promise<NextResponse> {
   try {
     const body = await request.json();
     const { username, password } = body;
     
     // Validate input
-    const usernameError = validateString(username, 'Username');
-    if (usernameError) {
-      return Errors.badRequest(usernameError);
+    const validationError = await validateLoginInput(username, password);
+    if (validationError) {
+      return validationError;
     }
     
-    const passwordError = validateString(password, 'Password');
-    if (passwordError) {
-      return Errors.badRequest(passwordError);
+    // Authenticate user
+    const userOrError = await authenticateUser(username, password);
+    if (userOrError instanceof NextResponse) {
+      return userOrError; // Return error response if authentication failed
     }
     
-    // Log the login attempt (without the password)
-    await logToAuditTrail(createLogEntry('LOGIN_ATTEMPT', { username }));
-    
-    // Find user
-    const user = await findUserByUsername(username);
-    if (!user) {
-      await logToAuditTrail(createLogEntry('LOGIN_FAILED', { username, reason: 'User not found' }));
-      return Errors.unauthorized('Invalid username or password');
-    }
-    
-    // Verify credentials
-    const isPasswordValid = await verifyUserCredentials(username, password);
-    if (!isPasswordValid) {
-      await logToAuditTrail(createLogEntry('LOGIN_FAILED', { username, reason: 'Invalid password' }));
-      return Errors.unauthorized('Invalid username or password');
-    }
+    const user = userOrError;
     
     // Generate JWT token
-    const token = jwt.sign(
-      {
-        id: user.id,
-        role: user.role,
-        username: user.username,
-        iat: Math.floor(Date.now() / 1000)
-      },
-      getJwtSecret(),
-      { expiresIn: '1h' }
-    );
+    const token = generateToken(user);
     
     // Set HTTP-only cookie with the token
-    cookies().set({
-      name: 'auth-token',
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60, // 1 hour
-      path: '/'
-    });
-    
+    await setAuthCookie(token);
     // Log successful login
-    await logToAuditTrail(createLogEntry('LOGIN_SUCCESS', { username, userId: user.id }));
+    await logToAuditTrail(await createLogEntry('LOGIN_SUCCESS', { username, userId: user.id }));
     
     // Return token and basic user info (omitting sensitive data)
     return NextResponse.json({
@@ -120,23 +167,33 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     console.error('Login error:', error);
     return Errors.internalServerError('An error occurred during login');
   }
-});
+}
 
-// Logout endpoint
-export const DELETE = withErrorHandling(async () => {
-  // Clear the auth cookie
-  cookies().set({
-    name: 'auth-token',
-    value: '',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 0,
-    path: '/'
-  });
+// Logout endpoint - handle logout request
+async function handleLogout(): Promise<NextResponse> {
+  try {
+    // Clear the auth cookie
+    const cookieStore = await cookies();
+    cookieStore.set({
+      name: 'auth-token',
+      value: '',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 0,
+      path: '/'
+    });
   
-  // Log the logout
-  await logToAuditTrail(createLogEntry('LOGOUT'));
+    // Log the logout
+    await logToAuditTrail(await createLogEntry('LOGOUT'));
   
-  return NextResponse.json({ message: 'Logged out successfully' });
-});
+    return NextResponse.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    return Errors.internalServerError('An error occurred during logout');
+  }
+}
+
+// Export route handlers with proper error handling
+export const POST = withErrorHandling(async (req: Request) => handleLogin(req));
+export const DELETE = withErrorHandling(async (req: Request) => handleLogout());
