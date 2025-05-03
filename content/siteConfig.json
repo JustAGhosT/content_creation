@@ -1,0 +1,24 @@
+{
+  "siteName": "PhoenixVC Content Creation",
+  "siteDescription": "A comprehensive platform for content production workflow and platform analysis.",
+  "siteUrl": "https://phoenixvc-content.com",
+  "navigation": [
+    { "name": "Home", "path": "/" },
+    { "name": "Workflow", "path": "/workflow" },
+    { "name": "Automation", "path": "/automation" },
+    { "name": "Content Adaptation", "path": "/content-adaptation" },
+    { "name": "Human Review", "path": "/human-review" },
+    { "name": "Series", "path": "/series" },
+    { "name": "Platform Analysis", "path": "/platform-analysis" },
+    { "name": "Dashboard", "path": "/performance-dashboard" }
+  ],
+  "social": {
+    "twitter": "phoenixvc",
+    "github": "phoenixvc",
+    "linkedin": "company/phoenixvc"
+  },
+  "analytics": {
+    "googleAnalyticsId": "",
+    "enabledInDevelopment": false
+  }
+}

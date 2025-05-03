@@ -1,0 +1,14 @@
+{
+  "/api/audit/route": "app/api/audit/route.js",
+  "/api/feature-flags/route": "app/api/feature-flags/route.js",
+  "/api/feedback/route": "app/api/feedback/route.js",
+  "/api/images/route": "app/api/images/route.js",
+  "/api/auth/route": "app/api/auth/route.js",
+  "/api/content/route": "app/api/content/route.js",
+  "/api/platforms/route": "app/api/platforms/route.js",
+  "/api/notifications/route": "app/api/notifications/route.js",
+  "/api/platforms/[id]/capabilities/route": "app/api/platforms/[id]/capabilities/route.js",
+  "/api/summarize/route": "app/api/summarize/route.js",
+  "/api/queue/approve/route": "app/api/queue/approve/route.js",
+  "/api/parse/route": "app/api/parse/route.js"
+}

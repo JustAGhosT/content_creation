@@ -1,160 +1,101 @@
-import jwt from 'jsonwebtoken';
+import { hn as createAuditLog, LR as recordAuditEvent } from '@/lib/audit';
+import { I as ApiErrors, Uj as apiErrorHandler } from '@/lib/errors';
+import { oI as validateString } from '@/lib/validation';
+import * as jose from 'jose';
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
-import { createLogEntry, logToAuditTrail } from '../_utils/audit';
-import { Errors, withErrorHandling } from '../_utils/errors';
-import { validateString } from '../_utils/validation';
+import { NextRequest, NextResponse } from 'next/server';
 
-// Import Request type from Next.js
-import type { NextRequest } from 'next/server';
-
-// Helper function to get JWT secret
-function getJwtSecret(): string {
-  const secretKey = process.env.JWT_SECRET;
-  if (!secretKey) {
-    throw new Error('JWT_SECRET environment variable is not set');
-  }
-  return secretKey;
-}
-// Define users in one place to avoid duplication
-const MOCK_USERS = [
-  { id: '1', username: 'admin', password: 'admin123', role: 'admin' },
-  { id: '2', username: 'user', password: 'user123', role: 'user' }
+// Mock user data - in a real app, this would come from a database
+const users = [
+  { id: "1", username: "admin", password: "admin123", role: "admin" },
+  { id: "2", username: "user", password: "user123", role: "user" }
 ];
 
-// Helper function to find user by username
-// This is a placeholder - replace with actual database lookup
-async function findUserByUsername(username: string): Promise<any> {
-  // This would be replaced with actual database lookup
-  return MOCK_USERS.find(user => user.username === username);
+// Helper functions
+async function findUser(username: string) {
+  return users.find(user => user.username === username);
 }
 
-// Helper function to verify user credentials
-// This is a placeholder - replace with actual password verification
-async function verifyUserCredentials(username: string, password: string): Promise<boolean> {
-  // In a real implementation, you would:
-  // 1. Find the user by username
-  // 2. Hash the provided password with the same algorithm used for storage
-  // 3. Compare the hashed password with the stored hash
-  
-  // For now, we'll just do a simple check against our mock users
-  const user = MOCK_USERS.find(u => u.username === username);
+async function validateCredentials(username: string, password: string) {
+  const user = users.find(user => user.username === username);
   return user ? user.password === password : false;
 }
 
-/**
- * Validates login input parameters
- * @param username Username to validate
- * @param password Password to validate
- * @returns Error response or null if valid
- */
-async function validateLoginInput(username: string, password: string): Promise<NextResponse | null> {
-  // Validate username
-  const usernameError = validateString(username, 'Username');
-  if (usernameError) {
-    return Errors.badRequest(usernameError);
-  }
-    
-  // Validate password
-  const passwordError = validateString(password, 'Password');
-  if (passwordError) {
-    return Errors.badRequest(passwordError);
-  }
-    
+async function validateInput(username: string, password: string) {
+  const usernameError = validateString(username, "Username");
+  if (usernameError) return ApiErrors.badRequest(usernameError);
+  const passwordError = validateString(password, "Password");
+  if (passwordError) return ApiErrors.badRequest(passwordError);
   return null;
 }
 
-/**
- * Authenticates a user
- * @param username Username to authenticate
- * @param password Password to verify
- * @returns User object or error response
- */
-async function authenticateUser(username: string, password: string): Promise<any | NextResponse> {
-  // Log the login attempt (without the password)
-  await logToAuditTrail(await createLogEntry('LOGIN_ATTEMPT', { username }));
-    
-  // Find user
-  const user = await findUserByUsername(username);
+async function authenticateUser(username: string, password: string) {
+  await recordAuditEvent(await createAuditLog("LOGIN_ATTEMPT", { username }));
+  
+  const user = await findUser(username);
   if (!user) {
-    await logToAuditTrail(await createLogEntry('LOGIN_FAILED', { username, reason: 'User not found' }));
-    return Errors.unauthorized('Invalid username or password');
+    await recordAuditEvent(await createAuditLog("LOGIN_FAILED", { username, reason: "User not found" }));
+    return ApiErrors.unauthorized("Invalid username or password");
   }
     
-  // Verify credentials
-  const isPasswordValid = await verifyUserCredentials(username, password);
-  if (!isPasswordValid) {
-    await logToAuditTrail(await createLogEntry('LOGIN_FAILED', { username, reason: 'Invalid password' }));
-    return Errors.unauthorized('Invalid username or password');
+  const isValid = await validateCredentials(username, password);
+  if (!isValid) {
+    await recordAuditEvent(await createAuditLog("LOGIN_FAILED", { username, reason: "Invalid password" }));
+    return ApiErrors.unauthorized("Invalid username or password");
   }
     
   return user;
 }
 
-/**
- * Generates a JWT token for a user
- * @param user User object
- * @returns JWT token
- */
-function generateToken(user: any): string {
-  return jwt.sign(
-    {
-      id: user.id,
-      role: user.role,
-      username: user.username,
-      iat: Math.floor(Date.now() / 1000)
-    },
-    getJwtSecret(),
-    { expiresIn: '1h' }
-  );
-}
-    
-/**
- * Sets the authentication cookie
- * @param token JWT token
- */
-async function setAuthCookie(token: string): Promise<void> {
+async function setAuthCookie(token: string) {
   const cookieStore = await cookies();
   cookieStore.set({
     name: 'auth-token',
     value: token,
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: true,
     sameSite: 'strict',
-    maxAge: 60 * 60, // 1 hour
+    maxAge: 3600,
     path: '/'
   });
 }
     
-// Login endpoint - handle login request
-async function handleLogin(request: Request): Promise<NextResponse> {
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET environment variable is not set");
+  }
+  return secret;
+}
+
+export const POST = apiErrorHandler(async (request: NextRequest) => {
   try {
-    const body = await request.json();
-    const { username, password } = body;
-    
+    const { username, password } = await request.json();
     // Validate input
-    const validationError = await validateLoginInput(username, password);
-    if (validationError) {
-      return validationError;
-    }
-    
+    const validationError = await validateInput(username, password);
+    if (validationError) return validationError;
     // Authenticate user
-    const userOrError = await authenticateUser(username, password);
-    if (userOrError instanceof NextResponse) {
-      return userOrError; // Return error response if authentication failed
-    }
+    const user = await authenticateUser(username, password);
+    if (user instanceof NextResponse) return user;
     
-    const user = userOrError;
+    // Generate JWT token using jose instead of jsonwebtoken
+    const token = await new jose.SignJWT({ 
+      id: user.id,
+      role: user.role,
+      username: user.username,
+      iat: Math.floor(Date.now() / 1000)
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(getJwtSecret()));
     
-    // Generate JWT token
-    const token = generateToken(user);
-    
-    // Set HTTP-only cookie with the token
+    // Set auth cookie
     await setAuthCookie(token);
-    // Log successful login
-    await logToAuditTrail(await createLogEntry('LOGIN_SUCCESS', { username, userId: user.id }));
     
-    // Return token and basic user info (omitting sensitive data)
+    // Record successful login
+    await recordAuditEvent(await createAuditLog("LOGIN_SUCCESS", { username, userId: user.id }));
+    
     return NextResponse.json({
       token,
       user: {
@@ -164,36 +105,29 @@ async function handleLogin(request: Request): Promise<NextResponse> {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    return Errors.internalServerError('An error occurred during login');
+    console.error("Login error:", error);
+    return ApiErrors.internalServerError("An error occurred during login");
   }
-}
+});
 
-// Logout endpoint - handle logout request
-async function handleLogout(): Promise<NextResponse> {
+export const DELETE = apiErrorHandler(async (request: NextRequest) => {
   try {
-    // Clear the auth cookie
     const cookieStore = await cookies();
     cookieStore.set({
       name: 'auth-token',
       value: '',
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       sameSite: 'strict',
       maxAge: 0,
       path: '/'
     });
-  
-    // Log the logout
-    await logToAuditTrail(await createLogEntry('LOGOUT'));
-  
-    return NextResponse.json({ message: 'Logged out successfully' });
+    
+    await LR(await hn("LOGOUT"));
+    
+    return NextResponse.json({ message: "Logged out successfully" });
   } catch (error) {
-    console.error('Logout error:', error);
-    return Errors.internalServerError('An error occurred during logout');
+    console.error("Logout error:", error);
+    return ApiErrors.internalServerError("An error occurred during logout");
   }
-}
-
-// Export route handlers with proper error handling
-export const POST = withErrorHandling(async (req: Request) => handleLogin(req));
-export const DELETE = withErrorHandling(async (req: Request) => handleLogout());
+});

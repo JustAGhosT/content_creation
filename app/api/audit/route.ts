@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandling, Errors } from '../_utils/errors';
 import { isAdmin } from '../_utils/auth';
 import { createLogEntry, logToAuditTrail, sanitizeRequestBody } from '../_utils/audit';
@@ -57,14 +57,15 @@ function sanitizeErrorMessage(errorMsg: string): string {
   
   return sanitized;
 }
-// Get audit logs endpoint
-export const GET = withErrorHandling(async (request: Request) => {
-  // Check if user is admin
-  if (!(await isAdmin())) {
-    return Errors.forbidden('Admin privileges required to access audit logs');
-  }
-  
+
+// Get audit logs endpoint - fixed type signature for App Router
+export async function GET(request: NextRequest) {
   try {
+    // Check if user is admin
+    if (!(await isAdmin())) {
+      return Errors.forbidden('Admin privileges required to access audit logs');
+    }
+    
     // Get query parameters for filtering and pagination
     const url = new URL(request.url);
     
@@ -97,7 +98,6 @@ export const GET = withErrorHandling(async (request: Request) => {
     
     // Process logs in a streaming manner for large files
     let logs: LogEntry[] = [];
-    let totalLogs = 0;
     
     // For smaller files, we can use the direct approach
     const data = await fs.promises.readFile(logFilePath, 'utf-8');
@@ -150,4 +150,4 @@ export const GET = withErrorHandling(async (request: Request) => {
     
     return Errors.internalServerError('Failed to retrieve audit logs');
   }
-});
+}

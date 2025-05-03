@@ -1,14 +1,14 @@
 {
   "/_app": "pages/_app.js",
-  "/automation": "pages/automation.js",
-  "/_error": "pages/_error.js",
-  "/content-adaptation": "pages/content-adaptation.js",
-  "/human-review": "pages/human-review.js",
+  "/_document": "pages/_document.js",
   "/": "pages/index.js",
   "/performance-dashboard": "pages/performance-dashboard.js",
   "/platform-analysis": "pages/platform-analysis.js",
-  "/publishing-queue": "pages/publishing-queue.js",
   "/series": "pages/series.js",
   "/workflow": "pages/workflow.js",
-  "/_document": "pages/_document.js"
+  "/content-adaptation": "pages/content-adaptation.js",
+  "/automation": "pages/automation.js",
+  "/404": "pages/404.js",
+  "/human-review": "pages/human-review.js",
+  "/_error": "pages/_error.js"
 }

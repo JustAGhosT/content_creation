@@ -1,0 +1,1 @@
+"use strict";exports.id=976,exports.ids=[976],exports.modules={9976:(e,t,s)=>{s.r(t),s.d(t,{default:()=>a});var l=s(82015),r=s(44233),o=s(23176);let a=()=>{let e=(0,r.useRouter)();return(0,l.useEffect)(()=>{o.zS.X&&console.log("Analytics initialized for",e.asPath)},[e.asPath]),null}}};
