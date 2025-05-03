@@ -219,10 +219,10 @@ describe('Images API', () => {
       const request = createMockRequest({
         image: { id: '123', url: 'https://example.com/image.jpg' },
         action: 'reject'
-      });
+      }) as Request;
       
       // Execute the handler
-      const response = await PUT(request);
+ const response = await PUT(request as unknown as Request);
       
       // Parse the JSON response
       const data = await response.json();
