@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogEntry, logToAuditTrail } from '../_utils/audit';
 import { isAuthenticated } from '../_utils/auth';
-import { Errors, withErrorHandling } from '../_utils/errors';
+import { Errors } from '../_utils/errors';
 import { validateString } from '../_utils/validation';
 
 // Import feature flags
-// Note: Adjust the import path as needed for your project structure
 import featureFlags from '../../../utils/featureFlags';
 import Airtable, { FieldSet, Records } from 'airtable';
 
@@ -74,42 +73,34 @@ function checkAirtableInitialized(): boolean {
   return true;
 }
 
-/**
- * Higher-order function that wraps a handler with authentication and feature flag checks
- * @param featureFlag The feature flag to check
- * @param handler The handler function to wrap
- * @returns A function that performs auth and feature checks before calling the handler
- */
-function withAuthAndFeature(
-  featureFlag: keyof typeof featureFlags,
-  handler: (request: NextRequest, airtableTable: Airtable.Table<FieldSet>) => Promise<NextResponse>
-): (req: Request, context?: { params: Record<string, string> }) => Promise<NextResponse> {
-  return async (req: Request, context?: { params: Record<string, string> }) => {
-    // Convert Request to NextRequest
-    const request = req as unknown as NextRequest;
-    // Check authentication
-    if (!(await isAuthenticated())) {
-      return Errors.unauthorized('Authentication required');
-    }
+// Helper function to check auth and feature flag
+async function checkAuthAndFeature(featureFlag: keyof typeof featureFlags) {
+  // Check authentication
+  if (!(await isAuthenticated())) {
+    return Errors.unauthorized('Authentication required');
+  }
   
-    // Check if feature is enabled
-    if (!featureFlags[featureFlag]) {
-      return Errors.forbidden(`${featureFlag} feature is disabled`);
-    }
+  // Check if feature is enabled
+  if (!featureFlags[featureFlag]) {
+    return Errors.forbidden(`${featureFlag} feature is disabled`);
+  }
   
-    // Check if Airtable is initialized
-    if (!checkAirtableInitialized() || !table) {
-      return Errors.internalServerError('Airtable integration not available');
-    }
+  // Check if Airtable is initialized
+  if (!checkAirtableInitialized() || !table) {
+    return Errors.internalServerError('Airtable integration not available');
+  }
   
-    // Call the handler with the Airtable table
-    return handler(request, table);
-  };
+  return null; // No error
 }
     
-// Store content handler
-async function storeContent(request: NextRequest, airtableTable: Airtable.Table<FieldSet>): Promise<NextResponse> {
+export async function POST(request: Request) {
   try {
+    // Check auth and feature flag
+    const error = await checkAuthAndFeature('airtableIntegration');
+    if (error) return error;
+
+    // Convert to NextRequest to use convenience methods if needed
+    const nextRequest = request as unknown as NextRequest;
     const body = await request.json();
     const { content } = body;
     
@@ -122,7 +113,10 @@ async function storeContent(request: NextRequest, airtableTable: Airtable.Table<
     // Log the content storage request
     await logToAuditTrail(await createLogEntry('STORE_CONTENT', { contentLength: content.length }));
     // Store the content in Airtable
-    const record = await airtableTable.create({ Content: content });
+    if (!table) {
+      return Errors.internalServerError('Airtable table not available');
+    }
+    const record = await table.create({ Content: content });
     
     // Log successful content storage
     await logToAuditTrail(await createLogEntry('STORE_CONTENT_SUCCESS', { recordId: record.id }));
@@ -144,9 +138,14 @@ async function storeContent(request: NextRequest, airtableTable: Airtable.Table<
   }
 }
 
-// Track content handler
-async function trackContent(request: NextRequest, airtableTable: Airtable.Table<FieldSet>): Promise<NextResponse> {
+export async function GET(request: Request) {
   try {
+    // Check auth and feature flag
+    const error = await checkAuthAndFeature('airtableIntegration');
+    if (error) return error;
+
+    // Convert to NextRequest to use convenience methods if needed
+    const nextRequest = request as unknown as NextRequest;
     // Get query parameters
     const url = new URL(request.url);
     const page = url.searchParams.get('page') || '1';
@@ -185,8 +184,11 @@ async function trackContent(request: NextRequest, airtableTable: Airtable.Table<
     }
     
     // Fetch records from Airtable
+    if (!table) {
+      return Errors.internalServerError('Airtable table not available');
+    }
     // Use type assertion here since we know our params match what Airtable expects
-    let records = await airtableTable.select(queryOptions as any).all();
+    let records = await table.select(queryOptions as any).all();
     
     // Apply filter if provided
     if (filter && filter.trim() !== '') {
@@ -232,7 +234,3 @@ async function trackContent(request: NextRequest, airtableTable: Airtable.Table<
     });
   }
 }
-
-// Export route handlers with proper error handling
-export const POST = withErrorHandling(withAuthAndFeature('airtableIntegration', storeContent));
-export const GET = withErrorHandling(withAuthAndFeature('airtableIntegration', trackContent));

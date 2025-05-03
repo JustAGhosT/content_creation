@@ -2,7 +2,7 @@ import axios from 'axios';
 import { NextResponse } from 'next/server';
 import { createLogEntry, logToAuditTrail } from '../_utils/audit';
 import { isAuthenticated } from '../_utils/auth';
-import { Errors, withErrorHandling } from '../_utils/errors';
+import { Errors } from '../_utils/errors';
 
 // Import feature flags
 import featureFlags from '../../../utils/featureFlags';
@@ -35,23 +35,23 @@ function validateEnvironmentVariables(): boolean {
 }
 
 // Parse text endpoint
-export const POST = withErrorHandling(async (request: Request) => {
+export async function POST(request: Request) {
+  try {
   // Check authentication
   if (!isAuthenticated()) {
-    return Errors.unauthorized('Authentication required to parse text');
+      return Errors.unauthorized('Authentication required to parse text');
   }
   
-  // Check if text parser feature is enabled
-  if (!featureFlags.textParser?.enabled) {
-    return Errors.forbidden('Text parser feature is disabled');
-  }
-  
-  // Validate environment variables
-  if (!validateEnvironmentVariables()) {
-    return Errors.internalServerError('Text parser service is not properly configured');
-  }
-  
-  try {
+    // Check if text parser feature is enabled
+    if (!featureFlags.textParser?.enabled) {
+      return Errors.forbidden('Text parser feature is disabled');
+    }
+    
+    // Validate environment variables
+    if (!validateEnvironmentVariables()) {
+      return Errors.internalServerError('Text parser service is not properly configured');
+    }
+    
     const body = await request.json();
     const { rawInput } = body;
     
@@ -64,7 +64,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     const MAX_INPUT_LENGTH = 1_000_000; // 1 MB
     if (rawInput.length > MAX_INPUT_LENGTH) {
       return Errors.badRequest('Input too large', { maxSize: MAX_INPUT_LENGTH, actualSize: rawInput.length });
-     }
+    }
     
     // Log the parse request
     const logEntry = await createLogEntry('PARSE_TEXT', { inputLength: rawInput.length });
@@ -92,7 +92,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     const endpoint = endpointMap[implementation as keyof typeof endpointMap];
     if (!endpoint) {
       return Errors.badRequest('Invalid text parser implementation');
-    }
+  }
     
     const response = await axios.post(endpoint, { data: parsedData });
     
@@ -121,7 +121,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     const errorLogEntry = await createLogEntry('PARSE_TEXT_FAILURE', { 
       error: message,
       implementation: featureFlags.textParser.implementation
-    });
+});
     await logToAuditTrail(errorLogEntry);
     
     // Use the appropriate error method based on status code
@@ -137,16 +137,16 @@ export const POST = withErrorHandling(async (request: Request) => {
       return Errors.internalServerError(message, { service: featureFlags.textParser.implementation });
     }
   }
-});
+}
 
 // Analyze parsed data endpoint
-export const PUT = withErrorHandling(async (request: Request) => {
-  // Check authentication
-  if (!isAuthenticated()) {
-    return Errors.unauthorized('Authentication required to analyze text');
-  }
-  
+export async function PUT(request: Request) {
   try {
+    // Check authentication
+    if (!isAuthenticated()) {
+      return Errors.unauthorized('Authentication required to analyze text');
+    }
+    
     const body = await request.json();
     const { parsedData } = body;
     
@@ -187,4 +187,4 @@ export const PUT = withErrorHandling(async (request: Request) => {
       service: featureFlags?.textParser?.implementation
     });
   }
-});
+}

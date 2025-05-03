@@ -1,9 +1,9 @@
 import { hn as createAuditLog, LR as recordAuditEvent } from '@/lib/audit';
-import { I as ApiErrors, Uj as apiErrorHandler } from '@/lib/errors';
+import { I as ApiErrors } from '@/lib/errors';
 import { oI as validateString } from '@/lib/validation';
 import * as jose from 'jose';
 import { cookies } from 'next/headers';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Mock user data - in a real app, this would come from a database
 const users = [
@@ -68,7 +68,7 @@ function getJwtSecret() {
   return secret;
 }
 
-export const POST = apiErrorHandler(async (request: NextRequest) => {
+export async function POST(request: Request) {
   try {
     const { username, password } = await request.json();
     const validationError = await validateInput(username, password);
@@ -104,9 +104,9 @@ export const POST = apiErrorHandler(async (request: NextRequest) => {
     console.error("Login error:", error);
     return ApiErrors.internalServerError("An error occurred during login");
   }
-});
+}
 
-export const DELETE = apiErrorHandler(async (request: NextRequest) => {
+export async function DELETE(request: Request) {
   try {
     const cookieStore = await cookies();
     cookieStore.set({
@@ -125,4 +125,4 @@ export const DELETE = apiErrorHandler(async (request: NextRequest) => {
     console.error("Logout error:", error);
     return ApiErrors.internalServerError("An error occurred during logout");
   }
-});
+}

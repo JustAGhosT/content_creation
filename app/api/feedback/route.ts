@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withErrorHandling, Errors } from '../_utils/errors';
+import { Errors } from '../_utils/errors';
 import { isAuthenticated } from '../_utils/auth';
 import { createLogEntry, logToAuditTrail } from '../_utils/audit';
 import { validateString } from '../_utils/validation';
@@ -143,37 +143,46 @@ function checkFeedbackFeatureEnabled(): NextResponse | null {
 }
 
 // Submit feedback endpoint
-export const POST = withErrorHandling(async (request: Request) => {
-  // Check if feedback mechanism feature is enabled
-  const featureCheckError = checkFeedbackFeatureEnabled();
-  if (featureCheckError) return featureCheckError;
+export async function POST(request: Request) {
+  try {
+    // Check if feedback mechanism feature is enabled
+    const featureCheckError = checkFeedbackFeatureEnabled();
+    if (featureCheckError) return featureCheckError;
   
-  // Parse and validate request body
-  const body = await request.json();
-  const { reviewId, feedback } = body;
+    // Parse and validate request body
+    const body = await request.json();
+    const { reviewId, feedback } = body;
   
-  // Validate input
-  const validationError = validateFeedbackData(reviewId, feedback);
-  if (validationError) return validationError;
+    // Validate input
+    const validationError = validateFeedbackData(reviewId, feedback);
+    if (validationError) return validationError;
   
-  // Process the feedback submission
-  return processFeedbackSubmission(reviewId, feedback);
-});
-
-// Get feedback endpoint
-export const GET = withErrorHandling(async (request: Request) => {
-  // Check authentication for retrieving feedback
-  if (!(await isAuthenticated())) {
-    return Errors.unauthorized('Authentication required to retrieve feedback') as NextResponse;
+    // Process the feedback submission
+    return processFeedbackSubmission(reviewId, feedback);
+  } catch (error) {
+    console.error('Error in POST feedback:', error);
+    return Errors.internalServerError('Failed to process feedback submission');
   }
+}
+// Get feedback endpoint
+export async function GET(request: Request) {
+  try {
+    // Check authentication for retrieving feedback
+    if (!(await isAuthenticated())) {
+      return Errors.unauthorized('Authentication required to retrieve feedback') as NextResponse;
+    }
   
-  // Check if feedback mechanism feature is enabled
-  const featureCheckError = checkFeedbackFeatureEnabled();
-  if (featureCheckError) return featureCheckError;
+    // Check if feedback mechanism feature is enabled
+    const featureCheckError = checkFeedbackFeatureEnabled();
+    if (featureCheckError) return featureCheckError;
   
-  // Get the URL for query parameters
-  const url = new URL(request.url);
+    // Get the URL for query parameters
+    const url = new URL(request.url);
   
-  // Retrieve feedback based on query parameters
-  return retrieveFeedback(url);
-});
+    // Retrieve feedback based on query parameters
+    return retrieveFeedback(url);
+  } catch (error) {
+    console.error('Error in GET feedback:', error);
+    return Errors.internalServerError('Failed to retrieve feedback');
+  }
+}
