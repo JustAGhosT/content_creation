@@ -1,51 +1,110 @@
 import React, { useState } from 'react';
-import Footer from '../components/Footer';
-import Header from '../components/Header';
-import SeriesForm from '../components/SeriesForm';
+import Link from 'next/link';
+import Layout from '../components/layouts/Layout';
+import SeriesForm from '../components/series/SeriesForm';
+import SeriesCard from '../components/series/SeriesCard';
+import EmptyState from '../components/series/EmptyState';
+import { useSeries } from '../hooks/useSeries';
+import styles from '../styles/Series.module.css';
 
-interface Series {
-  title: string;
-  description: string;
-  [key: string]: any;
-}
-
+/**
+ * Series management page
+ */
 const SeriesPage: React.FC = () => {
-  const [series, setSeries] = useState<Series[]>([]);
-
-  const addSeries = (newSeries: Series) => {
-    setSeries([...series, newSeries]);
-  };
-
-  const editSeries = (index: number, updatedSeries: Series) => {
-    const updatedSeriesList = series.map((s, i) => (i === index ? updatedSeries : s));
-    setSeries(updatedSeriesList);
-  };
-
-  const deleteSeries = (index: number) => {
-    const updatedSeriesList = series.filter((_, i) => i !== index);
-    setSeries(updatedSeriesList);
+  // Use our custom hook for series state management
+  const { series, isLoading, error, addSeries, editSeries, deleteSeries } = useSeries();
+  
+  // State to control form visibility
+  const [showForm, setShowForm] = useState<boolean>(false);
+  
+  // Toggle form visibility
+  const toggleForm = () => {
+    setShowForm(!showForm);
   };
 
   return (
-    <div>
-      <Header />
-      <main>
-        <h1>Manage Series</h1>
-        <SeriesForm onAddSeries={addSeries} />
-        <div>
-          {series.map((s, index) => (
-            <div key={index}>
-              <h2>{s.title}</h2>
-              <p>{s.description}</p>
-              <button onClick={() => editSeries(index, s)}>Edit</button>
-              <button onClick={() => deleteSeries(index)}>Delete</button>
+    <Layout
+      title="Manage Content Series"
+      description="Create and manage your technical content series"
+    >
+      <div className={styles.container}>
+        <h1 className={styles.pageTitle}>Manage Content Series</h1>
+        <p className={styles.pageDescription}>
+          Organize your technical content into structured series for better planning and distribution
+        </p>
+        
+        {/* Error message if loading fails */}
+        {error && <div className={styles.errorMessage}>{error}</div>}
+        
+        {/* Form toggle button */}
+        {!showForm && series.length > 0 && (
+          <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
+            <button 
+              onClick={toggleForm} 
+              className={styles.primaryButton}
+            >
+              Create New Series
+            </button>
+          </div>
+        )}
+        
+        {/* Series form */}
+        {showForm && (
+          <>
+            <SeriesForm 
+              onAddSeries={(newSeries) => {
+                addSeries(newSeries);
+                setShowForm(false);
+              }} 
+            />
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+              <button 
+                onClick={toggleForm} 
+                className={styles.secondaryButton}
+              >
+                Cancel
+              </button>
             </div>
-          ))}
+          </>
+        )}
+        
+        {/* Series list or empty state */}
+        {isLoading ? (
+          <div className={styles.loadingState}>Loading your content series...</div>
+        ) : series.length === 0 ? (
+          <EmptyState onCreateClick={() => setShowForm(true)} />
+        ) : (
+          <div className={styles.seriesGrid}>
+            {series.map((s, index) => (
+              <SeriesCard
+                key={s.id || index}
+                series={s}
+                index={index}
+                onEdit={editSeries}
+                onDelete={deleteSeries}
+              />
+            ))}
+          </div>
+        )}
+        
+        {/* Navigation links */}
+        <div className={styles.navigationLinks}>
+          <Link href="/workflow" className={styles.navLink}>
+            ← View Content Workflow
+          </Link>
+          <Link href="/performance-dashboard" className={styles.navLink}>
+            View Performance Dashboard →
+          </Link>
         </div>
-      </main>
-      <Footer />
-    </div>
+      </div>
+    </Layout>
   );
 };
+
+// Add performance monitoring for Core Web Vitals
+export function reportWebVitals(metric) {
+  // In a real app, send to your analytics platform
+  console.log(metric);
+}
 
 export default SeriesPage;

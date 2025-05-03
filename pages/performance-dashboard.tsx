@@ -1,46 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import DashboardLayout from '../components/layouts/DashboardLayout';
+import EngagementMetrics from '../components/dashboard/EngagementMetrics';
 import AirtableIntegration from '../components/AirtableIntegration';
+import { useEngagementMetrics } from '../hooks/useEngagementMetrics';
+import dashboardStyles from '../styles/dashboard.module.css';
 
-interface EngagementMetric {
-  platform: string;
-  value: number | string;
-}
-
+/**
+ * Performance Dashboard page for monitoring content engagement metrics
+ */
 const PerformanceDashboard: React.FC = () => {
-  const [engagementMetrics, setEngagementMetrics] = useState<EngagementMetric[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchEngagementMetrics = async () => {
-      try {
-        const response = await fetch('/api/engagement-metrics');
-        const data = await response.json();
-        setEngagementMetrics(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      }
-    };
-
-    fetchEngagementMetrics();
-  }, []);
+  // Use custom hook for data fetching with proper loading and error states
+  const { data: metrics, isLoading, error, refetch } = useEngagementMetrics();
 
   return (
-    <div>
-      <h2>Performance Dashboard</h2>
-      {error && <p>Error: {error}</p>}
-      <AirtableIntegration />
-      <div>
-        <h3>Engagement Metrics</h3>
-        <ul>
-          {engagementMetrics.map((metric, index) => (
-            <li key={index}>
-              <strong>{metric.platform}:</strong> {metric.value}
-            </li>
-          ))}
-        </ul>
+    <DashboardLayout 
+      title="Performance Dashboard" 
+      description="Monitor and analyze your content performance across platforms"
+    >
+      <div className={dashboardStyles.dashboardGrid}>
+        {/* Engagement Metrics Card */}
+        <EngagementMetrics 
+          metrics={metrics}
+          isLoading={isLoading}
+          error={error}
+          onRefresh={refetch}
+        />
+        
+        {/* Airtable Integration Card */}
+        <AirtableIntegration />
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
+
+// Add performance monitoring for Core Web Vitals
+export function reportWebVitals(metric) {
+  // In a real app, send to your analytics platform
+  console.log(metric);
+}
 
 export default PerformanceDashboard;
