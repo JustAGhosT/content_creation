@@ -49,5 +49,9 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   // Handle the POST request logic here
   // For now, just return a success response
+  // TODO: Implement platform creation/update functionality. This should handle:
+  // - Validating the platform data
+  // - Storing the platform in the database
+  // - Returning the created/updated platform
   return NextResponse.json({ message: 'POST request handled successfully' });
 });
