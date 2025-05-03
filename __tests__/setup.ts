@@ -53,7 +53,18 @@ jest.mock('jsonwebtoken', () => ({
 }));
 
 // Helper function to create mock requests
-global.createMockRequest = (method: string, body?: any, headers?: Record<string, string>) => {
+interface MockRequest {
+  method: string;
+  url: string;
+  headers: {
+    get: (name: string) => string | null;
+    set: jest.Mock;
+  };
+  json: () => Promise<Record<string, unknown>>;
+  nextUrl: URL;
+}
+
+global.createMockRequest = (method: string, body?: Record<string, unknown>, headers?: Record<string, string>): MockRequest => {
   return {
     method,
     url: 'http://localhost:3000/api/test',
@@ -74,5 +85,5 @@ global.createMockRequest = (method: string, body?: any, headers?: Record<string,
 // Extend global types
 declare global {
   // eslint-disable-next-line no-var
-  var createMockRequest: (method: string, body?: any, headers?: Record<string, string>) => any;
+  var createMockRequest: (method: string, body?: Record<string, unknown>, headers?: Record<string, string>) => MockRequest;
 }

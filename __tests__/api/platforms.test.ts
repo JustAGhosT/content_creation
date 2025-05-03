@@ -1,7 +1,11 @@
-import { describe, expect, test, jest, beforeEach } from '@jest/globals';
-import { GET as getPlatforms } from '../../app/api/platforms/route';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { NextRequest } from 'next/server';
 import { GET as getPlatformCapabilities } from '../../app/api/platforms/[id]/capabilities/route';
+import { GET as getPlatforms } from '../../app/api/platforms/route';
 import '../setup';
+
+// Define valid platform names type
+type PlatformName = 'facebook' | 'twitter' | 'linkedin';
 
 // Mock platforms data
 jest.mock('../../config/platforms', () => ({
@@ -10,8 +14,12 @@ jest.mock('../../config/platforms', () => ({
     { id: 2, name: 'Twitter', icon: 'twitter-icon' },
     { id: 3, name: 'LinkedIn', icon: 'linkedin-icon' }
   ],
-  getPlatformConfig: jest.fn((name) => {
-    const configs = {
+  getPlatformConfig: jest.fn((name: string) => {
+    const configs: Record<PlatformName, {
+      apiUrl: string;
+      apiKey: string;
+      capabilities: string[];
+    }> = {
       facebook: {
         apiUrl: 'https://api.facebook.com',
         apiKey: 'facebook-api-key',
@@ -28,7 +36,9 @@ jest.mock('../../config/platforms', () => ({
         capabilities: ['post', 'article']
       }
     };
-    return configs[name.toLowerCase()];
+    
+    const platformName = name.toLowerCase() as PlatformName;
+    return configs[platformName] || null;
   })
 }));
 
@@ -43,6 +53,27 @@ jest.mock('../../app/api/_utils/audit', () => ({
   logToAuditTrail: jest.fn()
 }));
 
+// Helper function to create a mock request
+function createMockRequest(method: string = 'GET'): NextRequest {
+  const mockRequest: Partial<NextRequest> = {
+    method,
+    headers: {
+      get: jest.fn((name: string) => 'mock-value'),
+      append: jest.fn(),
+      delete: jest.fn(),
+      has: jest.fn(() => false),
+      set: jest.fn(),
+      entries: jest.fn(() => [][Symbol.iterator]()),
+      forEach: jest.fn(),
+      keys: jest.fn(() => [][Symbol.iterator]()),
+      values: jest.fn(() => [][Symbol.iterator]()),
+      getSetCookie: jest.fn(() => []),
+      [Symbol.iterator]: jest.fn(() => [][Symbol.iterator]()),
+    },
+  };
+  return mockRequest as NextRequest;
+}
+
 describe('Platforms API', () => {
   beforeEach(() => {
     // Clear all mocks before each test
@@ -51,8 +82,11 @@ describe('Platforms API', () => {
 
   describe('GET /api/platforms', () => {
     test('should return all platforms', async () => {
+      // Create a mock request
+      const request = createMockRequest();
+      
       // Execute the handler
-      const response = await getPlatforms();
+      const response = await getPlatforms(request);
       
       // Parse the JSON response
       const data = await response.json();
@@ -70,10 +104,13 @@ describe('Platforms API', () => {
     test('should require authentication', async () => {
       // Mock isAuthenticated to return false
       const { isAuthenticated } = require('../../app/api/_utils/auth');
-      (isAuthenticated as jest.Mock).mockReturnValueOnce(false);
+      jest.mocked(isAuthenticated).mockReturnValueOnce(false);
+      
+      // Create a mock request
+      const request = createMockRequest();
       
       // Execute the handler
-      const response = await getPlatforms();
+      const response = await getPlatforms(request);
       
       // Parse the JSON response
       const data = await response.json();
@@ -86,11 +123,12 @@ describe('Platforms API', () => {
 
   describe('GET /api/platforms/[id]/capabilities', () => {
     test('should return capabilities for a valid platform', async () => {
-      // Create mock params
+      // Create mock request and params
+      const request = createMockRequest();
       const params = { params: { id: '1' } };
       
       // Execute the handler
-      const response = await getPlatformCapabilities({} as Request, params);
+      const response = await getPlatformCapabilities(request, params);
       
       // Parse the JSON response
       const data = await response.json();
@@ -108,11 +146,12 @@ describe('Platforms API', () => {
     });
 
     test('should handle invalid platform ID', async () => {
-      // Create mock params with invalid ID
+      // Create mock request and params
+      const request = createMockRequest();
       const params = { params: { id: 'invalid' } };
       
       // Execute the handler
-      const response = await getPlatformCapabilities({} as Request, params);
+      const response = await getPlatformCapabilities(request, params);
       
       // Parse the JSON response
       const data = await response.json();
@@ -123,11 +162,12 @@ describe('Platforms API', () => {
     });
 
     test('should handle non-existent platform', async () => {
-      // Create mock params with non-existent ID
+      // Create mock request and params
+      const request = createMockRequest();
       const params = { params: { id: '99' } };
       
       // Execute the handler
-      const response = await getPlatformCapabilities({} as Request, params);
+      const response = await getPlatformCapabilities(request, params);
       
       // Parse the JSON response
       const data = await response.json();
@@ -140,13 +180,14 @@ describe('Platforms API', () => {
     test('should require authentication', async () => {
       // Mock isAuthenticated to return false
       const { isAuthenticated } = require('../../app/api/_utils/auth');
-      (isAuthenticated as jest.Mock).mockReturnValueOnce(false);
+      jest.mocked(isAuthenticated).mockReturnValueOnce(false);
       
-      // Create mock params
+      // Create mock request and params
+      const request = createMockRequest();
       const params = { params: { id: '1' } };
       
       // Execute the handler
-      const response = await getPlatformCapabilities({} as Request, params);
+      const response = await getPlatformCapabilities(request, params);
       
       // Parse the JSON response
       const data = await response.json();

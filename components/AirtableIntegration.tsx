@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
 import Airtable, { FieldSet, Records } from 'airtable';
+import React, { useEffect, useState } from 'react';
 
 interface Record {
   id: string;
@@ -19,9 +19,9 @@ const AirtableIntegration: React.FC = () => {
       setLoading(true);
       try {
         const base = new Airtable({
-          apiKey: process.env.REACT_APP_AIRTABLE_API_KEY
-        }).base(process.env.REACT_APP_AIRTABLE_BASE_ID);
-        const table = base(process.env.REACT_APP_AIRTABLE_TABLE_NAME);
+          apiKey: process.env.NEXT_PUBLIC_AIRTABLE_API_KEY || ''
+        }).base(process.env.NEXT_PUBLIC_AIRTABLE_BASE_ID || '');
+        const table = base(process.env.NEXT_PUBLIC_AIRTABLE_TABLE_NAME || '');
 
         const records: Records<FieldSet> = await table.select().all();
         setRecords(records as Record[]);

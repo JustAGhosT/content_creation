@@ -12,10 +12,21 @@ export interface TrackContentResponse {
   pagination: Pagination;
 }
 
+// Define a custom interface that extends FieldSet for Airtable's type system
+export interface AirtableRecord extends FieldSet {
+  Content: string;
+  createdTime?: string;
+  // Add other fields that exist in your Airtable schema
+  [key: string]: any; // Add index signature to satisfy FieldSet constraint
+}
+
+// Define our own query options interface for internal use
 export interface QueryOptions {
-  maxRecords: number;
-  pageSize: number;
+  maxRecords?: number;
+  pageSize?: number;
   offset?: string;
+  // Add other query parameters as needed
+  [key: string]: any;
 }
 
 export interface Feedback {
@@ -23,17 +34,11 @@ export interface Feedback {
   feedback: string;
 }
 
-export interface AirtableRecord {
-  Content: string;
-  createdTime?: string;
-  // Add other fields that exist in your Airtable schema
-}
-
 // Airtable client class
 export class AirtableClient {
   private base: Airtable.Base | undefined;
-  private contentTable: Airtable.Table<AirtableRecord> | undefined;
-  private feedbackTable: Airtable.Table<any> | undefined;
+  private contentTable: Airtable.Table<FieldSet> | undefined;
+  private feedbackTable: Airtable.Table<FieldSet> | undefined;
   private initialized: boolean = false;
 
   constructor() {
@@ -81,7 +86,7 @@ export class AirtableClient {
    * @param content Content to store
    * @returns Created record
    */
-  public async storeContent(content: string): Promise<Airtable.Record<AirtableRecord>> {
+  public async storeContent(content: string): Promise<Airtable.Record<FieldSet>> {
     if (!this.isInitialized()) {
       throw new Error('Airtable client not initialized');
     }
@@ -115,6 +120,7 @@ export class AirtableClient {
     const offset = options.offset;
 
     try {
+      // Create query options object
       const queryOptions: QueryOptions = {
         maxRecords: pageSize + 1,
         pageSize: pageSize + 1
@@ -124,13 +130,16 @@ export class AirtableClient {
         queryOptions.offset = offset;
       }
 
-      let records = await this.contentTable!.select(queryOptions).all();
+      // Use type assertion to handle the type mismatch with Airtable's API
+      let records = await this.contentTable!.select(queryOptions as any).all();
 
       // Apply filter if provided
       if (filter && filter.trim() !== '') {
         const filterLower = filter.trim().toLowerCase();
         records = records.filter(record => {
-          const content = (record.fields.Content as string || '').toLowerCase();
+          const contentField = record.fields.Content;
+          // Check if contentField is a string before calling toLowerCase
+          const content = typeof contentField === 'string' ? contentField.toLowerCase() : '';
           return content.includes(filterLower);
         });
       }
@@ -185,13 +194,14 @@ export class AirtableClient {
     }
 
     try {
-      let selectParams: any = {};
+      const selectParams: QueryOptions = {};
       
       if (filter.reviewId) {
         selectParams.filterByFormula = `{ReviewId} = '${filter.reviewId}'`;
       }
 
-      const records = await this.feedbackTable!.select(selectParams).all();
+      // Use type assertion to handle the type mismatch with Airtable's API
+      const records = await this.feedbackTable!.select(selectParams as any).all();
       
       return records.map(record => ({
         reviewId: record.get('ReviewId') as string,

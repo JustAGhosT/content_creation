@@ -1,12 +1,16 @@
 import React from 'react';
 import workflowStyles from '../../styles/workflow.module.css';
+import DOMPurify from 'dompurify';
 
+// In a single location, e.g., components/shared/AdaptationCard.tsx
 interface AdaptationCardProps {
   platform: string;
   title: string;
   original: string;
   adaptation: string;
-  notes: string[];
+  elements: string[];
+  image?: string;
+  styleModule?: 'content' | 'workflow';
 }
 
 const AdaptationCard: React.FC<AdaptationCardProps> = ({
@@ -14,7 +18,9 @@ const AdaptationCard: React.FC<AdaptationCardProps> = ({
   title,
   original,
   adaptation,
-  notes
+  elements,
+  image,
+  styleModule = 'workflow'
 }) => {
   return (
     <div className={workflowStyles['adaptation-card']}>
@@ -26,13 +32,11 @@ const AdaptationCard: React.FC<AdaptationCardProps> = ({
         <p>{original}</p>
         
         <div className={workflowStyles.title}>{platform} Adaptation:</div>
-        <div dangerouslySetInnerHTML={{ __html: adaptation }} />
-      </div>
-      <div className={workflowStyles.notes}>
+        <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(adaptation) }} />
         <p>Key adaptation elements:</p>
         <ul>
-          {notes.map((note, index) => (
-            <li key={index}>{note}</li>
+          {elements.map((element) => (
+            <li key={`element-${element.substring(0, 20).replace(/\s+/g, '-')}`}>{element}</li>
           ))}
         </ul>
       </div>

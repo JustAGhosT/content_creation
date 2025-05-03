@@ -39,24 +39,6 @@ export function validateBoolean(value: unknown, fieldName: string): string | und
 }
 
 /**
- * Validates that a value is a number
- * @param value The value to validate
- * @param fieldName The name of the field (for error messages)
- * @returns An error message if invalid, undefined if valid
- */
-export function validateNumber(value: unknown, fieldName: string): string | undefined {
-  if (value === undefined || value === null) {
-    return `${fieldName} is required`;
-  }
-  
-  if (typeof value !== 'number' || isNaN(value)) {
-    return `${fieldName} must be a number`;
-  }
-  
-  return undefined;
-}
-
-/**
  * Validates that a value is an array
  * @param value The value to validate
  * @param fieldName The name of the field (for error messages)
@@ -81,12 +63,17 @@ export function validateArray(value: unknown, fieldName: string): string | undef
  * @param fieldName The name of the field (for error messages)
  * @returns An error message if invalid, undefined if valid
  */
-export function validateEnum(value: unknown, allowedValues: any[], fieldName: string): string | undefined {
+export function validateEnum<T>(
+  value: unknown, 
+  allowedValues: readonly T[], 
+  fieldName: string
+): string | undefined {
   if (value === undefined || value === null) {
     return `${fieldName} is required`;
   }
   
-  if (!allowedValues.includes(value)) {
+  // Type guard to check if value is in allowedValues
+  if (!allowedValues.some(allowed => allowed === value)) {
     return `${fieldName} must be one of: ${allowedValues.join(', ')}`;
   }
   
@@ -99,9 +86,9 @@ export function validateEnum(value: unknown, allowedValues: any[], fieldName: st
  * @param schema An object mapping field names to validation functions
  * @returns An object with validation errors, or null if valid
  */
-export function validateObject(
-  obj: Record<string, any>,
-  schema: Record<string, (value: any) => string | undefined>
+export function validateObject<T extends Record<string, unknown>>(
+  obj: T,
+  schema: Record<string, (value: unknown) => string | undefined>
 ): Record<string, string> | null {
   const errors: Record<string, string> = {};
   
@@ -121,8 +108,8 @@ export function validateObject(
  * @param allowedProps Array of allowed property names
  * @returns An array of invalid property names, or null if all are valid
  */
-export function validateAllowedProperties(
-  obj: Record<string, any>,
+export function validateAllowedProperties<T extends Record<string, unknown>>(
+  obj: T,
   allowedProps: string[]
 ): string[] | null {
   const invalidProps = Object.keys(obj).filter(prop => !allowedProps.includes(prop));

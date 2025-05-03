@@ -1,12 +1,11 @@
-import { NextResponse } from 'next/server';
-import { withErrorHandling, Errors } from '../_utils/errors';
-import { isAuthenticated } from '../_utils/auth';
-import { createLogEntry, logToAuditTrail } from '../_utils/audit';
-import { validateString } from '../_utils/validation';
 import axios from 'axios';
+import { NextResponse } from 'next/server';
+import { createLogEntry, logToAuditTrail } from '../_utils/audit';
+import { isAuthenticated } from '../_utils/auth';
+import { Errors, withErrorHandling } from '../_utils/errors';
+import { validateString } from '../_utils/validation';
 
-// Import feature flags
-// Note: Adjust the import path as needed for your project structure
+// Import feature flags from utils
 import featureFlags from '../../../utils/featureFlags';
 
 // Helper function to get API configuration
@@ -14,59 +13,110 @@ const getApiConfig = () => {
   return {
     summarizationUrl: process.env.SUMMARIZATION_API_URL || 'https://api.summarization.ai/summarize',
     approvalUrl: process.env.APPROVAL_API_URL || 'https://api.summarization.ai/approve'
-  };
+  } as const;
 };
 
-// Summarize text endpoint
-export const POST = withErrorHandling(async (request: Request) => {
-  // Check authentication
+/**
+ * Validates authentication and feature flag
+ */
+function validateAuthAndFeature() {
   if (!isAuthenticated()) {
     return Errors.unauthorized('Authentication required to summarize text');
   }
   
-  // Check if summarization feature is enabled
   if (!featureFlags.summarization) {
     return Errors.forbidden('Summarization feature is disabled');
   }
+  
+  return null;
+}
+
+/**
+ * Validates the input text
+ */
+function validateInput(text: unknown, fieldName: string) {
+  const textError = validateString(text, fieldName);
+  if (textError) {
+    return Errors.badRequest(textError);
+  }
+  return null;
+}
+
+/**
+ * Logs an error and returns an error response
+ */
+async function handleError(error: unknown, action: string, message: string) {
+  console.error(`${action} error:`, error);
+  
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  
+  // Log failure
+  const logEntry = await createLogEntry(`${action}_FAILURE`, { 
+    error: errorMessage
+  });
+  await logToAuditTrail(logEntry);
+  
+  return Errors.internalServerError(`Failed to ${message}`, {
+    details: errorMessage
+  });
+}
+
+/**
+ * Calls the summarization API
+ */
+async function callSummarizationApi(rawText: string) {
+  try {
+    const apiConfig = getApiConfig();
+    return await axios.post(apiConfig.summarizationUrl, { text: rawText });
+  } catch (error) {
+    throw error; // Re-throw to be handled by the caller
+  }
+}
+
+/**
+ * Calls the approval API
+ */
+async function callApprovalApi(summary: string) {
+  try {
+    const apiConfig = getApiConfig();
+    return await axios.post(apiConfig.approvalUrl, { summary });
+  } catch (error) {
+    throw error; // Re-throw to be handled by the caller
+  }
+}
+
+// Summarize text endpoint
+export const POST = withErrorHandling(async (request: Request) => {
+  // Check authentication and feature flag
+  const authError = validateAuthAndFeature();
+  if (authError) return authError;
   
   try {
     const body = await request.json();
     const { rawText } = body;
     
     // Validate input
-    const textError = validateString(rawText, 'Raw text');
-    if (textError) {
-      return Errors.badRequest(textError);
-    }
+    const inputError = validateInput(rawText, 'Raw text');
+    if (inputError) return inputError;
     
     // Log the summarize request
-    await logToAuditTrail(createLogEntry('SUMMARIZE_TEXT', { textLength: rawText.length }));
-    
-    // Use the centralized API configuration
-    const apiConfig = getApiConfig();
+    const requestLogEntry = await createLogEntry('SUMMARIZE_TEXT', { textLength: rawText.length });
+    await logToAuditTrail(requestLogEntry);
     
     // Call the summarization API
-    const response = await axios.post(apiConfig.summarizationUrl, { text: rawText });
+    const response = await callSummarizationApi(rawText);
     
     // Log successful summarization
-    await logToAuditTrail(createLogEntry('SUMMARIZE_TEXT_SUCCESS', { 
+    const successLogEntry = await createLogEntry('SUMMARIZE_TEXT_SUCCESS', { 
       originalLength: rawText.length,
       summaryLength: response.data.summary?.length || 0
-    }));
+    });
+    await logToAuditTrail(successLogEntry);
     
     // Return the summary
     return NextResponse.json(response.data);
   } catch (error) {
-    console.error('Summarization API error:', error);
-    
-    // Log summarization failure
-    await logToAuditTrail(createLogEntry('SUMMARIZE_TEXT_FAILURE', { 
-      error: (error as Error).message
-    }));
-    
-    return Errors.internalServerError('Failed to generate summary', {
-      details: (error as Error).message
-    });
+    return handleError(error, 'SUMMARIZE_TEXT', 'generate summary');
   }
 });
 
@@ -82,35 +132,23 @@ export const PUT = withErrorHandling(async (request: Request) => {
     const { summary } = body;
     
     // Validate input
-    const summaryError = validateString(summary, 'Summary');
-    if (summaryError) {
-      return Errors.badRequest(summaryError);
-    }
+    const inputError = validateInput(summary, 'Summary');
+    if (inputError) return inputError;
     
     // Log the approve summary request
-    await logToAuditTrail(createLogEntry('APPROVE_SUMMARY', { summaryLength: summary.length }));
-    
-    // Use the centralized API configuration
-    const apiConfig = getApiConfig();
+    const requestLogEntry = await createLogEntry('APPROVE_SUMMARY', { summaryLength: summary.length });
+    await logToAuditTrail(requestLogEntry);
     
     // Call the approval API
-    const response = await axios.post(apiConfig.approvalUrl, { summary });
+    const response = await callApprovalApi(summary);
     
     // Log successful approval
-    await logToAuditTrail(createLogEntry('APPROVE_SUMMARY_SUCCESS'));
+    const successLogEntry = await createLogEntry('APPROVE_SUMMARY_SUCCESS');
+    await logToAuditTrail(successLogEntry);
     
     // Return the approval result
     return NextResponse.json(response.data);
   } catch (error) {
-    console.error('Summary approval API error:', error);
-    
-    // Log approval failure
-    await logToAuditTrail(createLogEntry('APPROVE_SUMMARY_FAILURE', { 
-      error: (error as Error).message
-    }));
-    
-    return Errors.internalServerError('Failed to approve summary', {
-      details: (error as Error).message
-    });
+    return handleError(error, 'APPROVE_SUMMARY', 'approve summary');
   }
 });

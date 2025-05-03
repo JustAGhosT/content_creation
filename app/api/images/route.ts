@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
-import { withErrorHandling, Errors } from '../_utils/errors';
-import { validateString } from '../_utils/validation';
+import featureFlags from '../../../utils/featureFlags';
 import { createLogEntry, logToAuditTrail } from '../_utils/audit';
 import { isAuthenticated } from '../_utils/auth';
-import featureFlags from '../../../utils/featureFlags';
-
-// Import HuggingFaceClient using a different path that Jest can resolve
-// In a real app, you'd use a more direct import path
+import { Errors, withErrorHandling } from '../_utils/errors';
+import { validateString } from '../_utils/validation';
 import { HuggingFaceClient } from '../../../lib/clients/huggingface';
 
 // Initialize the HuggingFace client
@@ -35,7 +32,8 @@ export const POST = withErrorHandling(async (request: Request) => {
     }
     
     // Log the image generation request
-    await logToAuditTrail(createLogEntry('GENERATE_IMAGE', { contextLength: context.length }));
+    const logEntry = await createLogEntry('GENERATE_IMAGE', { contextLength: context.length });
+    await logToAuditTrail(logEntry);
     
     // Generate the image
     const response = await huggingFaceClient.generateImage(context);
@@ -48,10 +46,9 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
 });
 
-// Review image endpoint (approve, reject, regenerate)
+// Review image endpoint
 export const PUT = withErrorHandling(async (request: Request) => {
   try {
-    // Check authentication
     if (!isAuthenticated()) {
       return Errors.unauthorized('Authentication required to review images');
     }
@@ -69,7 +66,8 @@ export const PUT = withErrorHandling(async (request: Request) => {
     }
     
     // Log the image review action
-    await logToAuditTrail(createLogEntry('REVIEW_IMAGE', { action }));
+    const logEntry = await createLogEntry('REVIEW_IMAGE', { action });
+    await logToAuditTrail(logEntry);
     
     let response;
     
