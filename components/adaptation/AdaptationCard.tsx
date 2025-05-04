@@ -4,10 +4,12 @@ import styles from '../../styles/ContentAdaptation.module.css';
 
 interface AdaptationCardProps {
   platform: string;
-  type: string;
+  title?: string;
+  type?: string;
   original: string;
   adaptation: string;
-  elements: string[];
+  elements?: string[];
+  notes?: string[];
   image?: string;
 }
 
@@ -16,17 +18,23 @@ interface AdaptationCardProps {
  */
 const AdaptationCard: React.FC<AdaptationCardProps> = ({
   platform,
+  title,
   type,
   original,
   adaptation,
   elements,
+  notes,
   image
 }) => {
+  // Use notes if elements is not provided
+  const adaptationNotes = elements || notes || [];
+  const displayTitle = title || (type ? `${type} Adaptation` : '');
+
   return (
     <div className={styles.adaptationCard}>
       <h4>
         <span className={styles.platformBadge}>{platform}</span> 
-        {type} Adaptation
+        {displayTitle}
       </h4>
       <div className={styles.example}>
         <div className={styles.title}>Original Article Section:</div>
@@ -38,9 +46,13 @@ const AdaptationCard: React.FC<AdaptationCardProps> = ({
       <div className={styles.notes}>
         <p>Key adaptation elements:</p>
         <ul>
-          {elements.map((element, i) => (
-            <li key={i}>{element}</li>
-          ))}
+          {adaptationNotes && adaptationNotes.length > 0 ? (
+            adaptationNotes.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))
+          ) : (
+            <li>No adaptation notes available</li>
+          )}
         </ul>
       </div>
       

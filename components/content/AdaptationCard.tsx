@@ -8,7 +8,7 @@ interface AdaptationCardProps {
   title: string;
   original: string;
   adaptation: string;
-  elements: string[];
+  notes: string[];
   image?: string;
   styleModule?: 'content' | 'workflow';
 }
@@ -18,7 +18,7 @@ const AdaptationCard: React.FC<AdaptationCardProps> = ({
   title,
   original,
   adaptation,
-  elements,
+  notes,
   image,
   styleModule = 'workflow'
 }) => {
@@ -35,8 +35,8 @@ const AdaptationCard: React.FC<AdaptationCardProps> = ({
         <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(adaptation) }} />
         <p>Key adaptation elements:</p>
         <ul>
-          {elements.map((element) => (
-            <li key={`element-${element.substring(0, 20).replace(/\s+/g, '-')}`}>{element}</li>
+          {notes && notes.map((note) => (
+            <li key={`note-${note.substring(0, 20).replace(/\s+/g, '-')}`}>{note}</li>
           ))}
         </ul>
       </div>

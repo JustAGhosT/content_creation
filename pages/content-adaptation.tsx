@@ -6,9 +6,19 @@ import AdaptationExamples from '../components/adaptation/AdaptationExamples';
 import NavigationLinks from '../components/common/NavigationLinks';
 import { workflowStages } from '../data/workflowStages';
 import styles from '../styles/ContentAdaptation.module.css';
+import adaptationExamplesData from '../content/adaptationExamples.json';
 
 interface ContentAdaptationPageProps {
-  adaptationExamples: any;
+  adaptationExamples: {
+    examples: Array<{
+      platform: string;
+      title: string;
+      original: string;
+      adaptation: string;
+      notes: string[];
+      image: string;
+    }>;
+  };
   error?: string;
 }
 
@@ -70,13 +80,13 @@ const ContentAdaptationPage: NextPage<ContentAdaptationPageProps> = ({
  */
 export async function getStaticProps() {
   try {
-    // In a real implementation, you might fetch this data from an API or CMS
-    // For now, we'll import it directly
-    const adaptationExamples = await import('../content/adaptationExamples.json');
-    
+    // Instead of importing the module directly, we use the already imported data
+    // This avoids the "[object Module]" serialization error
     return {
       props: {
-        adaptationExamples
+        adaptationExamples: {
+          examples: adaptationExamplesData.examples
+        }
       },
       // Revalidate every day
       revalidate: 86400,
