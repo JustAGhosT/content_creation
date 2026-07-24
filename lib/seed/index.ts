@@ -7,6 +7,7 @@ import { Series } from '@/types/series';
 import { Campaign } from '@/types/campaign';
 import { aerospaceSeriesSeed } from './aerospace-series';
 import { aerospaceCampaignSeed } from './aerospace-campaign';
+import { omnipostXCampaignSeed } from './omnipost-x-campaign';
 
 // Storage keys (must match hooks)
 const SERIES_STORAGE_KEY = 'content-series';
@@ -21,7 +22,7 @@ export const seedSeries: Series[] = [aerospaceSeriesSeed];
 /**
  * All seed campaigns
  */
-export const seedCampaigns: Campaign[] = [aerospaceCampaignSeed];
+export const seedCampaigns: Campaign[] = [aerospaceCampaignSeed, omnipostXCampaignSeed];
 
 /**
  * Check if seed data has been loaded
@@ -148,3 +149,4 @@ export function getSeedStats() {
 // Export individual seed items for direct access
 export { aerospaceSeriesSeed, AEROSPACE_SERIES_ID } from './aerospace-series';
 export { aerospaceCampaignSeed, AEROSPACE_CAMPAIGN_ID } from './aerospace-campaign';
+export { omnipostXCampaignSeed, OMNIPOST_X_CAMPAIGN_ID } from './omnipost-x-campaign';

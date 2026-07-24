@@ -6,7 +6,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { loadAllSeedData, isSeedLoaded, getSeedStats } from '@/lib/seed';
+import { loadAllSeedData, getSeedStats } from '@/lib/seed';
 
 interface SeedDataProviderProps {
   readonly children: React.ReactNode;
@@ -19,17 +19,16 @@ export function SeedDataProvider({ children }: SeedDataProviderProps) {
       return;
     }
 
-    // Load seed data if not already loaded
+    // Reconcile seed IDs on every app load so newly shipped campaigns are
+    // backfilled without overwriting existing user data.
     try {
-      if (!isSeedLoaded()) {
-        const result = loadAllSeedData();
-        const stats = getSeedStats();
-        console.warn('[SeedDataProvider] Loaded seed data:', {
-          series: result.series.length,
-          campaigns: result.campaigns.length,
-          totalPosts: stats.campaigns.totalPosts,
-        });
-      }
+      const result = loadAllSeedData();
+      const stats = getSeedStats();
+      console.warn('[SeedDataProvider] Reconciled seed data:', {
+        series: result.series.length,
+        campaigns: result.campaigns.length,
+        totalPosts: stats.campaigns.totalPosts,
+      });
     } catch (error) {
       // Log but do not throw - seed data is non-critical and should not
       // crash the app shell. The app can function without seed data.

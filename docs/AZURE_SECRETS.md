@@ -127,9 +127,16 @@ az webapp config appsettings set \
   --name nl-dev-omnipost-web \
   --resource-group nl-dev-omnipost-rg \
   --settings \
-    TWITTER_API_URL="https://api.twitter.com" \
-    TWITTER_API_KEY="your-api-key"
+    TWITTER_API_URL="https://api.x.com/2/tweets" \
+    TWITTER_ACCESS_TOKEN="@Microsoft.KeyVault(SecretUri=https://nl-dev-omnipost-kv.vault.azure.net/secrets/TWITTER-ACCESS-TOKEN/<version>)"
 ```
+
+`TWITTER_ACCESS_TOKEN` must be an OAuth user-context token authorized for the
+publishing account with `tweet.write`; an app-only bearer token is insufficient.
+Create or rotate `TWITTER-ACCESS-TOKEN` through the approved secret-management
+path, never in shell history or committed files. Follow
+[X_CAMPAIGN_GO_LIVE.md](runbooks/X_CAMPAIGN_GO_LIVE.md) for the controlled smoke
+post and rollback procedure.
 
 ### Sluice AI Gateway
 
