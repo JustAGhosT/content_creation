@@ -22,6 +22,13 @@ Located in the repository root for easy access:
 
 - **[GETTING_STARTED.md](./GETTING_STARTED.md)** - Setup guide for alpha users (prerequisites, installation, first steps, configuration, troubleshooting)
 
+### Roadmaps and Plans
+
+- **[Marketing and Campaign Operating-System Roadmap](./roadmaps/MARKETING_CAMPAIGN_OPERATING_SYSTEM.md)** - Canonical X-first capability sequence, governance boundaries, evidence gates, and LinkedIn entry criteria
+- **[X-First Campaign Delivery Plan](./plans/X_FIRST_CAMPAIGN_DELIVERY_PLAN.md)** - Planned pull requests, workstreams, dependencies, verification, and campaign review cadence
+- **[Alpha Launch Plan](./ALPHA_LAUNCH_PLAN.md)** - Wider product alpha scope and launch checklist
+- **[X Campaign Go-Live Runbook](./runbooks/X_CAMPAIGN_GO_LIVE.md)** - Staffed operator procedure for the first controlled production X post
+
 ### Technical Documentation
 
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Comprehensive technical architecture guide
@@ -82,6 +89,8 @@ Historical documentation from previous development phases:
 - **Learn best practices** → [guides/next-best-practices/](./guides/next-best-practices/)
 - **Report a security issue** → [SECURITY.md](../SECURITY.md)
 - **Check migration status** → [api/api-migration-todo.md](./api/api-migration-todo.md)
+- **Review the campaign roadmap** → [roadmaps/MARKETING_CAMPAIGN_OPERATING_SYSTEM.md](./roadmaps/MARKETING_CAMPAIGN_OPERATING_SYSTEM.md)
+- **Plan the X-first delivery** → [plans/X_FIRST_CAMPAIGN_DELIVERY_PLAN.md](./plans/X_FIRST_CAMPAIGN_DELIVERY_PLAN.md)
 - **View project structure** → [PROJECT_STRUCTURE.md](../PROJECT_STRUCTURE.md)
 - **Explore program name suggestions** → [PROGRAM_NAME_SUGGESTIONS.md](./PROGRAM_NAME_SUGGESTIONS.md)
 
@@ -115,4 +124,4 @@ If you can't find what you're looking for:
 
 ---
 
-**Last Updated**: March 30, 2026
+**Last Updated**: July 24, 2026

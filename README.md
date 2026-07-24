@@ -1003,6 +1003,12 @@ This project builds upon these amazing open-source technologies:
 
 ### Roadmap
 
+The canonical campaign capability sequence, evidence gates, and platform
+expansion criteria are documented in the
+[Marketing and Campaign Operating-System Roadmap](./docs/roadmaps/MARKETING_CAMPAIGN_OPERATING_SYSTEM.md).
+The executable delivery sequence for the first campaign is in the
+[X-First Campaign Delivery Plan](./docs/plans/X_FIRST_CAMPAIGN_DELIVERY_PLAN.md).
+
 <details>
 <summary><b>🔮 Planned Features</b></summary>
 
