@@ -3,7 +3,8 @@
 - **Roadmap:** [Marketing and Campaign Operating-System Roadmap](../roadmaps/MARKETING_CAMPAIGN_OPERATING_SYSTEM.md)
 - **Operator runbook:** [X Campaign Go-Live Runbook](../runbooks/X_CAMPAIGN_GO_LIVE.md)
 - **Baton live-publish task:** `7e1feab6-a668-4c18-b54d-691eddcd243f`
-- **Starter campaign ID:** `omnipost-x-live-001`
+- **Starter campaign ID:** `campaign_omnipost_x_live_001`
+- **Starter campaign slug:** `omnipost-x-live-001`
 
 ## Outcome
 
@@ -40,7 +41,8 @@ campaign brief
 Scope:
 
 - add the `marketing/` schema and campaign structure;
-- encode `omnipost-x-live-001`;
+- encode campaign ID `campaign_omnipost_x_live_001` with slug
+  `omnipost-x-live-001`;
 - document UTM and event naming;
 - validate platform length, required approvals, stable IDs, proof references,
   attribution fields, and prohibited telemetry; and
@@ -153,7 +155,7 @@ Verification:
 
 Entry criteria:
 
-- PRs A through D are deployed and verified;
+- PRs A through E are deployed and verified;
 - the X campaign has a recorded decision;
 - no unresolved duplicate, credential, approval, or attribution issue remains;
   and

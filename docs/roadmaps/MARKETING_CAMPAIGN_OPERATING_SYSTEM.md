@@ -294,7 +294,7 @@ Exit gate:
 
 Entry criteria:
 
-- Gates 1 through 4 are complete;
+- Gates 1 through 5 are complete;
 - the X observation window has a documented decision;
 - no unresolved duplicate, approval, credential, or attribution defect remains;
   and
@@ -393,7 +393,8 @@ tests, deployment evidence, residual risk, and next action.
 1. Complete the external account-authorization steps in the X runbook and run
    Gate 0 when the account owner is present.
 2. Deliver Gate 1 as the next repository PR.
-3. Use the approved `omnipost-x-live-001` campaign ID in Notion, Git, runtime
-   migration, telemetry, and Baton.
+3. Use the approved `campaign_omnipost_x_live_001` campaign ID in Notion, Git,
+   runtime migration, telemetry, and Baton; use `omnipost-x-live-001` only as
+   its human-readable slug.
 4. Start Gate 2 only after the Gate 1 schemas and validation are reviewed.
 5. Do not un-gate another provider until its named entry criteria pass.
