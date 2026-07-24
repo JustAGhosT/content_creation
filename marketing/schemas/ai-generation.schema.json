@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omnipost.app/schemas/ai-generation.schema.json",
+  "title": "OmniPost AI generation evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "generationId",
+    "contentId",
+    "variantId",
+    "promptPackVersion",
+    "provider",
+    "model",
+    "route",
+    "inputHash",
+    "outputHash",
+    "createdAt",
+    "latencyMs",
+    "usage",
+    "decision",
+    "gates"
+  ],
+  "properties": {
+    "generationId": {
+      "type": "string",
+      "pattern": "^generation_[a-z0-9_]+$"
+    },
+    "contentId": {
+      "type": "string",
+      "pattern": "^content_[a-z0-9_]+$"
+    },
+    "variantId": {
+      "type": "string",
+      "pattern": "^variant_[a-z0-9_]+$"
+    },
+    "promptPackVersion": {
+      "type": "string",
+      "pattern": "^promptpack_[a-z0-9_]+_v\\d+$"
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "route": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputHash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "outputHash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "createdAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+    },
+    "latencyMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputTokens", "outputTokens", "estimatedCostUsd"],
+      "properties": {
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimatedCostUsd": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "reviewer", "reasons"],
+      "properties": {
+        "outcome": {
+          "enum": ["accepted", "edited", "rejected"]
+        },
+        "reviewer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["brand", "claims", "policy", "privacy"],
+      "properties": {
+        "brand": {
+          "enum": ["pass", "fail", "not-run"]
+        },
+        "claims": {
+          "enum": ["pass", "fail", "not-run"]
+        },
+        "policy": {
+          "enum": ["pass", "fail", "not-run"]
+        },
+        "privacy": {
+          "enum": ["pass", "fail", "not-run"]
+        }
+      }
+    }
+  }
+}

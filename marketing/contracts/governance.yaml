@@ -1,0 +1,36 @@
+schemaVersion: 1
+approval:
+  requiredBefore:
+    - scheduling
+    - publishing
+  evidence:
+    - reviewer
+    - reviewedAt
+    - contentHash
+  invalidatedBy:
+    - body_change
+    - platform_adaptation_change
+claims:
+  riskLevels:
+    none: No factual or comparative claim.
+    low: Product intent or directly demonstrable product behavior.
+    medium: Quantified, comparative, or third-party claim.
+    high: Legal, financial, medical, security, or guaranteed outcome.
+  proofRules:
+    none: Record why no proof is required.
+    low: Link to first-party product or delivery evidence.
+    medium: Add an authoritative dated source and reviewer.
+    high: Do not publish without specialist approval.
+deliveryProof:
+  statusMeaning:
+    scheduled: Accepted by OmniPost for future execution.
+    published: Confirmed by the provider with a provider post ID and URL.
+  requiredForPublished:
+    - providerPostId
+    - providerPostUrl
+    - publishedAt
+    - auditEventId
+privacy:
+  defaultClassification: internal
+  publicContentClassification: public
+  secretHandling: Never store tokens, authorization headers, or credentials in campaign artifacts or telemetry.

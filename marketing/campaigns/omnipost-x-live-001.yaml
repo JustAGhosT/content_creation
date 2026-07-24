@@ -1,0 +1,137 @@
+campaignId: campaign_omnipost_x_live_001
+slug: omnipost-x-live-001
+version: 1
+name: OmniPost on X - First Live Campaign
+status: draft
+objective: Prove one real X publishing path from approved content to provider-confirmed delivery evidence.
+hypothesis: A transparent proof-first launch will earn qualified engagement from creators and small teams who distrust opaque scheduling states.
+audience:
+  segment: Creators and small teams evaluating social publishing tools
+  problem: Scheduled status does not prove that content reached the platform
+  desiredOutcome: A reliable workflow with human control and traceable delivery
+funnelStage: awareness
+primaryKpi:
+  metric: provider_confirmed_posts
+  target: 1
+  window: first controlled smoke
+guardrailKpis:
+  - metric: publish_failures
+    operator: eq
+    threshold: 0
+  - metric: duplicate_posts
+    operator: eq
+    threshold: 0
+owner: OmniPost marketing operator
+reviewer: OmniPost campaign reviewer
+platforms:
+  - twitter
+schedule:
+  timezone: Africa/Johannesburg
+  mode: manual-smoke
+attribution:
+  utmId: utm_omnipost_x_live_001
+  source: x
+  medium: organic_social
+  campaign: omnipost_x_live_001
+governance:
+  approvalRequired: true
+  proofRequired: true
+  privacyClass: public
+aiGenerationRecords: []
+contentItems:
+  - contentId: content_omnipost_x_001
+    version: 1
+    type: standalone
+    title: Prove one real publishing path
+    body: |-
+      A publishing tool shouldn't claim "publish everywhere" until it can prove one real post end to end.
+
+      So we're starting smaller: one platform, one controlled X post, one verified audit trail.
+
+      OmniPost's first live campaign starts here.
+    owner: OmniPost marketing operator
+    reviewer: OmniPost campaign reviewer
+    approval:
+      state: draft
+    claims:
+      - claim: OmniPost's first live campaign starts with X.
+        risk: low
+        proof: Provider-confirmed delivery evidence from the controlled smoke post.
+    sourceAssets: []
+    adaptations:
+      - variantId: variant_omnipost_x_001
+        platformId: twitter
+        body: |-
+          A publishing tool shouldn't claim "publish everywhere" until it can prove one real post end to end.
+
+          So we're starting smaller: one platform, one controlled X post, one verified audit trail.
+
+          OmniPost's first live campaign starts here.
+        status: pending
+        attribution:
+          utmContent: variant_omnipost_x_001
+          trackingToken: mtk_omnipost_x_001
+  - contentId: content_omnipost_x_002
+    version: 1
+    type: standalone
+    title: A scheduled badge is not proof
+    body: |-
+      Most social schedulers hide the risky part behind a green "Scheduled" badge.
+
+      OmniPost is being built around the opposite idea: a post is only done when the platform confirms it and the result is traceable.
+
+      First proving ground: X.
+    owner: OmniPost marketing operator
+    reviewer: OmniPost campaign reviewer
+    approval:
+      state: draft
+    claims:
+      - claim: OmniPost requires platform confirmation before treating a post as done.
+        risk: low
+        proof: Scheduler delivery records and publish audit evidence.
+    sourceAssets: []
+    adaptations:
+      - variantId: variant_omnipost_x_002
+        platformId: twitter
+        body: |-
+          Most social schedulers hide the risky part behind a green "Scheduled" badge.
+
+          OmniPost is being built around the opposite idea: a post is only done when the platform confirms it and the result is traceable.
+
+          First proving ground: X.
+        status: pending
+        attribution:
+          utmContent: variant_omnipost_x_002
+          trackingToken: mtk_omnipost_x_002
+  - contentId: content_omnipost_x_003
+    version: 1
+    type: standalone
+    title: Reliability before platform count
+    body: |-
+      We're building OmniPost for creators and small teams who want one publishing workflow without losing control of each channel.
+
+      The next milestone isn't "more platforms."
+
+      It's one reliable path, measured end to end. Then we expand.
+    owner: OmniPost marketing operator
+    reviewer: OmniPost campaign reviewer
+    approval:
+      state: draft
+    claims:
+      - claim: OmniPost is prioritizing a measured reliable path before adding platforms.
+        risk: low
+        proof: The X-first delivery plan and this controlled campaign specification.
+    sourceAssets: []
+    adaptations:
+      - variantId: variant_omnipost_x_003
+        platformId: twitter
+        body: |-
+          We're building OmniPost for creators and small teams who want one publishing workflow without losing control of each channel.
+
+          The next milestone isn't "more platforms."
+
+          It's one reliable path, measured end to end. Then we expand.
+        status: pending
+        attribution:
+          utmContent: variant_omnipost_x_003
+          trackingToken: mtk_omnipost_x_003

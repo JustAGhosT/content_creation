@@ -1,0 +1,61 @@
+schemaVersion: 1
+privacy:
+  prohibitedAttributes:
+    - access_token
+    - refresh_token
+    - authorization_header
+    - post_body
+    - prompt_body
+    - user_email
+events:
+  - name: campaign_created
+    purpose: Campaign funnel entry
+    allowedAttributes:
+      - campaign_id
+      - campaign_version
+      - platform_id
+      - owner_role
+  - name: content_approval_changed
+    purpose: Human approval audit
+    allowedAttributes:
+      - campaign_id
+      - content_id
+      - variant_id
+      - approval_state
+      - content_hash
+      - reviewer_role
+  - name: publish_requested
+    purpose: Publish funnel start
+    allowedAttributes:
+      - campaign_id
+      - content_id
+      - variant_id
+      - platform_id
+      - tracking_token
+  - name: publish_completed
+    purpose: Provider-confirmed delivery
+    allowedAttributes:
+      - campaign_id
+      - content_id
+      - variant_id
+      - platform_id
+      - tracking_token
+      - provider_post_id
+      - latency_ms
+  - name: publish_failed
+    purpose: Actionable delivery failure
+    allowedAttributes:
+      - campaign_id
+      - content_id
+      - variant_id
+      - platform_id
+      - tracking_token
+      - failure_code
+      - retryable
+  - name: campaign_result_recorded
+    purpose: Measurement window close
+    allowedAttributes:
+      - campaign_id
+      - primary_metric
+      - primary_value
+      - measurement_window
