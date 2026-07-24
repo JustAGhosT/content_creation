@@ -191,6 +191,7 @@
     },
     "aiGenerationRecords": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "string",
         "pattern": "^generation_[a-z0-9_]+$"

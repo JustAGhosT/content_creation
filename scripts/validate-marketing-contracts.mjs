@@ -5,7 +5,9 @@ import Ajv from 'ajv';
 import { parse } from 'yaml';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const marketingRoot = path.join(repositoryRoot, 'marketing');
+const marketingRoot = process.env.OMNIPOST_MARKETING_ROOT
+  ? path.resolve(process.env.OMNIPOST_MARKETING_ROOT)
+  : path.join(repositoryRoot, 'marketing');
 
 async function readJson(relativePath) {
   return JSON.parse(await readFile(path.join(marketingRoot, relativePath), 'utf8'));
@@ -16,9 +18,18 @@ async function readYaml(relativePath) {
   return parse(source);
 }
 
-async function yamlFiles(relativeDirectory) {
+async function yamlFiles(relativeDirectory, { optional = false } = {}) {
   const directory = path.join(marketingRoot, relativeDirectory);
-  return (await readdir(directory))
+  let files;
+  try {
+    files = await readdir(directory);
+  } catch (error) {
+    if (optional && error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+  return files
     .filter(file => file.endsWith('.yaml'))
     .sort()
     .map(file => path.join(relativeDirectory, file).replaceAll('\\', '/'));
@@ -47,8 +58,10 @@ async function main() {
     schemas: [contentSchema, campaignSchema, aiGenerationSchema],
   });
   const validateCampaign = ajv.getSchema(campaignSchema.$id);
+  const validateAiGeneration = ajv.getSchema(aiGenerationSchema.$id);
 
   assert(validateCampaign, 'Campaign schema was not registered');
+  assert(validateAiGeneration, 'AI generation schema was not registered');
 
   const channelFiles = await yamlFiles('channels');
   const channels = new Map();
@@ -74,7 +87,23 @@ async function main() {
     channels.set(channel.platformId, channel);
   }
 
-  for (const file of await yamlFiles('campaigns')) {
+  const generationFiles = await yamlFiles('evidence/ai-generations', { optional: true });
+  const aiGenerationRecords = new Map();
+  for (const file of generationFiles) {
+    const record = await readYaml(file);
+    if (!validateAiGeneration(record)) {
+      throw new Error(validationMessage(ajv, file, validateAiGeneration.errors));
+    }
+    assert(
+      !aiGenerationRecords.has(record.generationId),
+      `${file}: duplicate generationId ${record.generationId}`
+    );
+    aiGenerationRecords.set(record.generationId, record);
+  }
+
+  const campaignFiles = await yamlFiles('campaigns');
+  const trackingTokens = new Set();
+  for (const file of campaignFiles) {
     const campaign = await readYaml(file);
     if (!validateCampaign(campaign)) {
       throw new Error(validationMessage(ajv, file, validateCampaign.errors));
@@ -82,7 +111,6 @@ async function main() {
 
     const contentIds = new Set();
     const variantIds = new Set();
-    const trackingTokens = new Set();
 
     for (const platformId of campaign.platforms) {
       assert(channels.has(platformId), `${file}: unknown platform ${platformId}`);
@@ -127,9 +155,30 @@ async function main() {
           !trackingTokens.has(adaptation.attribution.trackingToken),
           `${file}: duplicate tracking token ${adaptation.attribution.trackingToken}`
         );
+        if (['scheduled', 'published'].includes(adaptation.status)) {
+          assert(
+            content.approval.state === 'approved' &&
+              Boolean(content.approval.reviewedAt) &&
+              Boolean(content.approval.contentHash),
+            `${file}: ${adaptation.variantId} requires an approved, hashed review before ${adaptation.status}`
+          );
+        }
         variantIds.add(adaptation.variantId);
         trackingTokens.add(adaptation.attribution.trackingToken);
       }
+    }
+
+    for (const generationId of campaign.aiGenerationRecords ?? []) {
+      const record = aiGenerationRecords.get(generationId);
+      assert(record, `${file}: missing AI generation evidence ${generationId}`);
+      assert(
+        contentIds.has(record.contentId),
+        `${file}: ${generationId} references unknown contentId ${record.contentId}`
+      );
+      assert(
+        variantIds.has(record.variantId),
+        `${file}: ${generationId} references unknown variantId ${record.variantId}`
+      );
     }
   }
 
@@ -160,7 +209,7 @@ async function main() {
   );
 
   console.log(
-    `Validated ${channelFiles.length} channel, ${(await yamlFiles('campaigns')).length} campaign, 3 schema, and 3 governance contract files.`
+    `Validated ${channelFiles.length} channel, ${campaignFiles.length} campaign, ${generationFiles.length} AI evidence, 3 schema, and 3 governance contract files.`
   );
 }
 

@@ -7,6 +7,7 @@ This directory is OmniPost's version-controlled campaign control plane. It compl
 - `campaigns/` holds canonical objectives, hypotheses, audiences, KPIs, owners, attribution, governance, and content variants.
 - `channels/` defines provider-specific limits, authentication scopes, approval rules, evidence, and stop conditions.
 - `schemas/` defines the machine-readable campaign, content, and AI-generation evidence contracts.
+- `evidence/ai-generations/` holds schema-valid AI-generation evidence documents referenced by campaign ID.
 - `contracts/` defines attribution, privacy-safe events, claims, approval, and delivery-proof rules.
 
 AI output is never treated as approved content by default. When AI assists a variant, record the model route, prompt-pack version, input/output hashes, latency, token usage, estimated cost, reviewer decision, and gate outcomes using `ai-generation.schema.json`. Raw prompts, post bodies, secrets, and personal data do not belong in telemetry.

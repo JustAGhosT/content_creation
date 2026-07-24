@@ -169,8 +169,49 @@
                 "pattern": "^mtk_[a-z0-9_]+$"
               }
             }
+          },
+          "deliveryEvidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["providerPostId", "providerPostUrl", "publishedAt", "auditEventId"],
+            "properties": {
+              "providerPostId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "providerPostUrl": {
+                "type": "string",
+                "pattern": "^https://"
+              },
+              "publishedAt": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+              },
+              "auditEventId": {
+                "type": "string",
+                "pattern": "^audit_[a-z0-9_]+$"
+              }
+            }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "published"
+                }
+              },
+              "required": ["status"]
+            },
+            "then": {
+              "properties": {
+                "deliveryEvidence": {}
+              },
+              "required": ["deliveryEvidence"]
+            }
+          }
+        ]
       }
     }
   }
