@@ -1,5 +1,45 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-07-25 Campaign Operating System — Gate 1 Handoff
+
+### Current State
+
+- **Implementation PR:** [#174 — campaign contract foundation](https://github.com/neuralliquid/omnipost/pull/174)
+- **Roadmap PR:** [#173 — X-first campaign operating roadmap](https://github.com/neuralliquid/omnipost/pull/173)
+- **Implementation branch:** `agent/campaign-contract-foundation`
+- **Implementation commit before this handoff:** `1e195bfa052eaea3fbbd42a71d13d61890c854b7`
+- **GitHub state at handoff:** PR #174 was cleanly mergeable and all eight CI checks passed.
+- **Baton Gate 1 task:** `09b8fb82-d51a-4dc3-aa07-d05da4fd2431`
+- **Notion roadmap:** <https://www.notion.so/3a77ad2bc5d68182867ced5e54d95957>
+
+### Delivered
+
+- Canonical JSON Schemas for campaigns, content, and AI-generation evidence.
+- Versioned X channel constraints, OAuth scope requirements, approval rules, delivery evidence, and stop conditions.
+- The canonical `omnipost-x-live-001` campaign, aligned with the existing three-post runtime seed.
+- Attribution naming, privacy-safe telemetry, claim/proof, human approval, and provider-confirmed delivery contracts.
+- `pnpm marketing:validate` plus a dedicated `marketing-contracts` CI job.
+- Jest coverage that prevents the canonical campaign and runtime seed from drifting.
+
+### Verification
+
+- `pnpm run marketing:validate` — passed.
+- `pnpm exec tsc --noEmit --incremental false` — passed.
+- `pnpm run lint` — passed with zero errors and 120 pre-existing warnings.
+- `pnpm test -- --runInBand` — 30 suites and 225 tests passed.
+- Targeted Prettier validation and `git diff --check` — passed.
+- GitHub Actions — all eight checks passed, including build and the new marketing-contract validation.
+
+### Boundaries And Next Steps
+
+- This gate defines and validates the campaign control plane; it does not authenticate X or publish content.
+- Review and merge PR #174. Merge roadmap PR #173 when its documentation review is complete.
+- Continue with Gate 2: wire the declared attribution and privacy-safe events into the runtime.
+- Only after runtime evidence is in place, complete X OAuth and publish one manually approved smoke post.
+- Treat a post as published only when OmniPost retains the provider post ID, public URL, publish timestamp, and audit event.
+
+---
+
 ## 2026-07-18 Operations Handoff
 
 ### Current State

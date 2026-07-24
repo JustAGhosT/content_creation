@@ -1,0 +1,35 @@
+schemaVersion: 1
+platformId: twitter
+displayName: X
+pilotStatus: enabled
+content:
+  text:
+    maxChars: 280
+    maxPostsPerThread: 1
+  media:
+    allowed: false
+attribution:
+  source: x
+  medium: organic_social
+authentication:
+  protocol: oauth2-pkce
+  requiredScopes:
+    - tweet.read
+    - tweet.write
+    - users.read
+  optionalScopes:
+    - offline.access
+approval:
+  humanReviewRequired: true
+  contentHashRequired: true
+evidence:
+  required:
+    - providerPostId
+    - providerPostUrl
+    - publishedAt
+    - auditEventId
+stopConditions:
+  - authentication_failure
+  - provider_rate_limit
+  - duplicate_post_detected
+  - missing_delivery_evidence

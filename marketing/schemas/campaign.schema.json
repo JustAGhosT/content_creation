@@ -1,0 +1,208 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omnipost.app/schemas/campaign.schema.json",
+  "title": "OmniPost canonical campaign",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "campaignId",
+    "slug",
+    "version",
+    "name",
+    "status",
+    "objective",
+    "hypothesis",
+    "audience",
+    "funnelStage",
+    "primaryKpi",
+    "guardrailKpis",
+    "owner",
+    "reviewer",
+    "platforms",
+    "schedule",
+    "attribution",
+    "governance",
+    "contentItems"
+  ],
+  "properties": {
+    "campaignId": {
+      "type": "string",
+      "pattern": "^campaign_[a-z0-9_]+$"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 140
+    },
+    "status": {
+      "enum": ["draft", "ready", "active", "paused", "completed", "cancelled"]
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hypothesis": {
+      "type": "string",
+      "minLength": 1
+    },
+    "audience": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["segment", "problem", "desiredOutcome"],
+      "properties": {
+        "segment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "problem": {
+          "type": "string",
+          "minLength": 1
+        },
+        "desiredOutcome": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "funnelStage": {
+      "enum": ["awareness", "consideration", "conversion", "retention", "advocacy"]
+    },
+    "primaryKpi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric", "target", "window"],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "number",
+          "minimum": 0
+        },
+        "window": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "guardrailKpis": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["metric", "operator", "threshold"],
+        "properties": {
+          "metric": {
+            "type": "string",
+            "minLength": 1
+          },
+          "operator": {
+            "enum": ["lt", "lte", "eq", "gte", "gt"]
+          },
+          "threshold": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]+$"
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timezone", "mode"],
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "enum": ["manual-smoke", "scheduled"]
+        },
+        "notBefore": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+        }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["utmId", "source", "medium", "campaign"],
+      "properties": {
+        "utmId": {
+          "type": "string",
+          "pattern": "^utm_[a-z0-9_]+$"
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
+        },
+        "medium": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
+        },
+        "campaign": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approvalRequired", "proofRequired", "privacyClass"],
+      "properties": {
+        "approvalRequired": {
+          "type": "boolean"
+        },
+        "proofRequired": {
+          "type": "boolean"
+        },
+        "privacyClass": {
+          "enum": ["public", "internal", "restricted"]
+        }
+      }
+    },
+    "aiGenerationRecords": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^generation_[a-z0-9_]+$"
+      }
+    },
+    "contentItems": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "https://omnipost.app/schemas/content.schema.json"
+      }
+    }
+  }
+}

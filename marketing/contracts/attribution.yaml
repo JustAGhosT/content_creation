@@ -1,0 +1,21 @@
+schemaVersion: 1
+naming:
+  utmId: ^utm_[a-z0-9_]+$
+  trackingToken: ^mtk_[a-z0-9_]+$
+  campaign: ^[a-z0-9_-]+$
+requiredFields:
+  - utm_id
+  - utm_source
+  - utm_medium
+  - utm_campaign
+  - utm_content
+  - tracking_token
+channelDefaults:
+  twitter:
+    utm_source: x
+    utm_medium: organic_social
+identityRules:
+  - One tracking token identifies exactly one platform adaptation.
+  - utm_content equals the stable variant ID.
+  - Provider post IDs are delivery evidence, not user identity.
+  - Campaign analytics must not store OAuth credentials or raw post bodies.
