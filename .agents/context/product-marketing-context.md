@@ -105,6 +105,9 @@ Additional models to evaluate:
 
 **Differentiation**:
 
+- Evidence-grade campaign operations: exact approved version, provider-confirmed
+  delivery, attribution, decision history, and exportable audit lineage
+- Human-governed AI with recorded accept/edit/reject evidence and policy gates
 - AI-native content optimization (auto-reformats for each platform's constraints)
 - Open-source (MIT license) with self-hosting option — no vendor lock-in
 - Built-in CRM, lead management, and outreach sequences
@@ -113,6 +116,32 @@ Additional models to evaluate:
 - Unified analytics across all platforms in one dashboard
 - Multi-agent orchestration for development (Retort + 10 team-scoped agents)
 - Sluice AI gateway for centralized cost tracking across AI providers
+
+## Strategic Positioning and Moat Thesis
+
+**Positioning direction**:
+
+> For agencies and accountable marketing teams that cannot treat a green
+> “scheduled” badge as proof, OmniPost is an evidence-grade campaign operating
+> system that binds human approval to provider-confirmed delivery and measurable
+> outcomes. Unlike generic social schedulers, OmniPost preserves the exact
+> version, decision, attribution, and audit lineage while using AI only inside
+> explicit governance boundaries.
+
+**Moat thesis**:
+
+- Gates 0–6 create the reliable product and evidence foundation; they do not by
+  themselves establish a moat.
+- Defensibility must compound from consented proprietary outcome evidence,
+  measurable recommendation lift, embedded customer policies and integrations,
+  retained paid workflows, and a repeatable vertical distribution or extension
+  channel.
+- Open-source code is not treated as secret IP. The protected advantage is the
+  hosted trust, evidence network, customer-specific learning, operational
+  history, certified ecosystem, and distribution relationships.
+- OmniPost must preserve deletion, export, and migration rights. Switching cost
+  should be earned through accumulated value, not data hostage-taking.
+- “AI-powered,” feature count, or raw data volume are not acceptable moat claims.
 
 ## Brand Voice
 
@@ -127,3 +156,7 @@ Additional models to evaluate:
 2. **Secondary**: Convert free users to paid plans (pricing TBD)
 3. **Metric**: Monthly active publishers, content published per user
 4. **Conversion Action**: Sign up → connect first platform → publish first content
+5. **Beachhead Validation**: Five design-partner organizations complete two
+   governed campaigns with at least 90% evidence completeness
+6. **Defensibility Proof**: Reproducible outcome lift, 90-day retained recurring
+   use, paid intent, and one compounding acquisition or extension channel

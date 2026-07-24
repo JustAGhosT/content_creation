@@ -169,6 +169,85 @@ Scope:
   and
 - a cross-platform retrospective.
 
+### PR G — Design-Partner Evidence Network
+
+Scope:
+
+- consented design-partner cohort and beachhead selection;
+- tenant-isolated evidence completeness and retention controls;
+- deletion/export workflows; and
+- repeat-campaign and evidence-quality reporting.
+
+Verification:
+
+- tenant-boundary and deletion tests;
+- five organizations complete two governed campaigns;
+- at least 90% evidence completeness; and
+- customer interviews and willingness-to-pay evidence.
+
+### PR H — Outcome Intelligence
+
+Scope:
+
+- tenant-private brand and approval memory;
+- consented privacy-safe aggregate benchmarks;
+- evidence-backed recommendations and route evaluation; and
+- holdouts, explanations, rollback, and guardrails.
+
+Verification:
+
+- at least 10% relative lift in a predeclared primary measure;
+- no quality, policy, privacy, or reliability regression;
+- reproducibility across at least three organizations; and
+- baseline behavior returns when the learned signal is disabled.
+
+### PR I — Workflow Embeddedness
+
+Scope:
+
+- organization/client policy packs and escalation;
+- beachhead integrations and API contracts;
+- lineage-preserving import; and
+- complete portable campaign and audit export.
+
+Verification:
+
+- 90-day cohort retention and third-campaign reuse;
+- recurring policy-pack plus integration usage; and
+- export/re-import audit reconstruction.
+
+### PR J — Vertical Distribution and Extensions
+
+Scope:
+
+- segment positioning, onboarding, proof, and pricing;
+- customer-approved case studies;
+- certified adapter/integration SDK; and
+- partner and contributor acquisition attribution.
+
+Verification:
+
+- repeatable channel share over two measurement periods;
+- three externally owned live certified integrations; and
+- predeclared paid-pilot conversion threshold.
+
+### PR K — Defensibility Review
+
+Scope:
+
+- 3/6/12-month counterfactual clone review;
+- protected-asset inventory;
+- replacement-cost and switching interviews;
+- unit economics and concentration risk; and
+- evidence-backed continue, narrow, partner, open-source, or stop decision.
+
+Verification:
+
+- Gate 11 criteria are evaluated without waivers;
+- every moat claim cites retained usage, lift, workflow, or distribution
+  evidence; and
+- failed criteria produce an owned remediation or stop decision.
+
 ## Immediate X Smoke Checklist
 
 The runbook remains authoritative. Planning status:
@@ -224,4 +303,10 @@ The X-first campaign initiative is complete only when:
 5. AI adaptations have first-party review and quality records;
 6. the campaign has a documented decision and retrospective; and
 7. LinkedIn has either passed its entry review or been explicitly deferred with
-   a reason.
+   a reason;
+8. design partners produce a consented, evidence-complete corpus;
+9. outcome intelligence demonstrates reproducible guarded lift;
+10. retained customers repeatedly use embedded policies and integrations;
+11. one vertical acquisition or extension channel compounds; and
+12. the defensibility review either substantiates a specific moat or records a
+    remediation/stop decision.
