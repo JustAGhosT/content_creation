@@ -39,7 +39,7 @@ export const platforms: Platform[] = [
     comingSoon: true,
   },
   { id: 3, name: 'LinkedIn', slug: 'linkedin', description: 'LinkedIn professional network' },
-  { id: 4, name: 'Twitter', slug: 'twitter', description: 'Twitter microblogging platform' },
+  { id: 4, name: 'X', slug: 'twitter', description: 'X social network' },
   {
     id: 5,
     name: 'TikTok',
@@ -80,8 +80,8 @@ export const platformConfigurations: Record<string, PlatformConfig> = {
     capabilities: ['text', 'image', 'article'],
   },
   twitter: {
-    apiUrl: 'https://api.twitter.com/publish',
-    apiKey: process.env.TWITTER_API_KEY || '',
+    apiUrl: process.env.TWITTER_API_URL || 'https://api.x.com/2/tweets',
+    apiKey: process.env.TWITTER_ACCESS_TOKEN || '',
     required: true,
     capabilities: ['text', 'image', 'video'],
   },

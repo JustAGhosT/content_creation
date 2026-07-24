@@ -104,9 +104,15 @@ To publish to social platforms, you need API credentials for each one. Add these
 
 **Twitter/X:**
 
-1. Apply for a developer account at [developer.twitter.com](https://developer.twitter.com/)
-2. Create a project and app, then generate API keys
-3. Set `TWITTER_API_KEY` in `.env.local`
+1. Create a project and app in the [X Developer Console](https://developer.x.com/)
+2. Configure OAuth 2.0 user authentication with `tweet.read`, `tweet.write`, and
+   `users.read`; add `offline.access` when implementing token refresh
+3. Authorize the X account that will publish the campaign
+4. Set the resulting user-context token as `TWITTER_ACCESS_TOKEN` in `.env.local`
+
+An app-only bearer token cannot create posts. See the
+[X campaign go-live runbook](runbooks/X_CAMPAIGN_GO_LIVE.md) before enabling
+production publishing.
 
 ### AI Service Keys
 

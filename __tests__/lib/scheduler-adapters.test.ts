@@ -4,6 +4,8 @@ import { platformConfigurations, platforms } from '../../lib/config/platforms';
 
 const originalNodeEnv = process.env.NODE_ENV;
 const originalTikTokApiKey = platformConfigurations.tiktok.apiKey;
+const originalTwitterApiKey = platformConfigurations.twitter.apiKey;
+const originalTwitterApiUrl = platformConfigurations.twitter.apiUrl;
 const originalTikTokPrivacyLevel = process.env.TIKTOK_PRIVACY_LEVEL;
 const originalFetch = global.fetch;
 
@@ -19,6 +21,8 @@ describe('Scheduler platform adapters', () => {
   afterEach(() => {
     setNodeEnv(originalNodeEnv);
     platformConfigurations.tiktok.apiKey = originalTikTokApiKey;
+    platformConfigurations.twitter.apiKey = originalTwitterApiKey;
+    platformConfigurations.twitter.apiUrl = originalTwitterApiUrl;
     if (originalTikTokPrivacyLevel === undefined) {
       delete process.env.TIKTOK_PRIVACY_LEVEL;
     } else {
@@ -73,6 +77,46 @@ describe('Scheduler platform adapters', () => {
       .sort();
 
     expect(comingSoonSlugs).toEqual(['facebook', 'instagram', 'tiktok']);
+  });
+
+  test('X publishes through the v2 create-post contract and returns an X URL', async () => {
+    setNodeEnv('production');
+    platformConfigurations.twitter.apiKey = 'x-user-access-token';
+    platformConfigurations.twitter.apiUrl = 'https://api.x.com/2/tweets';
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: 'post-123',
+          text: 'Controlled live post',
+        },
+      }),
+    } as Response);
+    global.fetch = fetchMock;
+
+    const result = await getAdapter('twitter')?.publish({
+      text: 'Controlled live post',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'post-123',
+        url: 'https://x.com/i/web/status/post-123',
+      })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.x.com/2/tweets',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer x-user-access-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: 'Controlled live post',
+        }),
+      })
+    );
   });
 
   test('TikTok is excluded from the default text-only content flow', () => {

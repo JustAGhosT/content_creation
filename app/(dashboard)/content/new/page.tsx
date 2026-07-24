@@ -126,6 +126,7 @@ export function ContentCreatePage() {
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule'>('now');
   const [scheduledTime, setScheduledTime] = useState('');
   const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   // ── Derived values ──────────────────────────────────────────────────────
 
@@ -195,6 +196,7 @@ export function ContentCreatePage() {
 
   const handlePublish = useCallback(async () => {
     setPublishing(true);
+    setPublishError(null);
     const time =
       scheduleMode === 'now' ? new Date().toISOString() : new Date(scheduledTime).toISOString();
     const status: PostStatus = scheduleMode === 'now' ? 'queued' : 'scheduled';
@@ -228,7 +230,20 @@ export function ContentCreatePage() {
         });
       });
 
-      await Promise.all(jobPromises);
+      const responses = await Promise.all(jobPromises);
+      const failedResponse = responses.find(response => !response.ok);
+
+      if (failedResponse) {
+        const errorBody = (await failedResponse.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        throw new Error(
+          errorBody.error ||
+            errorBody.message ||
+            `Scheduler rejected the request (${failedResponse.status})`
+        );
+      }
 
       // Save to sessionStorage as well
       const drafts = loadDrafts();
@@ -256,9 +271,8 @@ export function ContentCreatePage() {
       });
 
       router.push('/content');
-    } catch {
-      // For alpha, fail silently -- still save draft locally
-      saveDraft();
+    } catch (error) {
+      setPublishError(error instanceof Error ? error.message : 'Failed to queue the post');
     } finally {
       setPublishing(false);
     }
@@ -274,7 +288,6 @@ export function ContentCreatePage() {
     trackPostPublished,
     events,
     router,
-    saveDraft,
   ]);
 
   // ── Render helpers ──────────────────────────────────────────────────────
@@ -464,6 +477,13 @@ export function ContentCreatePage() {
           </strong>
           {enabledPlatforms.length > 0 && <>: {platformNames}</>}
         </div>
+
+        {publishError ? (
+          <div className={styles.publishError} role="alert">
+            {publishError}. No retry was attempted; review the configuration before submitting
+            again.
+          </div>
+        ) : null}
 
         <div className={styles.scheduleOptions}>
           <div className={styles.scheduleRow}>

@@ -162,7 +162,7 @@ export class TwitterAdapter extends BasePlatformAdapter {
   async publish(content: ScheduledJob['content']): Promise<PlatformPublishResult> {
     const config = getPlatformConfig('twitter');
 
-    // In production, use actual Twitter API
+    // In production, use the X API with an OAuth user-context access token.
     if (config?.apiKey && process.env.NODE_ENV === 'production') {
       return this.publishToTwitter(content, config);
     }
@@ -194,14 +194,14 @@ export class TwitterAdapter extends BasePlatformAdapter {
     });
 
     if (!response.ok) {
-      throw new Error(`Twitter API error: ${response.status}`);
+      throw new Error(`X API error: ${response.status}`);
     }
 
     const data = await response.json();
 
     return {
       id: data.data?.id || data.id,
-      url: `https://twitter.com/i/web/status/${data.data?.id || data.id}`,
+      url: `https://x.com/i/web/status/${data.data?.id || data.id}`,
       platformData: data,
     };
   }
@@ -228,7 +228,7 @@ export class TwitterAdapter extends BasePlatformAdapter {
         });
 
         if (!response.ok) {
-          const error = new Error(`Twitter API error: ${response.status}`);
+          const error = new Error(`X API error: ${response.status}`);
           // If we have already posted some tweets, throw a partial publish error
           if (tweetIds.length > 0) {
             throw new PartialPublishError(
@@ -247,7 +247,7 @@ export class TwitterAdapter extends BasePlatformAdapter {
 
       return {
         id: tweetIds[0],
-        url: `https://twitter.com/i/web/status/${tweetIds[0]}`,
+        url: `https://x.com/i/web/status/${tweetIds[0]}`,
         platformData: { tweetIds, isThread: true },
       };
     } catch (error) {
