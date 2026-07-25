@@ -244,14 +244,20 @@ describe('X platform account repository', () => {
       status: 'connected',
       encryptedAccessToken: encryptSecret('access-token', 'x-access-token'),
       encryptedRefreshToken: encryptSecret('refresh-token', 'x-refresh-token'),
+      updatedAt: new Date('2026-07-25T12:00:00Z'),
     });
     mockRevokeXToken.mockResolvedValueOnce();
-    mockUpdate.mockResolvedValueOnce({ id: 'account-1' });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
 
     await expect(repository.disconnectXAccount('user-1')).resolves.toBe(true);
     expect(mockRevokeXToken).toHaveBeenCalledWith('refresh-token');
-    expect(mockUpdate).toHaveBeenCalledWith(
+    expect(mockUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'account-1',
+          status: 'connected',
+          updatedAt: new Date('2026-07-25T12:00:00Z'),
+        }),
         data: expect.objectContaining({
           encryptedAccessToken: '',
           encryptedRefreshToken: null,
@@ -272,5 +278,33 @@ describe('X platform account repository', () => {
 
     await expect(repository.disconnectXAccount('user-1')).rejects.toThrow('provider unavailable');
     expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+  });
+
+  test('does not erase credentials from a concurrent reconnect after provider revocation', async () => {
+    const encryptedAccessToken = encryptSecret('old-access', 'x-access-token');
+    const encryptedRefreshToken = encryptSecret('old-refresh', 'x-refresh-token');
+    mockFindUnique.mockResolvedValueOnce({
+      id: 'account-1',
+      status: 'connected',
+      encryptedAccessToken,
+      encryptedRefreshToken,
+      updatedAt: new Date('2026-07-25T12:00:00Z'),
+    });
+    mockRevokeXToken.mockResolvedValueOnce();
+    mockUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(repository.disconnectXAccount('user-1')).resolves.toBe(false);
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'account-1',
+          status: 'connected',
+          encryptedAccessToken,
+          encryptedRefreshToken,
+          updatedAt: new Date('2026-07-25T12:00:00Z'),
+        },
+      })
+    );
   });
 });

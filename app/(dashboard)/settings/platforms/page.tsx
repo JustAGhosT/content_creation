@@ -72,7 +72,6 @@ export function PlatformSettingsPage() {
         '/api/platforms/connections'
       );
       setConnections(response.connections);
-      setOperationError('');
     } catch {
       setOperationError('Platform connection status could not be loaded.');
     } finally {

@@ -176,8 +176,14 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
     : decryptSecret(account.encryptedAccessToken, ACCESS_TOKEN_PURPOSE);
   await revokeXToken(token);
 
-  await client.platformAccount.update({
-    where: { id: account.id },
+  const update = await client.platformAccount.updateMany({
+    where: {
+      id: account.id,
+      status: account.status,
+      encryptedAccessToken: account.encryptedAccessToken,
+      encryptedRefreshToken: account.encryptedRefreshToken,
+      updatedAt: account.updatedAt,
+    },
     data: {
       encryptedAccessToken: '',
       encryptedRefreshToken: null,
@@ -185,5 +191,5 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
       revokedAt: new Date(),
     },
   });
-  return true;
+  return update.count === 1;
 }
