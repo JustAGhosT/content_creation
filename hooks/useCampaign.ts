@@ -3,7 +3,7 @@
  * State management for multi-platform content campaigns
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Campaign,
   CampaignContent,
@@ -21,31 +21,78 @@ import { platforms as availablePlatforms } from '@/lib/config/platforms';
 import { generateCampaignId, generateContentId, generatePostId } from '@/lib/utils/id';
 
 const STORAGE_KEY = 'content-campaigns';
+const CANONICAL_X_CAMPAIGN_ID = 'campaign_omnipost_x_live_001';
 
-/**
- * Load campaigns from localStorage
- */
-function loadCampaigns(): Campaign[] {
+interface PersistedCampaignEnvelope {
+  campaign: Campaign;
+  version: number;
+  versionId: string;
+  snapshotHash: string;
+  contentHashes: Record<string, string>;
+}
+
+type LegacyPlatformAdaptation = Omit<PlatformAdaptation, 'variantId'> & {
+  variantId?: string;
+};
+
+type LegacyCampaign = Omit<Campaign, 'contentItems'> & {
+  contentItems: Array<
+    Omit<CampaignContent, 'adaptations'> & {
+      adaptations: LegacyPlatformAdaptation[];
+    }
+  >;
+};
+
+function normalizeLegacyCampaign(campaign: LegacyCampaign): Campaign {
+  return {
+    ...campaign,
+    contentItems: campaign.contentItems.map(content => ({
+      ...content,
+      adaptations: content.adaptations.map((adaptation, index) => ({
+        ...adaptation,
+        variantId:
+          adaptation.variantId ||
+          `legacy-${index}-${adaptation.platformId}-${content.id}`.slice(0, 128),
+      })),
+    })),
+  };
+}
+
+function loadLegacyCampaigns(): Campaign[] {
   if (globalThis.window === undefined) return [];
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as unknown;
+    return Array.isArray(parsed) ? (parsed as LegacyCampaign[]).map(normalizeLegacyCampaign) : [];
   } catch (error) {
     console.error('Error loading campaigns:', error);
     return [];
   }
 }
 
-/**
- * Save campaigns to localStorage
- */
-function saveCampaigns(campaigns: Campaign[]): void {
-  if (globalThis.window === undefined) return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(campaigns));
-  } catch (error) {
-    console.error('Error saving campaigns:', error);
+async function campaignRequest<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers,
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      message?: string;
+      error?: { message?: string };
+    } | null;
+    throw new Error(
+      payload?.message ?? payload?.error?.message ?? `Campaign request failed (${response.status})`
+    );
   }
+  return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+}
+
+async function loadPersistedCampaigns(): Promise<PersistedCampaignEnvelope[]> {
+  const result = await campaignRequest<{ campaigns: PersistedCampaignEnvelope[] }>(
+    '/api/campaigns'
+  );
+  return result.campaigns;
 }
 
 /**
@@ -293,8 +340,8 @@ export interface UseCampaignReturn {
 /**
  * Main campaign hook
  *
- * Uses localStorage for persistence. The hook handles SSR/hydration safely
- * by only loading data after the component has mounted on the client.
+ * Uses the authenticated campaign API as the system of record. Browser-local
+ * campaigns are imported once for backwards compatibility and then removed.
  */
 export function useCampaign(): UseCampaignReturn {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -302,36 +349,141 @@ export function useCampaign(): UseCampaignReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
+  const persistedRef = useRef(new Map<string, PersistedCampaignEnvelope>());
+  const syncedSnapshotsRef = useRef(new Map<string, string>());
+  const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const persistenceReadyRef = useRef(false);
 
   // Mark as mounted after first render (client-side only)
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
-  // Load campaigns on mount (client-side only)
+  // Load server-authoritative campaigns and migrate legacy browser data once.
   useEffect(() => {
-    // Skip on server and until mounted to prevent hydration mismatch
     if (!hasMounted) return;
 
+    let cancelled = false;
     setIsLoading(true);
-    try {
-      const loaded = loadCampaigns();
-      setCampaigns(loaded);
-      setError(null);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load campaigns';
-      setError(errorMessage);
-      console.error('Error loading campaigns:', err);
-    } finally {
-      setIsLoading(false);
-    }
+    void (async () => {
+      try {
+        // Reconcile the reviewed Git campaign before importing older browser data.
+        await campaignRequest<PersistedCampaignEnvelope>('/api/campaigns/import', {
+          method: 'POST',
+        }).catch(importError => {
+          console.warn('Canonical campaign import was not applied:', importError);
+        });
+
+        const persisted = await loadPersistedCampaigns();
+        const persistedIds = new Set(persisted.map(item => item.campaign.id));
+        const legacy = loadLegacyCampaigns();
+        const failedLegacy: Campaign[] = [];
+        let migrationComplete = true;
+
+        for (const campaign of legacy) {
+          if (campaign.id === CANONICAL_X_CAMPAIGN_ID || persistedIds.has(campaign.id)) {
+            continue;
+          }
+          try {
+            const imported = await campaignRequest<PersistedCampaignEnvelope>('/api/campaigns', {
+              method: 'POST',
+              body: JSON.stringify({ campaign, source: 'browser-import' }),
+            });
+            persisted.push(imported);
+            persistedIds.add(campaign.id);
+          } catch (migrationError) {
+            migrationComplete = false;
+            failedLegacy.push(campaign);
+            console.error('Failed to import legacy campaign:', migrationError);
+          }
+        }
+
+        if (legacy.length > 0 && migrationComplete) {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+        if (cancelled) return;
+
+        const byId = new Map(persisted.map(item => [item.campaign.id, item]));
+        persistedRef.current = byId;
+        syncedSnapshotsRef.current = new Map(
+          [...persisted.map(item => item.campaign), ...failedLegacy].map(campaign => [
+            campaign.id,
+            JSON.stringify(campaign),
+          ])
+        );
+        setCampaigns([...persisted.map(item => item.campaign), ...failedLegacy]);
+        persistenceReadyRef.current = true;
+        setError(
+          migrationComplete
+            ? null
+            : 'Some browser campaigns could not be imported; local copies remain.'
+        );
+      } catch (loadError) {
+        if (cancelled) return;
+        const message = loadError instanceof Error ? loadError.message : 'Failed to load campaigns';
+        setError(message);
+        console.error('Error loading campaigns:', loadError);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [hasMounted]);
 
-  // Save campaigns when changed (client-side only)
+  // Persist optimistic local edits as immutable server-side versions.
   useEffect(() => {
-    // Only save after initial load is complete
-    if (!hasMounted || isLoading) return;
-    saveCampaigns(campaigns);
+    if (!hasMounted || isLoading || !persistenceReadyRef.current) return;
+
+    const timeout = globalThis.setTimeout(() => {
+      const snapshot = campaigns;
+      persistenceQueueRef.current = persistenceQueueRef.current
+        .then(async () => {
+          const currentIds = new Set(snapshot.map(campaign => campaign.id));
+          for (const [id] of persistedRef.current) {
+            if (!currentIds.has(id)) {
+              await campaignRequest<void>(`/api/campaigns/${encodeURIComponent(id)}`, {
+                method: 'DELETE',
+              });
+              persistedRef.current.delete(id);
+              syncedSnapshotsRef.current.delete(id);
+            }
+          }
+
+          for (const campaign of snapshot) {
+            const serialized = JSON.stringify(campaign);
+            if (syncedSnapshotsRef.current.get(campaign.id) === serialized) continue;
+
+            const existing = persistedRef.current.get(campaign.id);
+            const persisted = await campaignRequest<PersistedCampaignEnvelope>(
+              existing ? `/api/campaigns/${encodeURIComponent(campaign.id)}` : '/api/campaigns',
+              {
+                method: existing ? 'PUT' : 'POST',
+                body: JSON.stringify({
+                  campaign,
+                  source: 'user',
+                  ...(existing ? { expectedVersion: existing.version } : {}),
+                }),
+              }
+            );
+            persistedRef.current.set(campaign.id, persisted);
+            syncedSnapshotsRef.current.set(campaign.id, serialized);
+          }
+          setError(null);
+        })
+        .catch(persistenceError => {
+          const message =
+            persistenceError instanceof Error
+              ? persistenceError.message
+              : 'Failed to persist campaign changes';
+          setError(message);
+          console.error('Error persisting campaigns:', persistenceError);
+        });
+    }, 250);
+
+    return () => globalThis.clearTimeout(timeout);
   }, [campaigns, isLoading, hasMounted]);
 
   // Get selected campaign
@@ -441,17 +593,21 @@ export function useCampaign(): UseCampaignReturn {
       };
 
       // Reset content IDs and statuses
-      duplicated.contentItems = duplicated.contentItems.map(item => ({
-        ...item,
-        id: generateContentId(),
-        adaptations: item.adaptations.map(a => ({
-          ...a,
-          status: 'pending' as const,
-          publishedAt: undefined,
-          publishedUrl: undefined,
-          engagementMetrics: undefined,
-        })),
-      }));
+      duplicated.contentItems = duplicated.contentItems.map(item => {
+        const contentId = generateContentId();
+        return {
+          ...item,
+          id: contentId,
+          adaptations: item.adaptations.map(a => ({
+            ...a,
+            variantId: `variant_${contentId}_${a.platformId}`,
+            status: 'pending' as const,
+            publishedAt: undefined,
+            publishedUrl: undefined,
+            engagementMetrics: undefined,
+          })),
+        };
+      });
 
       duplicated.schedule.posts = [];
 

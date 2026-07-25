@@ -192,7 +192,7 @@ export class AuthService {
       const { prisma } = await import('../db/prisma');
       if (prisma) {
         // Dynamic access: Prisma client is typed at runtime after generation
-        const db = prisma as Record<string, unknown>;
+        const db = prisma as unknown as Record<string, unknown>;
         const userModel = db.user as
           | {
               findUnique: (args: {
@@ -259,7 +259,7 @@ export class AuthService {
     try {
       const { prisma } = await import('../db/prisma');
       if (prisma) {
-        const db = prisma as Record<string, unknown>;
+        const db = prisma as unknown as Record<string, unknown>;
         const userModel = db.user as
           | {
               findUnique: (args: { where: { username: string } }) => Promise<{

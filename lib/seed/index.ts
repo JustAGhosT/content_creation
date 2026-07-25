@@ -72,38 +72,17 @@ export function loadSeedSeries(): Series[] {
 }
 
 /**
- * Load seed campaigns into localStorage
+ * Return bundled campaign previews.
+ *
+ * Campaign persistence is server-authoritative. Existing localStorage data is
+ * intentionally left untouched so useCampaign can migrate it transactionally.
  */
 export function loadSeedCampaigns(): Campaign[] {
-  if (globalThis.window === undefined) return [];
-
-  try {
-    const existingData = localStorage.getItem(CAMPAIGN_STORAGE_KEY);
-    const existingCampaigns: Campaign[] = existingData ? JSON.parse(existingData) : [];
-
-    // Add seed campaigns that don't exist yet
-    let modified = false;
-    for (const seedItem of seedCampaigns) {
-      const exists = existingCampaigns.some(c => c.id === seedItem.id);
-      if (!exists) {
-        existingCampaigns.push(seedItem);
-        modified = true;
-      }
-    }
-
-    if (modified) {
-      localStorage.setItem(CAMPAIGN_STORAGE_KEY, JSON.stringify(existingCampaigns));
-    }
-
-    return existingCampaigns;
-  } catch (error) {
-    console.error('Error loading seed campaigns:', error);
-    return [];
-  }
+  return seedCampaigns;
 }
 
 /**
- * Load all seed data into localStorage
+ * Load local-only series seed data and expose bundled campaign previews.
  * Call this once on app initialization
  */
 export function loadAllSeedData(): { series: Series[]; campaigns: Campaign[] } {

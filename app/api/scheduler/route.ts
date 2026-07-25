@@ -13,6 +13,8 @@ import { Errors, withErrorHandling } from '@/app/api/_utils/errors';
 import { withRateLimit, RateLimitPresets } from '@/app/api/_utils/rateLimit';
 import { sanitizeText, validateAndSanitize } from '@/app/api/_utils/sanitize';
 import { platforms } from '@/lib/config/platforms';
+import { assertApprovedForQueue, recordPublishAttempt } from '@/lib/campaigns/repository';
+import { campaignErrorResponse } from '@/app/api/campaigns/_errors';
 
 // ── Zod Schemas ──────────────────────────────────────────────────────────
 
@@ -49,18 +51,37 @@ const jobContentSchema = z.object({
     .optional(),
 });
 
-const createJobSchema = z.object({
-  type: z.enum(['campaign_post', 'series_promotion', 'standalone']),
-  campaignId: z.string().min(1).optional(),
-  contentId: z.string().min(1, 'contentId is required'),
-  platformId: z.string().min(1, 'platformId is required'),
-  content: jobContentSchema,
-  scheduledTime: z.string().refine(val => !Number.isNaN(new Date(val).getTime()), {
-    message: 'Invalid scheduledTime format',
-  }),
-  timezone: z.string().optional(),
-  maxAttempts: z.number().int().min(1).max(20).optional(),
-});
+const createJobSchema = z
+  .object({
+    type: z.enum(['campaign_post', 'series_promotion', 'standalone']),
+    campaignId: z.string().min(1).optional(),
+    campaignVersion: z.number().int().positive().optional(),
+    contentHash: z
+      .string()
+      .regex(/^sha256:[a-f0-9]{64}$/)
+      .optional(),
+    variantId: z.string().min(1).optional(),
+    contentId: z.string().min(1, 'contentId is required'),
+    platformId: z.string().min(1, 'platformId is required'),
+    content: jobContentSchema,
+    scheduledTime: z.string().refine(val => !Number.isNaN(new Date(val).getTime()), {
+      message: 'Invalid scheduledTime format',
+    }),
+    timezone: z.string().optional(),
+    maxAttempts: z.number().int().min(1).max(20).optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.type !== 'campaign_post') return;
+    for (const field of ['campaignId', 'campaignVersion', 'contentHash', 'variantId'] as const) {
+      if (value[field] === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `${field} is required for campaign posts`,
+        });
+      }
+    }
+  });
 
 function getComingSoonPlatformName(platformId: string): string | undefined {
   const normalizedPlatformId = platformId.toLowerCase();
@@ -155,13 +176,49 @@ export const POST = withRateLimit(
       return Errors.badRequest(`${comingSoonPlatformName} publishing is coming soon`);
     }
 
+    let approvalBinding: Awaited<ReturnType<typeof assertApprovedForQueue>> | undefined;
+    if (
+      data.type === 'campaign_post' &&
+      data.campaignId &&
+      data.campaignVersion &&
+      data.contentHash &&
+      data.variantId
+    ) {
+      try {
+        approvalBinding = await assertApprovedForQueue({
+          userId: currentUserId,
+          campaignId: data.campaignId,
+          version: data.campaignVersion,
+          contentId: data.contentId,
+          variantId: data.variantId,
+          platformId: data.platformId,
+          contentHash: data.contentHash,
+        });
+        await recordPublishAttempt({
+          userId: currentUserId,
+          campaignId: data.campaignId,
+          version: data.campaignVersion,
+          contentId: data.contentId,
+          variantId: data.variantId,
+          platformId: data.platformId,
+          contentHash: data.contentHash,
+        });
+      } catch (error) {
+        return campaignErrorResponse(error) ?? Errors.internalServerError();
+      }
+    }
+
     const scheduler = getScheduler();
     const job = await scheduler.schedule({
       type: data.type,
       campaignId: data.campaignId,
+      campaignVersion: data.campaignVersion,
+      campaignVersionId: approvalBinding?.versionId,
+      approvedContentHash: approvalBinding?.contentHash,
+      variantId: data.variantId,
       contentId: data.contentId,
       platformId: data.platformId,
-      content: data.content,
+      content: approvalBinding?.content ?? data.content,
       scheduledTime: data.scheduledTime,
       timezone: data.timezone,
       maxAttempts: data.maxAttempts,

@@ -23,6 +23,19 @@ const mockGetAllJobs = jest.fn<any>();
 const mockGetJobsByStatus = jest.fn<any>();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockGetJobsByCampaign = jest.fn<any>();
+const mockAssertApprovedForQueue = jest.fn<
+  () => Promise<{
+    versionId: string;
+    contentHash: string;
+    content: { text: string; mediaUrls?: string[]; hashtags?: string[]; mentions?: string[] };
+  }>
+>();
+const mockRecordPublishAttempt = jest.fn<() => Promise<{ id: string }>>();
+
+jest.mock('../../lib/campaigns/repository', () => ({
+  assertApprovedForQueue: mockAssertApprovedForQueue,
+  recordPublishAttempt: mockRecordPublishAttempt,
+}));
 
 // Mock the sanitize module
 jest.mock('../../app/api/_utils/sanitize', () => ({
@@ -83,6 +96,15 @@ describe('Scheduler API Routes', () => {
     mockGetJobsByStatus.mockResolvedValue([sampleJob]);
     mockGetJobsByCampaign.mockResolvedValue([sampleJob]);
     mockSchedule.mockResolvedValue(sampleJob);
+    mockAssertApprovedForQueue.mockResolvedValue({
+      versionId: 'version-1',
+      contentHash: `sha256:${'a'.repeat(64)}`,
+      content: {
+        text: 'Approved campaign post',
+        hashtags: ['approved'],
+      },
+    });
+    mockRecordPublishAttempt.mockResolvedValue({ id: 'attempt-1' });
 
     // Mock the scheduler before importing the route
     jest.doMock('../../lib/scheduler', () => ({
@@ -168,6 +190,63 @@ describe('Scheduler API Routes', () => {
 
       expect(response.status).toBe(400);
       expect(data.message).toContain('Invalid input');
+      expect(mockSchedule).not.toHaveBeenCalled();
+    });
+
+    test('binds a campaign post to its approved immutable version', async () => {
+      const contentHash = `sha256:${'a'.repeat(64)}`;
+      const request = createRequest('POST', {
+        type: 'campaign_post',
+        campaignId: 'campaign-1',
+        campaignVersion: 2,
+        contentHash,
+        variantId: 'variant-1',
+        contentId: 'content-1',
+        platformId: 'twitter',
+        content: { text: 'Tampered request content', hashtags: ['tampered'] },
+        scheduledTime: '2026-04-01T12:00:00Z',
+      });
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(201);
+      expect(mockAssertApprovedForQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          campaignId: 'campaign-1',
+          version: 2,
+          contentHash,
+          platformId: 'twitter',
+        })
+      );
+      expect(mockRecordPublishAttempt).toHaveBeenCalledWith(
+        expect.objectContaining({ campaignId: 'campaign-1', variantId: 'variant-1' })
+      );
+      expect(mockSchedule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          campaignVersionId: 'version-1',
+          approvedContentHash: contentHash,
+          content: {
+            text: 'Approved campaign post',
+            hashtags: ['approved'],
+          },
+        })
+      );
+    });
+
+    test('rejects a campaign post without immutable approval fields', async () => {
+      const request = createRequest('POST', {
+        type: 'campaign_post',
+        campaignId: 'campaign-1',
+        contentId: 'content-1',
+        platformId: 'twitter',
+        content: { text: 'Unbound campaign post' },
+        scheduledTime: '2026-04-01T12:00:00Z',
+      });
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(400);
+      expect(mockAssertApprovedForQueue).not.toHaveBeenCalled();
       expect(mockSchedule).not.toHaveBeenCalled();
     });
 

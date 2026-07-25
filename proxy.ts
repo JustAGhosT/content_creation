@@ -14,6 +14,7 @@ const authenticatedPaths = [
   '/api/parse',
   '/api/summarize',
   '/api/content',
+  '/api/campaigns',
   '/api/feedback',
   '/api/notifications',
   '/api/scheduler',

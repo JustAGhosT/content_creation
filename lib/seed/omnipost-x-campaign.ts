@@ -21,6 +21,7 @@ function createPost(id: string, title: string, body: string): CampaignContent {
     summary: title,
     adaptations: [
       {
+        variantId: id.replace('content_', 'variant_'),
         platformId: 'twitter',
         platformName: 'X',
         content: body,

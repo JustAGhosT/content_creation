@@ -36,7 +36,7 @@ model User {
   id           String   @id @default(cuid())
   username     String   @unique
   email        String   @unique
-  passwordHash String   // bcrypt hashed password
+  passwordHash String // bcrypt hashed password
   role         String   @default("user")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -48,27 +48,158 @@ model User {
 
 // Campaign model for content campaigns
 model Campaign {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  status      String   @default("draft") // draft, scheduled, active, paused, completed
-  startDate   DateTime?
-  endDate     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(cuid())
+  externalId     String?
+  slug           String?
+  name           String
+  description    String?
+  status         String    @default("draft") // draft, scheduled, active, paused, completed
+  currentVersion Int       @default(1)
+  source         String    @default("user") // user, git-import
+  startDate      DateTime?
+  endDate        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   // Relations
-  userId   String
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contents Content[]
-  posts    ScheduledPost[]
+  userId           String
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contents         Content[]
+  posts            ScheduledPost[]
+  versions         CampaignVersion[]
+  attributionLinks AttributionLink[]
+  publishAttempts  PublishAttempt[]
+  decisions        CampaignDecision[]
 
   // Series relation
   seriesId String?
   series   Series? @relation(fields: [seriesId], references: [id])
 
+  @@unique([userId, externalId])
+  @@unique([userId, slug])
   @@index([userId])
   @@index([status])
+}
+
+// Immutable campaign snapshots. Editing an approved campaign creates a new row/version.
+model CampaignVersion {
+  id           String   @id @default(cuid())
+  campaignId   String
+  version      Int
+  snapshot     String // Canonical JSON snapshot
+  snapshotHash String // sha256:<hex>
+  createdBy    String
+  createdAt    DateTime @default(now())
+
+  campaign            Campaign             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  approvals           CampaignApproval[]
+  attributionLinks    AttributionLink[]
+  aiGenerationRecords AiGenerationRecord[]
+  publishAttempts     PublishAttempt[]
+  decisions           CampaignDecision[]
+  scheduledPosts      ScheduledPost[]
+
+  @@unique([campaignId, version])
+  @@unique([campaignId, snapshotHash])
+  @@index([campaignId, createdAt])
+}
+
+// Approval rows are append-only and bind a reviewer to an exact version/content hash.
+model CampaignApproval {
+  id                String   @id @default(cuid())
+  campaignVersionId String
+  contentId         String
+  variantId         String?
+  state             String // approved, rejected
+  reviewerId        String
+  reviewedAt        DateTime @default(now())
+  contentHash       String
+  notes             String?
+
+  campaignVersion CampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+
+  @@index([campaignVersionId, contentId])
+  @@index([reviewerId, reviewedAt])
+}
+
+model AttributionLink {
+  id                String   @id @default(cuid())
+  campaignId        String
+  campaignVersionId String
+  contentId         String
+  variantId         String
+  platformId        String
+  trackingToken     String
+  utmId             String
+  utmSource         String
+  utmMedium         String
+  utmCampaign       String
+  utmContent        String
+  createdAt         DateTime @default(now())
+
+  campaign        Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignVersion CampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignVersionId, variantId])
+  @@unique([campaignId, trackingToken])
+  @@index([campaignId])
+}
+
+model AiGenerationRecord {
+  id                String   @id @default(cuid())
+  campaignVersionId String
+  contentId         String
+  variantId         String
+  evidence          String // Schema-valid JSON evidence
+  inputHash         String
+  outputHash        String
+  reviewerId        String
+  decision          String
+  createdAt         DateTime
+
+  campaignVersion CampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+
+  @@index([campaignVersionId, variantId])
+}
+
+model PublishAttempt {
+  id                String    @id @default(cuid())
+  campaignId        String
+  campaignVersionId String
+  contentId         String
+  variantId         String
+  platformId        String
+  contentHash       String
+  status            String    @default("requested")
+  providerPostId    String?
+  providerPostUrl   String?
+  auditEventId      String?
+  errorCode         String?
+  requestedBy       String
+  requestedAt       DateTime  @default(now())
+  completedAt       DateTime?
+
+  campaign        Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignVersion CampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, requestedAt])
+  @@index([campaignVersionId, variantId])
+}
+
+model CampaignDecision {
+  id                String   @id @default(cuid())
+  campaignId        String
+  campaignVersionId String
+  decision          String
+  rationale         String
+  evidence          String?
+  decidedBy         String
+  decidedAt         DateTime @default(now())
+
+  campaign        Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignVersion CampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, decidedAt])
 }
 
 // Content model for campaign content items
@@ -82,7 +213,7 @@ model Content {
 
   // Relations
   campaignId  String
-  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign    Campaign             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   adaptations PlatformAdaptation[]
 
   @@index([campaignId])
@@ -90,15 +221,15 @@ model Content {
 
 // Platform adaptation for content
 model PlatformAdaptation {
-  id         String   @id @default(cuid())
-  platformId String   // linkedin, twitter, etc.
+  id             String    @id @default(cuid())
+  platformId     String // linkedin, twitter, etc.
   adaptedContent String
-  status     String   @default("pending") // pending, scheduled, published, failed
-  publishedUrl String?
-  publishedAt DateTime?
-  error      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  status         String    @default("pending") // pending, scheduled, published, failed
+  publishedUrl   String?
+  publishedAt    DateTime?
+  error          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   // Relations
   contentId String
@@ -110,21 +241,25 @@ model PlatformAdaptation {
 
 // Scheduled post model
 model ScheduledPost {
-  id          String   @id @default(cuid())
-  platformId  String
-  scheduledAt DateTime
-  status      String   @default("scheduled") // scheduled, processing, published, failed, cancelled
-  publishedAt DateTime?
-  error       String?
-  retryCount  Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  platformId          String
+  scheduledAt         DateTime
+  status              String    @default("scheduled") // scheduled, processing, published, failed, cancelled
+  publishedAt         DateTime?
+  error               String?
+  retryCount          Int       @default(0)
+  campaignVersionId   String?
+  approvedContentHash String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   // Relations
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId      String
+  campaign        Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignVersion CampaignVersion? @relation(fields: [campaignVersionId], references: [id], onDelete: Restrict)
 
   @@index([campaignId])
+  @@index([campaignVersionId])
   @@index([status])
   @@index([scheduledAt])
 }
@@ -152,8 +287,8 @@ model Lead {
   source    String?
   status    String   @default("new") // new, contacted, qualified, converted, lost
   score     Int      @default(0)
-  tags      String?  // JSON array stored as string
-  metadata  String?  // JSON object stored as string
+  tags      String? // JSON array stored as string
+  metadata  String? // JSON object stored as string
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -167,14 +302,14 @@ model Lead {
 // Lead interaction model
 model LeadInteraction {
   id          String   @id @default(cuid())
-  type        String   // email, call, meeting, note
+  type        String // email, call, meeting, note
   description String?
-  metadata    String?  // JSON object stored as string
+  metadata    String? // JSON object stored as string
   createdAt   DateTime @default(now())
 
   // Relations
   leadId String
-  lead   Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@index([leadId])
 }
@@ -197,23 +332,23 @@ model LeadInteraction {
 model AuditLog {
   id         String   @id @default(cuid())
   action     String
-  entity     String?  // Optional: campaign, content, lead, etc. (not required for API-only logs)
+  entity     String? // Optional: campaign, content, lead, etc. (not required for API-only logs)
   entityId   String?
-  details    String?  // JSON object stored as string
+  details    String? // JSON object stored as string
   // HTTP request audit fields (used by app/api/_utils/audit.ts)
-  path       String?  // Request path (e.g., /api/auth)
-  method     String?  // HTTP method (GET, POST, etc.)
-  body       String?  // JSON stringified request body (sanitized)
-  result     String?  // Result status (success, failure, etc.)
-  statusCode Int?     // HTTP status code
+  path       String? // Request path (e.g., /api/auth)
+  method     String? // HTTP method (GET, POST, etc.)
+  body       String? // JSON stringified request body (sanitized)
+  result     String? // Result status (success, failure, etc.)
+  statusCode Int? // HTTP status code
   // PII fields (subject to retention policy above)
-  ipAddress  String?  // PII: subject to retention policy (see above)
-  userAgent  String?  // PII: subject to retention policy (see above)
+  ipAddress  String? // PII: subject to retention policy (see above)
+  userAgent  String? // PII: subject to retention policy (see above)
   createdAt  DateTime @default(now())
 
   // Relations
   userId String?
-  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([action])
@@ -222,15 +357,15 @@ model AuditLog {
 
 // Notification model
 model Notification {
-  id        String   @id @default(cuid())
-  type      String   // email, slack, sms
+  id        String    @id @default(cuid())
+  type      String // email, slack, sms
   recipient String
   subject   String?
   message   String
-  status    String   @default("pending") // pending, sent, failed
+  status    String    @default("pending") // pending, sent, failed
   sentAt    DateTime?
   error     String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([type])
   @@index([status])
@@ -241,8 +376,8 @@ model Form {
   id          String   @id @default(cuid())
   name        String
   description String?
-  fields      String   // JSON array stored as string
-  settings    String?  // JSON object stored as string
+  fields      String // JSON array stored as string
+  settings    String? // JSON object stored as string
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -262,7 +397,7 @@ model VideoJob {
   characterPrompt String
   motionVideoUrl  String?
   outputVideoUrl  String?
-  platforms       String   // JSON array stored as string (e.g., '["tiktok","instagram"]')
+  platforms       String // JSON array stored as string (e.g., '["tiktok","instagram"]')
   duration        Int      @default(5) // Video duration in seconds (5 or 10)
   error           String?
   createdAt       DateTime @default(now())
@@ -275,13 +410,13 @@ model VideoJob {
 // Form submission model
 model FormSubmission {
   id        String   @id @default(cuid())
-  data      String   // JSON object stored as string
-  metadata  String?  // JSON object stored as string
+  data      String // JSON object stored as string
+  metadata  String? // JSON object stored as string
   createdAt DateTime @default(now())
 
   // Relations
   formId String
-  form   Form @relation(fields: [formId], references: [id], onDelete: Cascade)
+  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([formId])
 }

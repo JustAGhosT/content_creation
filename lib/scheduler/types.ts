@@ -29,6 +29,10 @@ export interface ScheduledJob {
 
   // Reference to content
   campaignId?: string;
+  campaignVersion?: number;
+  campaignVersionId?: string;
+  approvedContentHash?: string;
+  variantId?: string;
   contentId: string;
   platformId: string;
 
@@ -153,6 +157,10 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
 export interface CreateJobInput {
   type: JobType;
   campaignId?: string;
+  campaignVersion?: number;
+  campaignVersionId?: string;
+  approvedContentHash?: string;
+  variantId?: string;
   contentId: string;
   platformId: string;
   content: ScheduledJob['content'];
