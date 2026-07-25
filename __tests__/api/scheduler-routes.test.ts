@@ -23,8 +23,13 @@ const mockGetAllJobs = jest.fn<any>();
 const mockGetJobsByStatus = jest.fn<any>();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockGetJobsByCampaign = jest.fn<any>();
-const mockAssertApprovedForQueue =
-  jest.fn<() => Promise<{ versionId: string; contentHash: string }>>();
+const mockAssertApprovedForQueue = jest.fn<
+  () => Promise<{
+    versionId: string;
+    contentHash: string;
+    content: { text: string; mediaUrls?: string[]; hashtags?: string[]; mentions?: string[] };
+  }>
+>();
 const mockRecordPublishAttempt = jest.fn<() => Promise<{ id: string }>>();
 
 jest.mock('../../lib/campaigns/repository', () => ({
@@ -94,6 +99,10 @@ describe('Scheduler API Routes', () => {
     mockAssertApprovedForQueue.mockResolvedValue({
       versionId: 'version-1',
       contentHash: `sha256:${'a'.repeat(64)}`,
+      content: {
+        text: 'Approved campaign post',
+        hashtags: ['approved'],
+      },
     });
     mockRecordPublishAttempt.mockResolvedValue({ id: 'attempt-1' });
 
@@ -194,7 +203,7 @@ describe('Scheduler API Routes', () => {
         variantId: 'variant-1',
         contentId: 'content-1',
         platformId: 'twitter',
-        content: { text: 'Approved campaign post' },
+        content: { text: 'Tampered request content', hashtags: ['tampered'] },
         scheduledTime: '2026-04-01T12:00:00Z',
       });
 
@@ -206,6 +215,7 @@ describe('Scheduler API Routes', () => {
           campaignId: 'campaign-1',
           version: 2,
           contentHash,
+          platformId: 'twitter',
         })
       );
       expect(mockRecordPublishAttempt).toHaveBeenCalledWith(
@@ -215,6 +225,10 @@ describe('Scheduler API Routes', () => {
         expect.objectContaining({
           campaignVersionId: 'version-1',
           approvedContentHash: contentHash,
+          content: {
+            text: 'Approved campaign post',
+            hashtags: ['approved'],
+          },
         })
       );
     });

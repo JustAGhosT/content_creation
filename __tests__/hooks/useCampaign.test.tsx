@@ -32,7 +32,11 @@ describe('useCampaign server persistence', () => {
   });
 
   test('hydrates from the API and migrates legacy browser campaigns once', async () => {
-    localStorage.setItem('content-campaigns', JSON.stringify([aerospaceCampaignSeed]));
+    const legacyCampaign = JSON.parse(JSON.stringify(aerospaceCampaignSeed)) as {
+      contentItems: Array<{ adaptations: Array<{ variantId?: string }> }>;
+    };
+    delete legacyCampaign.contentItems[0].adaptations[0].variantId;
+    localStorage.setItem('content-campaigns', JSON.stringify([legacyCampaign]));
     const fetchMock = jest
       .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
       .mockResolvedValueOnce(jsonResponse(envelope(omnipostXCampaignSeed), 201))
@@ -57,11 +61,39 @@ describe('useCampaign server persistence', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       '/api/campaigns',
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('"source":"browser-import"'),
-      })
+      expect.objectContaining({ method: 'POST' })
     );
+    const importInit = fetchMock.mock.calls[2][1];
+    const importPayload = JSON.parse(String(importInit?.body)) as {
+      campaign: Campaign;
+      source: string;
+    };
+    expect(importPayload.source).toBe('browser-import');
+    expect(importPayload.campaign.contentItems[0].adaptations[0].variantId).toMatch(/^legacy-0-/);
+
+    unmount();
+  });
+
+  test('keeps a failed legacy import visible and recoverable', async () => {
+    localStorage.setItem('content-campaigns', JSON.stringify([aerospaceCampaignSeed]));
+    const fetchMock = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValueOnce(jsonResponse(envelope(omnipostXCampaignSeed), 201))
+      .mockResolvedValueOnce(jsonResponse({ campaigns: [envelope(omnipostXCampaignSeed)] }))
+      .mockResolvedValueOnce(jsonResponse({ message: 'Import failed' }, 400));
+    globalThis.fetch = fetchMock;
+
+    const { result, unmount } = renderHook(() => useCampaign());
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.campaigns.map(campaign => campaign.id)).toContain(
+      aerospaceCampaignSeed.id
+    );
+    expect(result.current.error).toBe(
+      'Some browser campaigns could not be imported; local copies remain.'
+    );
+    expect(localStorage.getItem('content-campaigns')).not.toBeNull();
 
     unmount();
   });

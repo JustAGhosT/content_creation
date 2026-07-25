@@ -31,11 +31,40 @@ interface PersistedCampaignEnvelope {
   contentHashes: Record<string, string>;
 }
 
+type LegacyPlatformAdaptation = Omit<PlatformAdaptation, 'variantId'> & {
+  variantId?: string;
+};
+
+type LegacyCampaign = Omit<Campaign, 'contentItems'> & {
+  contentItems: Array<
+    Omit<CampaignContent, 'adaptations'> & {
+      adaptations: LegacyPlatformAdaptation[];
+    }
+  >;
+};
+
+function normalizeLegacyCampaign(campaign: LegacyCampaign): Campaign {
+  return {
+    ...campaign,
+    contentItems: campaign.contentItems.map(content => ({
+      ...content,
+      adaptations: content.adaptations.map((adaptation, index) => ({
+        ...adaptation,
+        variantId:
+          adaptation.variantId ||
+          `legacy-${index}-${adaptation.platformId}-${content.id}`.slice(0, 128),
+      })),
+    })),
+  };
+}
+
 function loadLegacyCampaigns(): Campaign[] {
   if (globalThis.window === undefined) return [];
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as unknown;
+    return Array.isArray(parsed) ? (parsed as LegacyCampaign[]).map(normalizeLegacyCampaign) : [];
   } catch (error) {
     console.error('Error loading campaigns:', error);
     return [];
@@ -348,6 +377,7 @@ export function useCampaign(): UseCampaignReturn {
         const persisted = await loadPersistedCampaigns();
         const persistedIds = new Set(persisted.map(item => item.campaign.id));
         const legacy = loadLegacyCampaigns();
+        const failedLegacy: Campaign[] = [];
         let migrationComplete = true;
 
         for (const campaign of legacy) {
@@ -363,6 +393,7 @@ export function useCampaign(): UseCampaignReturn {
             persistedIds.add(campaign.id);
           } catch (migrationError) {
             migrationComplete = false;
+            failedLegacy.push(campaign);
             console.error('Failed to import legacy campaign:', migrationError);
           }
         }
@@ -375,9 +406,12 @@ export function useCampaign(): UseCampaignReturn {
         const byId = new Map(persisted.map(item => [item.campaign.id, item]));
         persistedRef.current = byId;
         syncedSnapshotsRef.current = new Map(
-          persisted.map(item => [item.campaign.id, JSON.stringify(item.campaign)])
+          [...persisted.map(item => item.campaign), ...failedLegacy].map(campaign => [
+            campaign.id,
+            JSON.stringify(campaign),
+          ])
         );
-        setCampaigns(persisted.map(item => item.campaign));
+        setCampaigns([...persisted.map(item => item.campaign), ...failedLegacy]);
         persistenceReadyRef.current = true;
         setError(
           migrationComplete

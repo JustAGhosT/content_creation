@@ -176,7 +176,7 @@ export const POST = withRateLimit(
       return Errors.badRequest(`${comingSoonPlatformName} publishing is coming soon`);
     }
 
-    let approvalBinding: { versionId: string; contentHash: string } | undefined;
+    let approvalBinding: Awaited<ReturnType<typeof assertApprovedForQueue>> | undefined;
     if (
       data.type === 'campaign_post' &&
       data.campaignId &&
@@ -191,6 +191,7 @@ export const POST = withRateLimit(
           version: data.campaignVersion,
           contentId: data.contentId,
           variantId: data.variantId,
+          platformId: data.platformId,
           contentHash: data.contentHash,
         });
         await recordPublishAttempt({
@@ -217,7 +218,7 @@ export const POST = withRateLimit(
       variantId: data.variantId,
       contentId: data.contentId,
       platformId: data.platformId,
-      content: data.content,
+      content: approvalBinding?.content ?? data.content,
       scheduledTime: data.scheduledTime,
       timezone: data.timezone,
       maxAttempts: data.maxAttempts,

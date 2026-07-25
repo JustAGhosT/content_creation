@@ -139,6 +139,7 @@ describe('campaign persistence restart behavior', () => {
       version: afterRestart.version,
       contentId,
       variantId,
+      platformId: 'twitter',
       contentHash,
     });
 
@@ -146,6 +147,54 @@ describe('campaign persistence restart behavior', () => {
     expect(approvalBinding).toEqual({
       versionId: persisted.versionId,
       contentHash,
+      content: {
+        text: omnipostXCampaignSeed.contentItems[0].adaptations[0].content,
+        mediaUrls: omnipostXCampaignSeed.contentItems[0].adaptations[0].mediaUrls,
+        hashtags: omnipostXCampaignSeed.contentItems[0].adaptations[0].hashtags,
+        mentions: omnipostXCampaignSeed.contentItems[0].adaptations[0].mentions,
+      },
     });
+
+    await restartedRepository.recordApproval({
+      userId: 'user-1',
+      campaignId: omnipostXCampaignSeed.id,
+      version: persisted.version,
+      contentId,
+      variantId,
+      state: 'rejected',
+      contentHash,
+    });
+    await expect(
+      restartedRepository.assertApprovedForQueue({
+        userId: 'user-1',
+        campaignId: omnipostXCampaignSeed.id,
+        version: persisted.version,
+        contentId,
+        variantId,
+        platformId: 'twitter',
+        contentHash,
+      })
+    ).rejects.toMatchObject({ code: 'CAMPAIGN_APPROVAL_REQUIRED' });
+
+    await restartedRepository.recordApproval({
+      userId: 'user-1',
+      campaignId: omnipostXCampaignSeed.id,
+      version: persisted.version,
+      contentId,
+      variantId,
+      state: 'approved',
+      contentHash,
+    });
+    await expect(
+      restartedRepository.assertApprovedForQueue({
+        userId: 'user-1',
+        campaignId: omnipostXCampaignSeed.id,
+        version: persisted.version,
+        contentId,
+        variantId,
+        platformId: 'twitter',
+        contentHash,
+      })
+    ).resolves.toMatchObject({ versionId: persisted.versionId, contentHash });
   });
 });

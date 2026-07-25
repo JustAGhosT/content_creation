@@ -1,5 +1,6 @@
 import type { CampaignVersion, Prisma, PrismaClient } from '@prisma/client';
 import prisma from '@/lib/db/prisma';
+import type { ScheduledJob } from '@/lib/scheduler/types';
 import type { Campaign } from '@/types/campaign';
 import {
   campaignContentHash,
@@ -315,8 +316,13 @@ export async function assertApprovedForQueue(input: {
   version: number;
   contentId: string;
   variantId?: string;
+  platformId: string;
   contentHash: string;
-}): Promise<{ versionId: string; contentHash: string }> {
+}): Promise<{
+  versionId: string;
+  contentHash: string;
+  content: ScheduledJob['content'];
+}> {
   const client = getClient();
   const campaign = await ownedCampaign(client, input.campaignId, input.userId);
   if (campaign.currentVersion !== input.version) {
@@ -335,24 +341,44 @@ export async function assertApprovedForQueue(input: {
     throw new CampaignPersistenceError('CAMPAIGN_NOT_FOUND', 'Campaign version not found');
   }
 
+  const snapshot = campaignSnapshotSchema.parse(JSON.parse(version.snapshot));
+  const content = snapshot.contentItems.find(item => item.id === input.contentId);
+  const adaptation = content?.adaptations.find(
+    item => item.variantId === input.variantId && item.platformId === input.platformId
+  );
+  if (!content || !adaptation || campaignContentHash(content) !== input.contentHash) {
+    throw new CampaignPersistenceError(
+      'CAMPAIGN_CONTENT_HASH_MISMATCH',
+      'Queued content does not match the approved campaign adaptation'
+    );
+  }
+
   const approval = await client.campaignApproval.findFirst({
     where: {
       campaignVersionId: version.id,
       contentId: input.contentId,
       variantId: input.variantId ?? null,
-      state: 'approved',
       contentHash: input.contentHash,
     },
-    orderBy: { reviewedAt: 'desc' },
+    orderBy: [{ reviewedAt: 'desc' }, { id: 'desc' }],
   });
-  if (!approval) {
+  if (approval?.state !== 'approved') {
     throw new CampaignPersistenceError(
       'CAMPAIGN_APPROVAL_REQUIRED',
-      'An approval for this exact campaign version and content hash is required'
+      'The latest review must approve this exact campaign version and content hash'
     );
   }
 
-  return { versionId: version.id, contentHash: approval.contentHash };
+  return {
+    versionId: version.id,
+    contentHash: approval.contentHash,
+    content: {
+      text: adaptation.content,
+      mediaUrls: adaptation.mediaUrls,
+      hashtags: adaptation.hashtags,
+      mentions: adaptation.mentions,
+    },
+  };
 }
 
 export async function recordAiGeneration(input: {
