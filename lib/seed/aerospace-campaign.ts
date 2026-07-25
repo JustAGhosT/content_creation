@@ -30,6 +30,7 @@ function createPost(
     summary: title,
     adaptations: [
       {
+        variantId: `variant_aero_d${day}_p${postNum}_twitter`,
         platformId: 'twitter',
         platformName: 'Twitter',
         content: body,
@@ -38,6 +39,7 @@ function createPost(
         status: 'pending',
       },
       {
+        variantId: `variant_aero_d${day}_p${postNum}_linkedin`,
         platformId: 'linkedin',
         platformName: 'LinkedIn',
         content: body.replaceAll('\n', '\n\n'), // More spacing for LinkedIn

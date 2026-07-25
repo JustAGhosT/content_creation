@@ -357,6 +357,7 @@ describe('proxy (root middleware on /api/:path*)', () => {
       '/api/parse',
       '/api/summarize',
       '/api/content',
+      '/api/campaigns',
       '/api/feedback',
       '/api/notifications',
       '/api/scheduler',

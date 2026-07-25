@@ -10,14 +10,11 @@
  * 3. Set DATABASE_URL in your .env file
  */
 
-// Type definition for Prisma client (will be replaced when generated)
-type PrismaClientType = {
-  $connect: () => Promise<void>;
-  $disconnect: () => Promise<void>;
-};
+import type { PrismaClient } from '@prisma/client';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClientType | undefined;
+  prisma: PrismaClient | undefined;
 };
 
 /**
@@ -26,12 +23,22 @@ const globalForPrisma = globalThis as unknown as {
  * Returns null if Prisma client hasn't been generated yet.
  * To generate: run `npx prisma generate`
  */
-function createPrismaClient(): PrismaClientType | null {
+function createPrismaClient(): PrismaClient | null {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[Prisma] DATABASE_URL is not configured.');
+    }
+    return null;
+  }
+
   try {
     // Dynamic import to avoid build errors when Prisma isn't set up
 
-    const { PrismaClient } = require('@prisma/client');
-    return new PrismaClient({
+    const { PrismaClient: RuntimePrismaClient } =
+      require('@prisma/client') as typeof import('@prisma/client');
+    return new RuntimePrismaClient({
+      adapter: new PrismaBetterSqlite3({ url: databaseUrl }),
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     });
   } catch {
@@ -51,7 +58,7 @@ function createPrismaClient(): PrismaClientType | null {
  * In development, the client is stored in globalThis to survive hot-reloads.
  * Returns null if Prisma isn't set up yet.
  */
-export const prisma: PrismaClientType | null = globalForPrisma.prisma ?? createPrismaClient();
+export const prisma: PrismaClient | null = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== 'production' && prisma) {
   globalForPrisma.prisma = prisma;

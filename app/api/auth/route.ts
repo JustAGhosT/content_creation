@@ -125,7 +125,7 @@ async function handleRegister(request: Request): Promise<NextResponse> {
     }
 
     // Dynamic access: Prisma client models are typed at runtime after generation
-    const db = prisma as Record<string, unknown>;
+    const db = prisma as unknown as Record<string, unknown>;
     const userModel = db.user as {
       findUnique: (args: {
         where: { username?: string; email?: string };

@@ -40,6 +40,7 @@ export interface PlatformEngagement {
  * Platform-specific content adaptation
  */
 export interface PlatformAdaptation {
+  variantId: string;
   platformId: string;
   platformName: string;
   content: string;
