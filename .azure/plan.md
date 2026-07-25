@@ -216,9 +216,9 @@ and deployment validation.
 
 ### Phase 4: Deployment
 
-- [ ] Invoke the `azure-deploy` skill
+- [x] Invoke the `azure-deploy` skill
 - [ ] Obtain explicit approval for cost, RBAC, and cutover
-- [ ] Inventory existing SQLite rows before switching `DATABASE_URL`
+- [x] Inventory existing SQLite rows before switching `DATABASE_URL`
 - [ ] Apply Terraform and migrations
 - [ ] Deploy the application
 - [ ] Verify health plus authenticated create/reload/restart/audit persistence
@@ -242,6 +242,7 @@ and deployment validation.
 | Terraform syntax/state | `terraform fmt -check -recursive`; `terraform validate`; state list | Passed; remote state accessible                                                                  | 2026-07-25 17:13 SAST |
 | Terraform preview      | `terraform plan -var-file=main.tfvars.json`                         | 12 add, 3 in-place, 0 destroy; no replacement or deletion                                        | 2026-07-25 17:10 SAST |
 | Azure policy           | Azure Policy assignment validation                                  | Only Security Center's audit-only default initiative applies; no deny policy blocks the design   | 2026-07-25 17:13 SAST |
+| Live SQLite inventory  | Kudu package `20260725115316.zip`; `sqlite3` row counts             | All 19 application tables contain zero rows; no data migration is required                       | 2026-07-25 17:26 SAST |
 
 The local Terraform preview used masked placeholder values for the three
 required Sluice inputs, so it displayed an in-place Sluice secret refresh.
@@ -275,5 +276,6 @@ destructive action.
 
 1. Review and publish the isolated
    `agent/production-durable-database` branch.
-2. Invoke `azure-deploy`, obtain explicit cost/RBAC/cutover authorization, and
-   inventory the deployed SQLite rows before applying the validated plan.
+2. Invoke `azure-deploy` and obtain explicit cost/RBAC/cutover authorization
+   before applying the validated plan. The deployed SQLite inventory is empty,
+   so no row migration is required.

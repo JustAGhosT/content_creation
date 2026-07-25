@@ -47,11 +47,12 @@
 - Live Terraform preview: 12 additions, 3 in-place updates, 0 destroys, and no
   replacements. The preview used placeholder Sluice inputs; deployment must
   use the real protected values and reject any residual Sluice change.
+- The exact live package, `20260725115316.zip`, was downloaded through Kudu for
+  pre-cutover inventory. Its SQLite database contains 19 application tables
+  and zero rows in every table, so no user or campaign row migration is needed.
 
 ### Deployment Boundary And Continuation
 
-- Before applying Terraform, inventory the deployed SQLite database. If it
-  contains real user or campaign rows, stop for an explicit migration decision.
 - Live apply changes RBAC, enables irreversible Key Vault purge protection, and
   starts the estimated USD 17.19/month database cost; it requires explicit
   deployment authorization.
