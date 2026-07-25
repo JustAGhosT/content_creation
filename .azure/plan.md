@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Validated
+> **Status:** Deployed
 
 Generated: 2026-07-25
 
@@ -217,13 +217,13 @@ and deployment validation.
 ### Phase 4: Deployment
 
 - [x] Invoke the `azure-deploy` skill
-- [ ] Obtain explicit approval for cost, RBAC, and cutover
+- [x] Obtain explicit approval for cost, RBAC, and cutover
 - [x] Inventory existing SQLite rows before switching `DATABASE_URL`
-- [ ] Apply Terraform and migrations
-- [ ] Deploy the application
-- [ ] Verify health plus authenticated create/reload/restart/audit persistence
+- [x] Apply Terraform and migrations
+- [x] Deploy the application
+- [x] Verify health plus authenticated create/reload/restart/audit persistence
 - [ ] Record deployment SHA, workflow, Azure resources, residual risk, and Baton closeout
-- [ ] Update status to `Deployed`
+- [x] Update status to `Deployed`
 
 ---
 
@@ -254,7 +254,30 @@ destructive action.
 
 ---
 
-## 9. Files to Generate or Modify
+## 9. Deployment Proof
+
+| Check                     | Evidence                                                                                                   | Result                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Infrastructure apply      | Terraform apply on 2026-07-25                                                                              | 12 added, 2 changed, 0 destroyed                                                       |
+| Cost controls             | `nl-dev-omnipost-psqlf-app` live configuration                                                             | North Europe, Burstable B1ms, 32 GiB, 7-day backup, no HA, no geo-redundant backup     |
+| Database migration        | GitHub Actions run `30164870954`, SHA `a8876a19b1048bee8ec8f1635cd643474cc3985d`                           | PostgreSQL baseline applied before package deployment                                  |
+| Application deployment    | GitHub Actions run `30164870954`                                                                           | Build, infrastructure plan, migration, Web App deployment, and automated health passed |
+| Key Vault resolution      | App Service connection-string reference status                                                             | `Resolved` through user-assigned identity; no plaintext application setting            |
+| Authenticated persistence | Production registration, canonical import, read, audit, App Service restart, then read/audit on 2026-07-25 | Version 1 and snapshot hash stable; one audit version and three attribution links      |
+
+The first deployed reference used the secret's ARM resource ID and App Service
+reported `InvalidSyntax`. PR #180 changes the expression to the provider's
+versionless vault URI. The corrected live plan updated the Web App in place
+with 0 additions and 0 destroys, after which App Service reported `Resolved`.
+
+**Residual risk:** this controlled dev topology permits public PostgreSQL
+network access from Azure services because the B1 App Service has no VNet
+integration. Private networking and tighter application-specific database
+roles remain later hardening work.
+
+---
+
+## 10. Files to Generate or Modify
 
 | File                                       | Purpose                                                            | Status   |
 | ------------------------------------------ | ------------------------------------------------------------------ | -------- |
@@ -266,16 +289,15 @@ destructive action.
 | `.github/workflows/ci.yml`                 | Ephemeral PostgreSQL CI service and generated client               | Complete |
 | `.github/workflows/azure-webapps-node.yml` | Production migration and package corrections                       | Complete |
 | `infra/terraform/env/dev/*.tf`             | Dedicated database server, database, secret, and runtime reference | Complete |
-| `docs/HANDOFF.md`                          | Gate 2 production closeout and Gate 3 continuation evidence        | Pending  |
+| `docs/HANDOFF.md`                          | Gate 2 production closeout and Gate 3 continuation evidence        | Complete |
 
 ---
 
-## 10. Next Steps
+## 11. Next Steps
 
-> Current: Validated; invoke `azure-deploy` before provisioning.
+> Current: deployed and restart-persistence verified.
 
-1. Review and publish the isolated
-   `agent/production-durable-database` branch.
-2. Invoke `azure-deploy` and obtain explicit cost/RBAC/cutover authorization
-   before applying the validated plan. The deployed SQLite inventory is empty,
-   so no row migration is required.
+1. Reconcile the Gate 3 deployment evidence and remaining slices in Baton.
+2. Continue Gate 3 in separate PRs for X OAuth lifecycle, durable queue leases,
+   recurring processing, retry/dead-letter handling, rate limits, and provider
+   reconciliation.

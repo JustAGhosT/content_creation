@@ -138,7 +138,7 @@ resource "azurerm_linux_web_app" "web" {
     content {
       name  = "DATABASE_URL"
       type  = "PostgreSQL"
-      value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_database_url[0].resource_versionless_id})"
+      value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_database_url[0].versionless_id})"
     }
   }
 

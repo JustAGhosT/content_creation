@@ -6,9 +6,13 @@
 
 - **Gate 2 implementation:** PR #177 merged at
   `e32a5b769a1cff642cd7bb87b9f642266df0cb79`.
-- **Gate 3 branch:** `agent/production-durable-database`.
-- **Azure plan:** `.azure/plan.md` is `Validated`; live provisioning and
-  cutover remain intentionally pending.
+- **Gate 3 implementation:** PR #178 merged at
+  `1316d260bebaacbd56ee0a13269ef5471d1ec392`.
+- **Deployment workflow fix:** PR #179 merged at
+  `a8876a19b1048bee8ec8f1635cd643474cc3985d`.
+- **Key Vault reference fix:** PR #180; the corrected reference is applied and
+  production persistence proof passes.
+- **Azure plan:** `.azure/plan.md` is `Deployed`.
 - **Database region:** North Europe, the lowest-cost supported European B1ms
   region verified for this subscription, estimated at approximately USD 17.19
   per 730-hour month with 32 GiB before backup overage and transfer.
@@ -34,6 +38,17 @@
 
 ### Verification
 
+- Terraform provisioned 12 resources, changed 2 in place, and destroyed 0.
+- The live database is PostgreSQL 16 on Burstable B1ms with 32 GiB, seven-day
+  backup, no HA, and no geo-redundant backup.
+- GitHub Actions run `30164870954` passed build, Terraform planning, the
+  PostgreSQL migration, Web App deployment, and automated health verification.
+- App Service reports the Key Vault connection-string reference as `Resolved`
+  through `nl-dev-omnipost-msi-web-kv`.
+- An authenticated production smoke registered a non-PII evidence user,
+  imported the canonical campaign, read its audit state, restarted App Service,
+  and read it again. Version 1 and the snapshot hash were unchanged; the audit
+  retained one version and all three attribution links.
 - PostgreSQL baseline migration applied successfully to a clean PostgreSQL 16
   container.
 - Restart-persistence integration passed with immutable approval and
@@ -53,11 +68,12 @@
 
 ### Deployment Boundary And Continuation
 
-- Live apply changes RBAC, enables irreversible Key Vault purge protection, and
-  starts the estimated USD 17.19/month database cost; it requires explicit
-  deployment authorization.
-- After infrastructure and migrations are live, deploy the application and
-  prove authenticated create/reload/App Service restart/audit persistence.
+- Gate 3's durable application database slice is live and verified. Key Vault
+  purge protection is enabled, and the estimated USD 17.19/month database cost
+  is active.
+- The controlled dev database currently permits public access from Azure
+  services because the B1 App Service has no VNet integration. Private
+  networking and application-specific database roles remain hardening work.
 - Continue Gate 3 in separate PRs for X OAuth lifecycle, durable queue leases
   and idempotency, recurring processing, retries/dead-lettering, rate limits,
   and provider reconciliation.
