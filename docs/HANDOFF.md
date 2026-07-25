@@ -1,5 +1,72 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-07-25 Durable Application Database — Gate 3 Slice
+
+### Current State
+
+- **Gate 2 implementation:** PR #177 merged at
+  `e32a5b769a1cff642cd7bb87b9f642266df0cb79`.
+- **Gate 3 branch:** `agent/production-durable-database`.
+- **Azure plan:** `.azure/plan.md` is `Validated`; live provisioning and
+  cutover remain intentionally pending.
+- **Database region:** North Europe, the lowest-cost supported European B1ms
+  region verified for this subscription, estimated at approximately USD 17.19
+  per 730-hour month with 32 GiB before backup overage and transfer.
+- **Isolation:** the new `omnipost_app` database is on an OmniPost-only
+  PostgreSQL 16 server. The existing Sluice/LiteLLM server and `omnipost`
+  database are not reused.
+
+### Prepared And Validated
+
+- Replaced the Prisma SQLite adapter with Prisma 7's PostgreSQL adapter.
+- Preserved SQLite migration history in
+  `prisma/migrations-sqlite-archive/` and created one complete PostgreSQL
+  baseline migration.
+- Replaced production `db push` and packaged SQLite with
+  `prisma migrate deploy`.
+- Added PostgreSQL 16 CI services and a real restart-persistence integration
+  test.
+- Added Terraform for the dedicated B1ms server, database, generated
+  credential, versionless Key Vault secret reference, managed identity, RBAC,
+  and App Service diagnostics.
+- Updated deployment to retrieve and mask the Key Vault connection URL before
+  applying migrations, then deploy the standalone zip.
+
+### Verification
+
+- PostgreSQL baseline migration applied successfully to a clean PostgreSQL 16
+  container.
+- Restart-persistence integration passed with immutable approval and
+  tenant-bound attribution state.
+- `pnpm run type-check` passed.
+- `pnpm run lint` passed with zero errors and 120 pre-existing warnings.
+- Repository-wide Windows-safe Prettier validation passed.
+- All 34 Jest suites and 241 tests passed.
+- Next.js production build passed.
+- Terraform format, validation, remote-state access, and policy checks passed.
+- Live Terraform preview: 12 additions, 3 in-place updates, 0 destroys, and no
+  replacements. The preview used placeholder Sluice inputs; deployment must
+  use the real protected values and reject any residual Sluice change.
+- The exact live package, `20260725115316.zip`, was downloaded through Kudu for
+  pre-cutover inventory. Its SQLite database contains 19 application tables
+  and zero rows in every table, so no user or campaign row migration is needed.
+
+### Deployment Boundary And Continuation
+
+- Live apply changes RBAC, enables irreversible Key Vault purge protection, and
+  starts the estimated USD 17.19/month database cost; it requires explicit
+  deployment authorization.
+- After infrastructure and migrations are live, deploy the application and
+  prove authenticated create/reload/App Service restart/audit persistence.
+- Continue Gate 3 in separate PRs for X OAuth lifecycle, durable queue leases
+  and idempotency, recurring processing, retries/dead-lettering, rate limits,
+  and provider reconciliation.
+- Treat roadmap Gates 0–6 as prerequisites, not a moat claim. Gates 7–11 and
+  the separate Gate 8A analyze–recommend–plan loop remain the defensibility
+  evidence program; do not claim a moat before Gate 11 passes.
+
+---
+
 ## 2026-07-25 Campaign Operating System — Gate 1 Handoff
 
 ### Current State

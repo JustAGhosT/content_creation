@@ -47,20 +47,20 @@ describe('campaign persistence contracts', () => {
     ]);
   });
 
-  test('migration adds campaign history without rewriting legacy users', () => {
+  test('PostgreSQL baseline preserves campaign history and legacy users', () => {
     const migration = readFileSync(
       path.join(
         process.cwd(),
         'prisma',
         'migrations',
-        '20260724234420_campaign_persistence',
+        '20260725123000_postgresql_baseline',
         'migration.sql'
       ),
       'utf8'
     );
 
-    expect(migration).not.toContain('new_User');
     expect(migration).not.toContain('DROP TABLE "User"');
+    expect(migration).toContain('CREATE TABLE "User"');
     expect(migration).toContain('CREATE TABLE "CampaignVersion"');
     expect(migration).toContain('AttributionLink_campaignId_trackingToken_key');
   });

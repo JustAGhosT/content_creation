@@ -6,6 +6,5 @@ autoInstallPeers: true
 strictPeerDependencies: false
 
 onlyBuiltDependencies:
-  - better-sqlite3
   - sharp
   - unrs-resolver

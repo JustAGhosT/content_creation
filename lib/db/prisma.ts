@@ -5,13 +5,14 @@
  * In development, it prevents hot-reload from creating multiple connections.
  *
  * SETUP REQUIRED:
- * 1. Run `npx prisma generate` to generate the Prisma client
- * 2. Run `npx prisma db push` to sync the database schema
- * 3. Set DATABASE_URL in your .env file
+ * 1. Run `pnpm run db:generate` to generate the Prisma client
+ * 2. Run `pnpm run db:migrate:deploy` to apply committed migrations
+ * 3. Set DATABASE_URL locally; Azure App Service supplies
+ *    POSTGRESQLCONNSTR_DATABASE_URL through a Key Vault reference
  */
 
 import type { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -24,7 +25,7 @@ const globalForPrisma = globalThis as unknown as {
  * To generate: run `npx prisma generate`
  */
 function createPrismaClient(): PrismaClient | null {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL ?? process.env.POSTGRESQLCONNSTR_DATABASE_URL;
   if (!databaseUrl) {
     if (process.env.NODE_ENV === 'development') {
       console.warn('[Prisma] DATABASE_URL is not configured.');
@@ -38,7 +39,7 @@ function createPrismaClient(): PrismaClient | null {
     const { PrismaClient: RuntimePrismaClient } =
       require('@prisma/client') as typeof import('@prisma/client');
     return new RuntimePrismaClient({
-      adapter: new PrismaBetterSqlite3({ url: databaseUrl }),
+      adapter: new PrismaPg({ connectionString: databaseUrl }),
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     });
   } catch {

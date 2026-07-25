@@ -1,23 +1,20 @@
 /** @jest-environment node */
 
-import { readFileSync, rmSync } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { omnipostXCampaignSeed } from '@/lib/seed/omnipost-x-campaign';
 
-function migrationStatements(file: string): string[] {
-  return readFileSync(file, 'utf8')
-    .split(';')
-    .map(statement => statement.trim())
-    .filter(Boolean);
-}
+const databaseUrl = process.env.DATABASE_URL;
+const describePostgres =
+  databaseUrl?.startsWith('postgresql://') || databaseUrl?.startsWith('postgres://')
+    ? describe
+    : describe.skip;
 
-describe('campaign persistence restart behavior', () => {
-  const databaseFile = path.join(os.tmpdir(), `omnipost-campaign-${process.pid}-${Date.now()}.db`);
-  const databaseUrl = `file:${databaseFile.replaceAll('\\', '/')}`;
-  const previousDatabaseUrl = process.env.DATABASE_URL;
+describePostgres('campaign persistence restart behavior', () => {
+  const testSuffix = `${process.pid}-${Date.now()}`;
+  const ownerId = `campaign-owner-${testSuffix}`;
+  const secondOwnerId = `second-owner-${testSuffix}`;
+  let usersCreated = false;
 
   afterAll(async () => {
     const globalPrisma = globalThis as unknown as {
@@ -25,61 +22,47 @@ describe('campaign persistence restart behavior', () => {
     };
     await globalPrisma.prisma?.$disconnect();
     globalPrisma.prisma = undefined;
-    if (previousDatabaseUrl === undefined) {
-      delete process.env.DATABASE_URL;
-    } else {
-      process.env.DATABASE_URL = previousDatabaseUrl;
+    if (databaseUrl && usersCreated) {
+      const cleanupClient = new PrismaClient({
+        adapter: new PrismaPg({ connectionString: databaseUrl }),
+      });
+      await cleanupClient.user.deleteMany({
+        where: { id: { in: [ownerId, secondOwnerId] } },
+      });
+      await cleanupClient.$disconnect();
     }
-    rmSync(databaseFile, { force: true });
   });
 
   test('survives a client restart with immutable approval history', async () => {
-    const setupClient = new PrismaClient({
-      adapter: new PrismaBetterSqlite3({ url: databaseUrl }),
-    });
-    const migrations = [
-      path.join(
-        process.cwd(),
-        'prisma',
-        'migrations',
-        '20260403182739_add_video_job_model',
-        'migration.sql'
-      ),
-      path.join(
-        process.cwd(),
-        'prisma',
-        'migrations',
-        '20260724234420_campaign_persistence',
-        'migration.sql'
-      ),
-    ];
-    for (const migration of migrations) {
-      for (const statement of migrationStatements(migration)) {
-        await setupClient.$executeRawUnsafe(statement);
-      }
+    if (!databaseUrl) {
+      throw new Error('PostgreSQL DATABASE_URL is required for this integration test.');
     }
-    await setupClient.$executeRawUnsafe(
-      `INSERT INTO "User" ("id", "username", "email", "passwordHash", "role", "createdAt", "updatedAt")
-       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-              (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      'user-1',
-      'campaign-owner',
-      'owner@example.test',
-      'not-a-real-password-hash',
-      'user',
-      'user-2',
-      'second-owner',
-      'second@example.test',
-      'not-a-real-password-hash',
-      'user'
-    );
+    const setupClient = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: databaseUrl }),
+    });
+    await setupClient.user.createMany({
+      data: [
+        {
+          id: ownerId,
+          username: `campaign-owner-${testSuffix}`,
+          email: `owner-${testSuffix}@example.test`,
+          passwordHash: 'not-a-real-password-hash',
+        },
+        {
+          id: secondOwnerId,
+          username: `second-owner-${testSuffix}`,
+          email: `second-${testSuffix}@example.test`,
+          passwordHash: 'not-a-real-password-hash',
+        },
+      ],
+    });
+    usersCreated = true;
     await setupClient.$disconnect();
 
-    process.env.DATABASE_URL = databaseUrl;
     jest.resetModules();
     const repository = await import('@/lib/campaigns/repository');
     const persisted = await repository.saveCampaignVersion({
-      userId: 'user-1',
+      userId: ownerId,
       campaign: omnipostXCampaignSeed,
       source: 'git-import',
     });
@@ -87,7 +70,7 @@ describe('campaign persistence restart behavior', () => {
     const variantId = omnipostXCampaignSeed.contentItems[0].adaptations[0].variantId;
     const contentHash = persisted.contentHashes[contentId];
     await repository.recordApproval({
-      userId: 'user-1',
+      userId: ownerId,
       campaignId: omnipostXCampaignSeed.id,
       version: persisted.version,
       contentId,
@@ -96,7 +79,7 @@ describe('campaign persistence restart behavior', () => {
       contentHash,
     });
     const secondTenant = await repository.saveCampaignVersion({
-      userId: 'user-2',
+      userId: secondOwnerId,
       campaign: omnipostXCampaignSeed,
       source: 'git-import',
     });
@@ -112,13 +95,13 @@ describe('campaign persistence restart behavior', () => {
       utmContent: 'post-1',
     };
     await repository.recordAttributionLinks({
-      userId: 'user-1',
+      userId: ownerId,
       campaignId: omnipostXCampaignSeed.id,
       version: persisted.version,
       links: [attribution],
     });
     await repository.recordAttributionLinks({
-      userId: 'user-2',
+      userId: secondOwnerId,
       campaignId: omnipostXCampaignSeed.id,
       version: secondTenant.version,
       links: [attribution],
@@ -132,9 +115,9 @@ describe('campaign persistence restart behavior', () => {
     jest.resetModules();
 
     const restartedRepository = await import('@/lib/campaigns/repository');
-    const afterRestart = await restartedRepository.getCampaign('user-1', omnipostXCampaignSeed.id);
+    const afterRestart = await restartedRepository.getCampaign(ownerId, omnipostXCampaignSeed.id);
     const approvalBinding = await restartedRepository.assertApprovedForQueue({
-      userId: 'user-1',
+      userId: ownerId,
       campaignId: omnipostXCampaignSeed.id,
       version: afterRestart.version,
       contentId,
@@ -156,7 +139,7 @@ describe('campaign persistence restart behavior', () => {
     });
 
     await restartedRepository.recordApproval({
-      userId: 'user-1',
+      userId: ownerId,
       campaignId: omnipostXCampaignSeed.id,
       version: persisted.version,
       contentId,
@@ -166,7 +149,7 @@ describe('campaign persistence restart behavior', () => {
     });
     await expect(
       restartedRepository.assertApprovedForQueue({
-        userId: 'user-1',
+        userId: ownerId,
         campaignId: omnipostXCampaignSeed.id,
         version: persisted.version,
         contentId,
@@ -177,7 +160,7 @@ describe('campaign persistence restart behavior', () => {
     ).rejects.toMatchObject({ code: 'CAMPAIGN_APPROVAL_REQUIRED' });
 
     await restartedRepository.recordApproval({
-      userId: 'user-1',
+      userId: ownerId,
       campaignId: omnipostXCampaignSeed.id,
       version: persisted.version,
       contentId,
@@ -187,7 +170,7 @@ describe('campaign persistence restart behavior', () => {
     });
     await expect(
       restartedRepository.assertApprovedForQueue({
-        userId: 'user-1',
+        userId: ownerId,
         campaignId: omnipostXCampaignSeed.id,
         version: persisted.version,
         contentId,

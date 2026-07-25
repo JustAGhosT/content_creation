@@ -47,6 +47,18 @@ locals {
     azurerm_postgresql_flexible_server.this[0].fqdn,
     var.postgresql_database_name
   ) : null
+
+  app_postgresql_password = var.enable_app_postgresql ? coalesce(
+    var.app_postgresql_administrator_password,
+    random_password.app_postgresql[0].result
+  ) : null
+  app_postgresql_url = var.enable_app_postgresql ? format(
+    "postgresql://%s:%s@%s:5432/%s?sslmode=require",
+    var.app_postgresql_administrator_login,
+    urlencode(local.app_postgresql_password),
+    azurerm_postgresql_flexible_server.app[0].fqdn,
+    var.app_postgresql_database_name
+  ) : null
 }
 
 data "azurerm_client_config" "current" {}
@@ -65,18 +77,35 @@ resource "azurerm_service_plan" "this" {
   tags                = local.tags
 }
 
+resource "azurecaf_name" "web_key_vault_identity" {
+  name          = "web-kv"
+  resource_type = "azurerm_user_assigned_identity"
+  prefixes      = [local.org, local.environment, local.project]
+  clean_input   = true
+}
+
+resource "azurerm_user_assigned_identity" "web_key_vault" {
+  name                = azurecaf_name.web_key_vault_identity.result
+  resource_group_name = azurerm_resource_group.this.name
+  location            = azurerm_resource_group.this.location
+  tags                = merge(local.tags, { managedBy = "terraform", component = "web-key-vault-identity" })
+}
+
 resource "azurerm_linux_web_app" "web" {
   name                    = "${local.base}-web"
   resource_group_name     = azurerm_resource_group.this.name
   location                = azurerm_resource_group.this.location
   service_plan_id         = azurerm_service_plan.this.id
-  https_only              = false
+  https_only              = true
   client_affinity_enabled = true
   tags                    = local.tags
 
   identity {
-    type = "SystemAssigned"
+    type         = "SystemAssigned, UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.web_key_vault.id]
   }
+
+  key_vault_reference_identity_id = azurerm_user_assigned_identity.web_key_vault.id
 
   site_config {
     always_on = true
@@ -84,7 +113,7 @@ resource "azurerm_linux_web_app" "web" {
     app_command_line    = "node server.js"
     http2_enabled       = true
     minimum_tls_version = "1.2"
-    ftps_state          = "FtpsOnly"
+    ftps_state          = "Disabled"
     use_32_bit_worker   = true
   }
 
@@ -104,6 +133,15 @@ resource "azurerm_linux_web_app" "web" {
     PROJECT                             = local.project
   }
 
+  dynamic "connection_string" {
+    for_each = var.enable_app_postgresql && var.enable_key_vault ? [1] : []
+    content {
+      name  = "DATABASE_URL"
+      type  = "PostgreSQL"
+      value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_database_url[0].resource_versionless_id})"
+    }
+  }
+
   lifecycle {
     ignore_changes = [
       app_settings,
@@ -121,6 +159,21 @@ resource "azurerm_log_analytics_workspace" "this" {
   retention_in_days            = 30
   local_authentication_enabled = false
   tags                         = local.tags
+}
+
+resource "azurerm_monitor_diagnostic_setting" "web" {
+  name                           = "${local.base}-web-diagnostics"
+  target_resource_id             = azurerm_linux_web_app.web.id
+  log_analytics_workspace_id     = azurerm_log_analytics_workspace.this.id
+  log_analytics_destination_type = "Dedicated"
+
+  enabled_log {
+    category_group = "allLogs"
+  }
+
+  enabled_metric {
+    category = "AllMetrics"
+  }
 }
 
 resource "azurerm_application_insights" "this" {
@@ -223,7 +276,7 @@ resource "azurerm_key_vault" "this" {
   enabled_for_disk_encryption     = false
   enabled_for_template_deployment = true
   rbac_authorization_enabled      = true
-  purge_protection_enabled        = false
+  purge_protection_enabled        = true
   soft_delete_retention_days      = 90
   public_network_access_enabled   = true
   tags                            = merge(local.tags, { managedBy = "terraform", component = "secrets" })
@@ -240,6 +293,30 @@ resource "azurerm_role_assignment" "web_key_vault_secrets_user" {
   scope                = azurerm_key_vault.this[0].id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_linux_web_app.web.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "web_identity_key_vault_secrets_officer" {
+  count = var.enable_key_vault ? 1 : 0
+
+  scope              = azurerm_key_vault.this[0].id
+  role_definition_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
+  principal_id       = azurerm_user_assigned_identity.web_key_vault.principal_id
+}
+
+resource "azurerm_role_assignment" "deployment_key_vault_secrets_officer" {
+  count = var.enable_key_vault ? 1 : 0
+
+  scope              = azurerm_key_vault.this[0].id
+  role_definition_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
+  principal_id       = var.deployment_principal_object_id
+}
+
+resource "azurerm_role_assignment" "operator_key_vault_secrets_officer" {
+  count = var.enable_key_vault ? 1 : 0
+
+  scope              = azurerm_key_vault.this[0].id
+  role_definition_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
+  principal_id       = var.operator_principal_object_id
 }
 
 resource "azurerm_container_app_environment" "sluice" {
@@ -407,4 +484,82 @@ resource "azurerm_postgresql_flexible_server_database" "app" {
   server_id = azurerm_postgresql_flexible_server.this[0].id
   charset   = "UTF8"
   collation = "en_US.utf8"
+}
+
+resource "azurecaf_name" "app_postgresql" {
+  name          = "app"
+  resource_type = "azurerm_postgresql_flexible_server"
+  prefixes      = [local.org, local.environment, local.project]
+  clean_input   = true
+}
+
+resource "random_password" "app_postgresql" {
+  count = var.enable_app_postgresql ? 1 : 0
+
+  length           = 32
+  special          = true
+  override_special = "_%@"
+}
+
+resource "azurerm_postgresql_flexible_server" "app" {
+  count = var.enable_app_postgresql ? 1 : 0
+
+  name                          = azurecaf_name.app_postgresql.result
+  resource_group_name           = azurerm_resource_group.this.name
+  location                      = var.app_postgresql_location
+  version                       = "16"
+  administrator_login           = var.app_postgresql_administrator_login
+  administrator_password        = local.app_postgresql_password
+  sku_name                      = "B_Standard_B1ms"
+  storage_mb                    = var.app_postgresql_storage_mb
+  backup_retention_days         = var.app_postgresql_backup_retention_days
+  geo_redundant_backup_enabled  = false
+  public_network_access_enabled = true
+  auto_grow_enabled             = true
+  tags                          = merge(local.tags, { managedBy = "terraform", component = "app-postgresql", region = "neu" })
+
+  authentication {
+    active_directory_auth_enabled = false
+    password_auth_enabled         = true
+  }
+
+  lifecycle {
+    ignore_changes = [zone]
+  }
+}
+
+resource "azurerm_postgresql_flexible_server_firewall_rule" "app_allow_azure_services" {
+  count = var.enable_app_postgresql ? 1 : 0
+
+  name             = "AllowAzureServices"
+  server_id        = azurerm_postgresql_flexible_server.app[0].id
+  start_ip_address = "0.0.0.0"
+  end_ip_address   = "0.0.0.0"
+}
+
+resource "azurerm_postgresql_flexible_server_database" "app_database" {
+  count = var.enable_app_postgresql ? 1 : 0
+
+  name      = var.app_postgresql_database_name
+  server_id = azurerm_postgresql_flexible_server.app[0].id
+  charset   = "UTF8"
+  collation = "en_US.utf8"
+}
+
+resource "azurerm_key_vault_secret" "app_database_url" {
+  count = var.enable_app_postgresql && var.enable_key_vault ? 1 : 0
+
+  name             = "omnipost-database-url"
+  value_wo         = local.app_postgresql_url
+  value_wo_version = 1
+  key_vault_id     = azurerm_key_vault.this[0].id
+  content_type     = "PostgreSQL connection URL"
+  tags             = merge(local.tags, { managedBy = "terraform", component = "app-postgresql" })
+
+  depends_on = [
+    azurerm_postgresql_flexible_server_database.app_database,
+    azurerm_role_assignment.deployment_key_vault_secrets_officer,
+    azurerm_role_assignment.operator_key_vault_secrets_officer,
+    azurerm_role_assignment.web_identity_key_vault_secrets_officer,
+  ]
 }

@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom';
+import { TextDecoder, TextEncoder } from 'node:util';
+
+global.TextEncoder ??= TextEncoder;
+global.TextDecoder ??= TextDecoder;
 
 // Set NODE_ENV to 'test' to suppress environment variable warnings
 process.env.NODE_ENV = 'test';
