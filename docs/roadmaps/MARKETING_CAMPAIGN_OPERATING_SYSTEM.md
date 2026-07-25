@@ -381,6 +381,42 @@ Exit gate:
 - the result reproduces across at least three design-partner organizations; and
 - disabling the learned signal returns behavior to the documented baseline.
 
+### Gate 8A — Governed Analyze–Recommend–Plan Loop
+
+- **Horizon:** After measurement is reliable; recurring thereafter
+- **Primary teams:** Product, data, marketing, backend, security
+- **Detailed plan:** `docs/plans/GOVERNED_IMPROVEMENT_LOOP_PLAN.md`
+
+This gate is separate from Gate 8. Gate 8 proves that outcome intelligence can
+produce guarded, reproducible lift. Gate 8A turns trustworthy evidence into a
+repeatable operating loop without allowing an AI system to silently change
+campaign strategy, policy, approvals, budgets, or queued content.
+
+Deliver:
+
+- evidence-completeness and confidence checks before analysis;
+- versioned analyses that distinguish observation, inference, and hypothesis;
+- ranked recommendations with cited evidence, expected impact, uncertainty,
+  cost, policy risk, and counterfactual;
+- human approve, revise, defer, or reject decisions;
+- generated experiment or remediation plans with owner, baseline, primary
+  measure, guardrails, stop condition, rollback, and review date; and
+- closed-loop result capture that records whether an approved recommendation
+  worked and updates future confidence without erasing prior reasoning.
+
+Exit gate:
+
+- three consecutive review cycles complete from evidence through recorded
+  result;
+- every recommendation cites tenant-authorized evidence and exposes confidence,
+  uncertainty, and known missing data;
+- every approved recommendation becomes a versioned plan with an owner,
+  predeclared measure, guardrails, stop condition, and rollback;
+- rejected and deferred recommendations remain auditable and inform later
+  calibration; and
+- no recommendation mutates live policy, approval, budget, campaign, or queue
+  state without the existing human authorization boundary.
+
 ### Gate 9 — Evidence-Grade Workflow Embeddedness
 
 - **Horizon:** Post-pilot
@@ -450,7 +486,7 @@ Exit gate:
 
 Entry criteria:
 
-- Gates 7 through 10 have completed measurement windows; and
+- Gates 7 through 10 and Gate 8A have completed measurement windows; and
 - retention, willingness-to-pay, recommendation lift, evidence quality, and
   distribution data are available.
 
@@ -473,42 +509,6 @@ Exit gate:
   not “AI,” “data,” or feature count in the abstract; and
 - failed criteria produce an explicit remediation or stop decision rather than
   a ceremonial pass.
-
-### Gate 8A — Governed Analyze–Recommend–Plan Loop
-
-- **Horizon:** After measurement is reliable; recurring thereafter
-- **Primary teams:** Product, data, marketing, backend, security
-- **Detailed plan:** `docs/plans/GOVERNED_IMPROVEMENT_LOOP_PLAN.md`
-
-This gate is separate from Gate 8. Gate 8 proves that outcome intelligence can
-produce guarded, reproducible lift. Gate 8A turns trustworthy evidence into a
-repeatable operating loop without allowing an AI system to silently change
-campaign strategy, policy, approvals, budgets, or queued content.
-
-Deliver:
-
-- evidence-completeness and confidence checks before analysis;
-- versioned analyses that distinguish observation, inference, and hypothesis;
-- ranked recommendations with cited evidence, expected impact, uncertainty,
-  cost, policy risk, and counterfactual;
-- human approve, revise, defer, or reject decisions;
-- generated experiment or remediation plans with owner, baseline, primary
-  measure, guardrails, stop condition, rollback, and review date; and
-- closed-loop result capture that records whether an approved recommendation
-  worked and updates future confidence without erasing prior reasoning.
-
-Exit gate:
-
-- three consecutive review cycles complete from evidence through recorded
-  result;
-- every recommendation cites tenant-authorized evidence and exposes confidence,
-  uncertainty, and known missing data;
-- every approved recommendation becomes a versioned plan with an owner,
-  predeclared measure, guardrails, stop condition, and rollback;
-- rejected and deferred recommendations remain auditable and inform later
-  calibration; and
-- no recommendation mutates live policy, approval, budget, campaign, or queue
-  state without the existing human authorization boundary.
 
 ## Success Measures
 
@@ -567,10 +567,10 @@ Keep changes reviewable and independently verifiable:
 6. LinkedIn pilot;
 7. design-partner evidence network;
 8. compounding outcome intelligence;
-9. evidence-grade workflow embeddedness;
-10. vertical distribution and extension flywheel; and
-11. defensibility review; and
-12. governed analyze–recommend–plan loop.
+9. governed analyze–recommend–plan loop;
+10. evidence-grade workflow embeddedness;
+11. vertical distribution and extension flywheel; and
+12. defensibility review.
 
 Each slice requires `pnpm check-all`, a separate PR, deployment verification
 when runtime behavior changes, and a Baton closeout containing changed files,
