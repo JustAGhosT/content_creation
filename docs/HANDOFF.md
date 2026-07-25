@@ -8,8 +8,8 @@
 - **Implementation branch:** `agent/gate3-x-oauth-lifecycle`
 - **Implementation commit before this handoff:** `4bd537c13174d667ffb67c59048fbc3ab04b3136`
 - **Baton Gate 3 task:** `8b2fe3e9-1765-464d-9e88-6f8aed147769`
-- The PR remains draft until its protected Terraform check passes and an
-  approved X OAuth application can provide real callback and account proof.
+- The PR remains draft until an approved X OAuth application can provide real
+  callback and account proof.
 
 ### Delivered
 
@@ -42,19 +42,17 @@
 - Prisma 7.1 client generation passed.
 - Terraform formatting and `terraform validate` passed after provider
   initialization.
-- At handoff, all eight application CI checks on PR #181 passed. The protected
-  Terraform check was still pending, and there were no submitted reviews or
-  inline review threads.
+- At handoff, all nine checks on PR #181 passed, including the protected
+  Terraform plan. There were no submitted reviews or inline review threads.
 
 ### Deployment Boundary And Continuation
 
 - This slice does not configure an X developer application, purchase provider
   credits, connect a real account, or prove a production post/revocation flow.
   Those steps require approved external credentials and account authorization.
-- A health check is not authenticated X proof. Keep the PR draft until the
-  protected Terraform result is known, then obtain real consent through the
-  visible X flow and record connect, refresh/reconnect, post, and revoke proof
-  without exposing tokens.
+- A health check is not authenticated X proof. Keep the PR draft, obtain real
+  consent through the visible X flow, and record connect, refresh/reconnect,
+  post, and revoke proof without exposing tokens.
 - The scheduler still uses the legacy static X token path. Gate 3 C2 must wire
   publishing to the persisted account token accessor before the static token
   can be removed.
