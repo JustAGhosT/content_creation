@@ -130,3 +130,58 @@ variable "postgresql_backup_retention_days" {
   description = "PostgreSQL backup retention in days."
   default     = 7
 }
+
+variable "enable_app_postgresql" {
+  type        = bool
+  description = "Whether to manage the dedicated OmniPost application PostgreSQL server."
+  default     = true
+}
+
+variable "app_postgresql_location" {
+  type        = string
+  description = "Lowest-cost credible European region for the dedicated OmniPost database."
+  default     = "northeurope"
+}
+
+variable "app_postgresql_administrator_login" {
+  type        = string
+  description = "Administrator login for the dedicated OmniPost PostgreSQL server."
+  default     = "omnipostappadmin"
+}
+
+variable "app_postgresql_administrator_password" {
+  type        = string
+  description = "Optional externally supplied password for the dedicated OmniPost PostgreSQL server."
+  sensitive   = true
+  default     = null
+}
+
+variable "app_postgresql_database_name" {
+  type        = string
+  description = "Database used only by the OmniPost web application."
+  default     = "omnipost_app"
+}
+
+variable "app_postgresql_storage_mb" {
+  type        = number
+  description = "Storage allocated to the dedicated OmniPost PostgreSQL server."
+  default     = 32768
+}
+
+variable "app_postgresql_backup_retention_days" {
+  type        = number
+  description = "Backup retention for the dedicated OmniPost PostgreSQL server."
+  default     = 7
+}
+
+variable "deployment_principal_object_id" {
+  type        = string
+  description = "Object ID of the GitHub Actions OIDC service principal."
+  default     = "369def47-8d91-4710-8c37-e521bc4a360a"
+}
+
+variable "operator_principal_object_id" {
+  type        = string
+  description = "Object ID of the current deployment operator."
+  default     = "99b63adb-8f1a-4d7a-a98c-5bfe9c7fcd96"
+}

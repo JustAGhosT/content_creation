@@ -29,6 +29,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: omnipost
+          POSTGRES_PASSWORD: omnipost
+          POSTGRES_DB: omnipost_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U omnipost -d omnipost_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -58,11 +72,11 @@ jobs:
           pnpm run type-check
           pnpm run lint
           pnpm run build
-          pnpm exec prisma db push
+          pnpm run db:migrate:deploy
           pnpm test
         env:
           JWT_SECRET: test-secret-key-for-deployment-ci
-          DATABASE_URL: file:./prisma/omnipost.db
+          DATABASE_URL: postgresql://omnipost:omnipost@localhost:5432/omnipost_ci?sslmode=disable
 
       - name: Prepare deployment package
         run: |
@@ -81,10 +95,6 @@ jobs:
 
           # Copy data directory (required for feature flags and configuration)
           cp -r data deploy/data || true
-
-          # Copy Prisma SQLite bootstrap database for alpha App Service auth persistence.
-          mkdir -p deploy/prisma
-          cp prisma/omnipost.db deploy/prisma/omnipost.db
 
           # Fix package.json start script for standalone mode
           # The standalone build includes a server.js that should be run directly
@@ -153,6 +163,7 @@ jobs:
   deploy:
     permissions:
       contents: read
+      id-token: write
     runs-on: ubuntu-latest
     needs: infrastructure
     environment:
@@ -162,33 +173,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: |
-            infra/naming.sh
-          sparse-checkout-cone-mode: false
+          path: source
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: source/pnpm-lock.yaml
+
+      - name: Install migration dependencies
+        run: pnpm --dir source install --frozen-lockfile --prod --ignore-scripts
 
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: node-app
 
-      - name: Unzip artifact for deployment
-        run: unzip -o node-app.zip
-
       - name: Azure Login
         uses: azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: 4fc0d52a-718a-49de-a709-a12ad3965d9d
+          tenant-id: 9530cd32-9e33-47f0-9247-ed964730b580
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Select Azure Subscription
-        run: az account set --subscription ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: Apply production database migrations
+        shell: bash
+        run: |
+          DATABASE_URL="$(az keyvault secret show \
+            --vault-name nl-dev-omnipost-kv \
+            --name omnipost-database-url \
+            --query value \
+            --output tsv)"
+          echo "::add-mask::${DATABASE_URL}"
+          DATABASE_URL="${DATABASE_URL}" pnpm --dir source run db:migrate:deploy
 
       - name: Generate Resource Names
         id: generate-names
         run: |
-          chmod +x ./infra/naming.sh
+          chmod +x ./source/infra/naming.sh
           while IFS= read -r line; do
             echo "$line" >> $GITHUB_ENV
-          done < <(./infra/naming.sh ${{ env.ORG_CODE }} ${{ github.event.inputs.environment || 'dev' }} ${{ env.PROJECT_NAME }} ${{ env.REGION_CODE }})
+          done < <(./source/infra/naming.sh ${{ env.ORG_CODE }} ${{ github.event.inputs.environment || 'dev' }} ${{ env.PROJECT_NAME }} ${{ env.REGION_CODE }})
 
           if [ "${{ github.event.inputs.environment || 'dev' }}" = "dev" ]; then
             echo "APP_NAME=nl-dev-omnipost-web" >> $GITHUB_ENV
@@ -200,7 +229,7 @@ jobs:
         uses: azure/webapps-deploy@657f0700ea5214d56a0400d8ac5e8023c963d25d # v3
         with:
           app-name: ${{ env.APP_NAME }}
-          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          package: node-app.zip
 
       - name: Verify deployment health
         run: |

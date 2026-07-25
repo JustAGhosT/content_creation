@@ -53,7 +53,7 @@ jobs:
       - name: Generate Prisma client
         run: pnpm run db:generate
         env:
-          DATABASE_URL: file:./prisma/ci.db
+          DATABASE_URL: postgresql://omnipost:omnipost@localhost:5432/omnipost_ci?sslmode=disable
 
       - name: Run TypeScript type check
         run: pnpm run type-check
@@ -108,6 +108,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: omnipost
+          POSTGRES_PASSWORD: omnipost
+          POSTGRES_DB: omnipost_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U omnipost -d omnipost_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -127,12 +141,18 @@ jobs:
       - name: Generate Prisma client
         run: pnpm run db:generate
         env:
-          DATABASE_URL: file:./prisma/ci.db
+          DATABASE_URL: postgresql://omnipost:omnipost@localhost:5432/omnipost_ci?sslmode=disable
+
+      - name: Apply PostgreSQL migrations
+        run: pnpm run db:migrate:deploy
+        env:
+          DATABASE_URL: postgresql://omnipost:omnipost@localhost:5432/omnipost_ci?sslmode=disable
 
       - name: Run tests
         run: pnpm test
         env:
           JWT_SECRET: test-secret-key-for-ci
+          DATABASE_URL: postgresql://omnipost:omnipost@localhost:5432/omnipost_ci?sslmode=disable
 
   renovate-verify:
     runs-on: ubuntu-latest
@@ -187,7 +207,7 @@ jobs:
       - name: Generate Prisma client
         run: pnpm run db:generate
         env:
-          DATABASE_URL: file:./prisma/ci.db
+          DATABASE_URL: postgresql://omnipost:omnipost@localhost:5432/omnipost_ci?sslmode=disable
 
       - name: Build application
         run: pnpm run build

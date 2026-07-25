@@ -34,3 +34,15 @@ output "postgresql_server_name" {
 output "postgresql_database_name" {
   value = var.enable_postgresql ? azurerm_postgresql_flexible_server_database.app[0].name : null
 }
+
+output "app_postgresql_server_name" {
+  value = var.enable_app_postgresql ? azurerm_postgresql_flexible_server.app[0].name : null
+}
+
+output "app_postgresql_database_name" {
+  value = var.enable_app_postgresql ? azurerm_postgresql_flexible_server_database.app_database[0].name : null
+}
+
+output "web_key_vault_identity_client_id" {
+  value = azurerm_user_assigned_identity.web_key_vault.client_id
+}
