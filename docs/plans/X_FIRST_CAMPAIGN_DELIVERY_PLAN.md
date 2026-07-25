@@ -248,6 +248,27 @@ Verification:
   evidence; and
 - failed criteria produce an owned remediation or stop decision.
 
+### PR L — Governed Analyze–Recommend–Plan Loop
+
+Scope:
+
+- evidence-readiness and confidence assessment;
+- versioned analysis with observation/inference/hypothesis separation;
+- ranked, evidence-cited recommendations;
+- explicit human disposition and immutable decision history;
+- approved recommendation to experiment/remediation plan conversion; and
+- outcome feedback and recommendation calibration.
+
+Verification:
+
+- three complete evidence-to-result review cycles;
+- every recommendation exposes evidence, uncertainty, risk, and counterfactual;
+- every approved recommendation has an owner, baseline, primary measure,
+  guardrails, stop condition, rollback, and review date;
+- rejected/deferred recommendations remain reconstructable; and
+- no live campaign, approval, policy, budget, or queue mutation occurs without
+  the existing authorization boundary.
+
 ## Immediate X Smoke Checklist
 
 The runbook remains authoritative. Planning status:
@@ -309,4 +330,6 @@ The X-first campaign initiative is complete only when:
 10. retained customers repeatedly use embedded policies and integrations;
 11. one vertical acquisition or extension channel compounds; and
 12. the defensibility review either substantiates a specific moat or records a
-    remediation/stop decision.
+    remediation/stop decision; and
+13. the governed improvement loop completes three evidence-to-result cycles
+    without bypassing human authorization.

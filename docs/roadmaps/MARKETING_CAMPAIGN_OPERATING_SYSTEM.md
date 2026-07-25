@@ -474,6 +474,42 @@ Exit gate:
 - failed criteria produce an explicit remediation or stop decision rather than
   a ceremonial pass.
 
+### Gate 8A — Governed Analyze–Recommend–Plan Loop
+
+- **Horizon:** After measurement is reliable; recurring thereafter
+- **Primary teams:** Product, data, marketing, backend, security
+- **Detailed plan:** `docs/plans/GOVERNED_IMPROVEMENT_LOOP_PLAN.md`
+
+This gate is separate from Gate 8. Gate 8 proves that outcome intelligence can
+produce guarded, reproducible lift. Gate 8A turns trustworthy evidence into a
+repeatable operating loop without allowing an AI system to silently change
+campaign strategy, policy, approvals, budgets, or queued content.
+
+Deliver:
+
+- evidence-completeness and confidence checks before analysis;
+- versioned analyses that distinguish observation, inference, and hypothesis;
+- ranked recommendations with cited evidence, expected impact, uncertainty,
+  cost, policy risk, and counterfactual;
+- human approve, revise, defer, or reject decisions;
+- generated experiment or remediation plans with owner, baseline, primary
+  measure, guardrails, stop condition, rollback, and review date; and
+- closed-loop result capture that records whether an approved recommendation
+  worked and updates future confidence without erasing prior reasoning.
+
+Exit gate:
+
+- three consecutive review cycles complete from evidence through recorded
+  result;
+- every recommendation cites tenant-authorized evidence and exposes confidence,
+  uncertainty, and known missing data;
+- every approved recommendation becomes a versioned plan with an owner,
+  predeclared measure, guardrails, stop condition, and rollback;
+- rejected and deferred recommendations remain auditable and inform later
+  calibration; and
+- no recommendation mutates live policy, approval, budget, campaign, or queue
+  state without the existing human authorization boundary.
+
 ## Success Measures
 
 ### Operational measures
@@ -533,7 +569,8 @@ Keep changes reviewable and independently verifiable:
 8. compounding outcome intelligence;
 9. evidence-grade workflow embeddedness;
 10. vertical distribution and extension flywheel; and
-11. defensibility review.
+11. defensibility review; and
+12. governed analyze–recommend–plan loop.
 
 Each slice requires `pnpm check-all`, a separate PR, deployment verification
 when runtime behavior changes, and a Baton closeout containing changed files,
@@ -556,13 +593,14 @@ tests, deployment evidence, residual risk, and next action.
 
 ## Decision Log
 
-| Date       | Decision                                                                              | Reason                                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 2026-07-24 | Use X as the first controlled live path                                               | The adapter, starter campaign, deployment, and operator runbook already exist; changing platforms would delay evidence |
-| 2026-07-24 | Separate the smoke gate from production readiness                                     | The current local campaign and memory-backed queue can prove one staffed publish but cannot support broad rollout      |
-| 2026-07-24 | Use Notion, Git, runtime, and Baton as distinct sources of truth joined by stable IDs | This preserves human governance, versioned contracts, live execution truth, and accountable delivery                   |
-| 2026-07-24 | Defer LinkedIn until durable campaign and measurement gates pass                      | The second platform should validate reuse of the operating system rather than add another one-off integration          |
-| 2026-07-25 | Treat Gates 0–6 as moat prerequisites, not proof of a moat                            | Defensibility requires retained paid use, proprietary evidence lift, embedded workflows, and compounding distribution  |
+| Date       | Decision                                                                              | Reason                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-24 | Use X as the first controlled live path                                               | The adapter, starter campaign, deployment, and operator runbook already exist; changing platforms would delay evidence    |
+| 2026-07-24 | Separate the smoke gate from production readiness                                     | The current local campaign and memory-backed queue can prove one staffed publish but cannot support broad rollout         |
+| 2026-07-24 | Use Notion, Git, runtime, and Baton as distinct sources of truth joined by stable IDs | This preserves human governance, versioned contracts, live execution truth, and accountable delivery                      |
+| 2026-07-24 | Defer LinkedIn until durable campaign and measurement gates pass                      | The second platform should validate reuse of the operating system rather than add another one-off integration             |
+| 2026-07-25 | Treat Gates 0–6 as moat prerequisites, not proof of a moat                            | Defensibility requires retained paid use, proprietary evidence lift, embedded workflows, and compounding distribution     |
+| 2026-07-25 | Separate improvement operations from outcome-model validation                         | A useful model is not yet a safe operating loop; recommendations need evidence, approval, plans, guardrails, and feedback |
 
 ## Immediate Next Actions
 
@@ -577,3 +615,5 @@ tests, deployment evidence, residual risk, and next action.
 6. Recruit design partners only after the evidence boundary and deletion/export
    controls are reviewable.
 7. Do not use “defensible moat” externally until Gate 11 passes.
+8. Run Gate 8A before closing Gate 11 so the defensibility review tests a
+   working improvement loop rather than a one-time analysis.
