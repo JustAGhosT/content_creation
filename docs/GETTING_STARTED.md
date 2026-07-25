@@ -105,12 +105,16 @@ To publish to social platforms, you need API credentials for each one. Add these
 **Twitter/X:**
 
 1. Create a project and app in the [X Developer Console](https://developer.x.com/)
-2. Configure OAuth 2.0 user authentication with `tweet.read`, `tweet.write`, and
-   `users.read`; add `offline.access` when implementing token refresh
-3. Authorize the X account that will publish the campaign
-4. Set the resulting user-context token as `TWITTER_ACCESS_TOKEN` in `.env.local`
+2. Configure OAuth 2.0 user authentication with the exact callback
+   `http://localhost:3000/api/platforms/x/callback`
+3. Set `X_CLIENT_ID`, optional `X_CLIENT_SECRET`, `X_OAUTH_REDIRECT_URI`, and a
+   base64-encoded 32-byte `PLATFORM_TOKEN_ENCRYPTION_KEY` in `.env.local`
+4. Open **Settings → Platform Connections** and authorize the X account.
 
-An app-only bearer token cannot create posts. See the
+OmniPost requests `tweet.read`, `tweet.write`, `users.read`, and
+`offline.access` through Authorization Code with S256 PKCE. Tokens are encrypted
+before persistence and are never returned to the browser. An app-only bearer
+token cannot create posts. See the
 [X campaign go-live runbook](runbooks/X_CAMPAIGN_GO_LIVE.md) before enabling
 production publishing.
 

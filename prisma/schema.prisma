@@ -27,8 +27,37 @@ model User {
   updatedAt    DateTime @updatedAt
 
   // Relations
-  campaigns Campaign[]
-  auditLogs AuditLog[]
+  campaigns        Campaign[]
+  auditLogs        AuditLog[]
+  platformAccounts PlatformAccount[]
+}
+
+// Tenant-owned provider credentials. Token values are encrypted by the
+// application before they reach PostgreSQL and are never returned by APIs.
+model PlatformAccount {
+  id                    String    @id @default(cuid())
+  userId                String
+  platform              String
+  providerAccountId     String
+  providerUsername      String?
+  encryptedAccessToken  String
+  encryptedRefreshToken String?
+  tokenType             String    @default("bearer")
+  scopes                String
+  expiresAt             DateTime?
+  status                String    @default("connected")
+  connectedAt           DateTime  @default(now())
+  refreshedAt           DateTime?
+  revokedAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+  @@unique([platform, providerAccountId])
+  @@index([userId, status])
+  @@index([platform, status])
 }
 
 // Campaign model for content campaigns
