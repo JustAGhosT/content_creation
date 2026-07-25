@@ -127,10 +127,16 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
   }
 
   const currentRefreshToken = decryptSecret(account.encryptedRefreshToken, REFRESH_TOKEN_PURPOSE);
+  const refreshGuard = {
+    id: account.id,
+    status: 'connected',
+    encryptedRefreshToken: account.encryptedRefreshToken,
+    updatedAt: account.updatedAt,
+  };
   try {
     const tokens = await refreshAccessToken(currentRefreshToken);
-    await client.platformAccount.update({
-      where: { id: account.id },
+    const update = await client.platformAccount.updateMany({
+      where: refreshGuard,
       data: {
         encryptedAccessToken: encryptSecret(tokens.access_token, ACCESS_TOKEN_PURPOSE),
         encryptedRefreshToken: tokens.refresh_token
@@ -143,11 +149,14 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
         status: 'connected',
       },
     });
+    if (update.count !== 1) {
+      throw new Error('X account changed while authorization was refreshing');
+    }
     return tokens.access_token;
   } catch (error) {
     if (isDefinitiveXAuthorizationError(error)) {
-      await client.platformAccount.update({
-        where: { id: account.id },
+      await client.platformAccount.updateMany({
+        where: refreshGuard,
         data: { status: 'expired' },
       });
     }
