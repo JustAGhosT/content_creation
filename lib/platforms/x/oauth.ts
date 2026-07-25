@@ -28,6 +28,23 @@ const userResponseSchema = z.object({
 
 export type XTokenResponse = z.infer<typeof tokenResponseSchema>;
 
+export class XOAuthTokenRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly oauthError?: string
+  ) {
+    super(`X OAuth token request failed with status ${status}`);
+    this.name = 'XOAuthTokenRequestError';
+  }
+}
+
+export function isDefinitiveXAuthorizationError(error: unknown): boolean {
+  return (
+    error instanceof XOAuthTokenRequestError &&
+    (error.oauthError === 'invalid_grant' || error.oauthError === 'invalid_token')
+  );
+}
+
 function requiredEnvironment(name: 'X_CLIENT_ID'): string {
   const value = (process.env[name] ?? process.env[`CUSTOMCONNSTR_${name}`])?.trim();
   if (!value) {
@@ -111,7 +128,12 @@ function confidentialClientHeaders(clientId: string, clientSecret?: string): Hea
 
 async function parseTokenResponse(response: Response): Promise<XTokenResponse> {
   if (!response.ok) {
-    throw new Error(`X OAuth token request failed with status ${response.status}`);
+    const payload = (await response
+      .clone()
+      .json()
+      .catch(() => null)) as { error?: unknown } | null;
+    const oauthError = typeof payload?.error === 'string' ? payload.error : undefined;
+    throw new XOAuthTokenRequestError(response.status, oauthError);
   }
   return tokenResponseSchema.parse(await response.json());
 }

@@ -1,7 +1,13 @@
 import type { PrismaClient } from '@prisma/client';
 import prisma from '@/lib/db/prisma';
 import { decryptSecret, encryptSecret } from './crypto';
-import { refreshAccessToken, revokeXToken, type XTokenResponse, X_PLATFORM_ID } from './oauth';
+import {
+  isDefinitiveXAuthorizationError,
+  refreshAccessToken,
+  revokeXToken,
+  type XTokenResponse,
+  X_PLATFORM_ID,
+} from './oauth';
 
 const ACCESS_TOKEN_PURPOSE = 'x-access-token';
 const REFRESH_TOKEN_PURPOSE = 'x-refresh-token';
@@ -74,6 +80,7 @@ export async function getXConnectionStatus(userId: string): Promise<PlatformConn
       providerUsername: true,
       scopes: true,
       expiresAt: true,
+      encryptedRefreshToken: true,
       status: true,
       connectedAt: true,
     },
@@ -83,8 +90,11 @@ export async function getXConnectionStatus(userId: string): Promise<PlatformConn
     return { platform: X_PLATFORM_ID, connected: false, status: 'revoked', scopes: [] };
   }
 
-  const expired = Boolean(account.expiresAt && account.expiresAt.getTime() <= Date.now());
-  const status = expired || account.status !== 'connected' ? 'expired' : 'connected';
+  const accessTokenExpired = Boolean(
+    account.expiresAt && account.expiresAt.getTime() <= Date.now()
+  );
+  const authorizationExpired = accessTokenExpired && !account.encryptedRefreshToken;
+  const status = authorizationExpired || account.status !== 'connected' ? 'expired' : 'connected';
   return {
     platform: X_PLATFORM_ID,
     connected: status === 'connected',
@@ -135,10 +145,12 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
     });
     return tokens.access_token;
   } catch (error) {
-    await client.platformAccount.update({
-      where: { id: account.id },
-      data: { status: 'expired' },
-    });
+    if (isDefinitiveXAuthorizationError(error)) {
+      await client.platformAccount.update({
+        where: { id: account.id },
+        data: { status: 'expired' },
+      });
+    }
     throw error;
   }
 }

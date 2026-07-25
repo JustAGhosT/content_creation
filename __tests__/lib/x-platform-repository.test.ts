@@ -2,6 +2,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { decryptSecret, encryptSecret } from '../../lib/platforms/x/crypto';
+import { XOAuthTokenRequestError } from '../../lib/platforms/x/oauth';
 
 const mockFindUnique = jest.fn<(args: unknown) => Promise<unknown>>();
 const mockUpsert = jest.fn<(args: unknown) => Promise<unknown>>();
@@ -99,6 +100,7 @@ describe('X platform account repository', () => {
       providerUsername: 'omnipost',
       scopes: 'tweet.read tweet.write',
       expiresAt: new Date(Date.now() - 60_000),
+      encryptedRefreshToken: null,
       status: 'connected',
       connectedAt: new Date('2026-07-25T12:00:00Z'),
     });
@@ -112,6 +114,24 @@ describe('X platform account repository', () => {
       expiresAt: expect.any(String),
       connectedAt: '2026-07-25T12:00:00.000Z',
     });
+  });
+
+  test('reports an account as connected when an expired access token can be refreshed', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      providerUsername: 'omnipost',
+      scopes: 'tweet.read tweet.write offline.access',
+      expiresAt: new Date(Date.now() - 60_000),
+      encryptedRefreshToken: encryptSecret('refresh-token', 'x-refresh-token'),
+      status: 'connected',
+      connectedAt: new Date('2026-07-25T12:00:00Z'),
+    });
+
+    await expect(repository.getXConnectionStatus('user-1')).resolves.toEqual(
+      expect.objectContaining({
+        connected: true,
+        status: 'connected',
+      })
+    );
   });
 
   test('refreshes an expiring token and persists rotated credentials', async () => {
@@ -140,6 +160,44 @@ describe('X platform account repository', () => {
     expect(decryptSecret(update.data.encryptedAccessToken, 'x-access-token')).toBe('new-access');
     expect(decryptSecret(update.data.encryptedRefreshToken, 'x-refresh-token')).toBe('new-refresh');
     expect(update.data.status).toBe('connected');
+  });
+
+  test('keeps an account connected after a transient refresh failure', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 'account-1',
+      status: 'connected',
+      expiresAt: new Date(Date.now() - 1),
+      encryptedAccessToken: encryptSecret('old-access', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('old-refresh', 'x-refresh-token'),
+    });
+    mockRefreshAccessToken.mockRejectedValueOnce(
+      new XOAuthTokenRequestError(429, 'temporarily_unavailable')
+    );
+
+    await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
+      'X OAuth token request failed with status 429'
+    );
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  test('expires an account after a definitive refresh-token rejection', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 'account-1',
+      status: 'connected',
+      expiresAt: new Date(Date.now() - 1),
+      encryptedAccessToken: encryptSecret('old-access', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('old-refresh', 'x-refresh-token'),
+    });
+    mockRefreshAccessToken.mockRejectedValueOnce(new XOAuthTokenRequestError(400, 'invalid_grant'));
+    mockUpdate.mockResolvedValueOnce({ id: 'account-1' });
+
+    await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
+      'X OAuth token request failed with status 400'
+    );
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: 'account-1' },
+      data: { status: 'expired' },
+    });
   });
 
   test('revokes at the provider before erasing stored credentials', async () => {
