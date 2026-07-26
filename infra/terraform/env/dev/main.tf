@@ -342,7 +342,7 @@ resource "azurerm_role_assignment" "operator_key_vault_secrets_officer" {
 }
 
 resource "azurerm_container_app_environment" "sluice" {
-  count = var.enable_sluice_gateway || var.enable_scheduler_processor ? 1 : 0
+  count = var.enable_sluice_gateway || (var.enable_scheduler_processor && var.enable_key_vault) ? 1 : 0
 
   name                       = "${local.base}-cae"
   resource_group_name        = azurerm_resource_group.this.name
@@ -377,7 +377,7 @@ resource "azurerm_key_vault_secret" "scheduler_cron" {
 }
 
 resource "azurerm_container_app_job" "scheduler" {
-  count = var.enable_scheduler_processor ? 1 : 0
+  count = var.enable_scheduler_processor && var.enable_key_vault ? 1 : 0
 
   name                         = "${local.base}-scheduler"
   location                     = azurerm_resource_group.this.location

@@ -28,7 +28,7 @@ output "sluice_gateway_url" {
 }
 
 output "scheduler_job_name" {
-  value = var.enable_scheduler_processor ? azurerm_container_app_job.scheduler[0].name : null
+  value = var.enable_scheduler_processor && var.enable_key_vault ? azurerm_container_app_job.scheduler[0].name : null
 }
 
 output "postgresql_server_name" {
