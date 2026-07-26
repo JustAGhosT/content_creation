@@ -2,6 +2,7 @@ import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import {
   getSchedulerCronAuthDiagnostics,
   getSchedulerCronSecret,
+  hasSchedulerCronCredential,
   isSchedulerCronRequestAuthorized,
 } from '../../lib/scheduler/cron-auth';
 
@@ -86,6 +87,8 @@ describe('scheduler cron authentication configuration', () => {
     global.fetch = fetchMock;
 
     await expect(getSchedulerCronSecret()).resolves.toBe('current-key-vault-secret');
+    await expect(getSchedulerCronSecret()).resolves.toBe('current-key-vault-secret');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -109,6 +112,24 @@ describe('scheduler cron authentication configuration', () => {
 });
 
 describe('scheduler cron request authentication', () => {
+  it.each([
+    ['missing headers', {}],
+    ['blank dedicated header', { 'X-OmniPost-Cron-Secret': ' ' }],
+    ['malformed Bearer header', { Authorization: 'scheduler-secret' }],
+  ])('rejects unsupported credential shape: %s', (_label, headers) => {
+    const request = new Request('https://example.test', { headers });
+
+    expect(hasSchedulerCronCredential(request)).toBe(false);
+  });
+
+  it('admits supported credential shapes for constant-time validation', () => {
+    const request = new Request('https://example.test', {
+      headers: { 'X-OmniPost-Cron-Secret': 'candidate-secret' },
+    });
+
+    expect(hasSchedulerCronCredential(request)).toBe(true);
+  });
+
   it('accepts the dedicated scheduler header', () => {
     const request = new Request('https://example.test', {
       headers: { 'X-OmniPost-Cron-Secret': 'scheduler-secret' },
