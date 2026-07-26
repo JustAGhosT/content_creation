@@ -10,6 +10,7 @@ export const X_OAUTH_SCOPES = [
 ] as const;
 export const X_OAUTH_FLOW_COOKIE = 'omnipost-x-oauth-flow';
 export const X_OAUTH_FLOW_MAX_AGE_SECONDS = 10 * 60;
+const X_OAUTH_REQUEST_TIMEOUT_MS = 15_000;
 
 const tokenResponseSchema = z.object({
   token_type: z.string().min(1),
@@ -126,6 +127,16 @@ function confidentialClientHeaders(clientId: string, clientSecret?: string): Hea
   };
 }
 
+async function fetchWithOAuthTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), X_OAUTH_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function parseTokenResponse(response: Response): Promise<XTokenResponse> {
   if (!response.ok) {
     const payload = (await response
@@ -151,7 +162,7 @@ export async function exchangeAuthorizationCode(
   });
   if (!config.clientSecret) body.set('client_id', config.clientId);
 
-  const response = await fetch(config.tokenUrl, {
+  const response = await fetchWithOAuthTimeout(config.tokenUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -171,7 +182,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<XTokenRe
   });
   if (!config.clientSecret) body.set('client_id', config.clientId);
 
-  const response = await fetch(config.tokenUrl, {
+  const response = await fetchWithOAuthTimeout(config.tokenUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',

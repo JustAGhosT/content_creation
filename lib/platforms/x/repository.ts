@@ -13,8 +13,8 @@ const ACCESS_TOKEN_PURPOSE = 'x-access-token';
 const REFRESH_TOKEN_PURPOSE = 'x-refresh-token';
 const REFRESH_WINDOW_MS = 5 * 60 * 1000;
 const LIFECYCLE_CLAIM_TTL_MS = 2 * 60 * 1000;
-const REFRESH_CONTENDER_ATTEMPTS = 20;
-const REFRESH_CONTENDER_DELAY_MS = 100;
+const REFRESH_CONTENDER_ATTEMPTS = 80;
+const REFRESH_CONTENDER_DELAY_MS = 250;
 
 function getClient(): PrismaClient {
   if (!prisma) {
@@ -64,9 +64,9 @@ async function waitForWinningRefresh(client: PrismaClient, userId: string): Prom
     if (lifecycleClaimIsStale(account.updatedAt)) {
       await client.platformAccount.updateMany({
         where: { id: account.id, status: 'refreshing', updatedAt: account.updatedAt },
-        data: { status: 'expired' },
+        data: { status: 'recovery_required' },
       });
-      throw new Error('X account refresh was interrupted; reconnect is required');
+      throw new Error('X account refresh was interrupted; authorization recovery is required');
     }
     await wait(REFRESH_CONTENDER_DELAY_MS);
   }
@@ -107,8 +107,9 @@ export async function saveXAccount(
     });
   }
 
-  const busy = ['refreshing', 'revoking', 'reconnecting'].includes(existing.status);
-  if (busy && !lifecycleClaimIsStale(existing.updatedAt)) {
+  const activeClaim = ['refreshing', 'revoking', 'reconnecting'].includes(existing.status);
+  const recoveryRequired = existing.status === 'recovery_required';
+  if (activeClaim && !lifecycleClaimIsStale(existing.updatedAt)) {
     throw new Error('X account authorization is currently changing');
   }
   const claim = await client.platformAccount.updateMany({
@@ -124,7 +125,8 @@ export async function saveXAccount(
     : existing.encryptedAccessToken
       ? decryptSecret(existing.encryptedAccessToken, ACCESS_TOKEN_PURPOSE)
       : null;
-  const displacedAuthorizationMayBeLive = existing.status === 'connected';
+  const displacedAuthorizationMayBeLive =
+    existing.status === 'connected' || activeClaim || recoveryRequired;
   if (displacedToken && displacedAuthorizationMayBeLive) {
     try {
       await revokeXToken(displacedToken);
@@ -315,9 +317,10 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
     });
     return update.count === 1;
   }
-  const busy = ['refreshing', 'revoking', 'reconnecting'].includes(account.status);
-  if (busy && !lifecycleClaimIsStale(account.updatedAt)) return false;
-  if (account.status !== 'connected' && !busy) return false;
+  const activeClaim = ['refreshing', 'revoking', 'reconnecting'].includes(account.status);
+  const recoveryRequired = account.status === 'recovery_required';
+  if (activeClaim && !lifecycleClaimIsStale(account.updatedAt)) return false;
+  if (account.status !== 'connected' && !activeClaim && !recoveryRequired) return false;
 
   const claim = await client.platformAccount.updateMany({
     where:

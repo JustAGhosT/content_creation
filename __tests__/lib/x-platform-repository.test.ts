@@ -123,6 +123,34 @@ describe('X platform account repository', () => {
     expect(replacement.data.status).toBe('connected');
   });
 
+  test('reconciles a displaced grant from a recovered stale claim before reconnect', async () => {
+    const existing = {
+      id: 'account-1',
+      status: 'recovery_required',
+      encryptedAccessToken: encryptSecret('uncertain-access', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('uncertain-refresh', 'x-refresh-token'),
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
+      updatedAt: new Date(),
+    };
+    mockFindUnique.mockResolvedValueOnce(existing);
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+    mockRevokeXToken.mockResolvedValueOnce();
+
+    await repository.saveXAccount(
+      'user-1',
+      { id: 'x-1', username: 'omnipost' },
+      {
+        token_type: 'bearer',
+        expires_in: 7200,
+        access_token: 'new-access',
+        refresh_token: 'new-refresh',
+        scope: 'tweet.read tweet.write users.read offline.access',
+      }
+    );
+
+    expect(mockRevokeXToken).toHaveBeenCalledWith('uncertain-refresh');
+  });
+
   test('uses a forward-only tenant-owned platform account migration', () => {
     const migration = readFileSync(
       path.join(
@@ -373,11 +401,11 @@ describe('X platform account repository', () => {
     mockUpdateMany.mockResolvedValueOnce({ count: 1 });
 
     await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
-      'X account refresh was interrupted; reconnect is required'
+      'X account refresh was interrupted; authorization recovery is required'
     );
     expect(mockUpdateMany).toHaveBeenCalledWith({
       where: { id: 'account-1', status: 'refreshing', updatedAt: staleUpdatedAt },
-      data: { status: 'expired' },
+      data: { status: 'recovery_required' },
     });
   });
 
@@ -508,6 +536,29 @@ describe('X platform account repository', () => {
       data: { status: 'revoking' },
     });
     expect(mockRevokeXToken).toHaveBeenCalledWith('refresh-token');
+  });
+
+  test('revokes uncertain credentials before clearing a recovery-required account', async () => {
+    const account = {
+      id: 'account-1',
+      status: 'recovery_required',
+      encryptedAccessToken: encryptSecret('access-token', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('refresh-token', 'x-refresh-token'),
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
+      updatedAt: new Date(),
+    };
+    mockFindUnique
+      .mockResolvedValueOnce(account)
+      .mockResolvedValueOnce({ ...account, status: 'revoking' });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+    mockRevokeXToken.mockResolvedValueOnce();
+
+    await expect(repository.disconnectXAccount('user-1')).resolves.toBe(true);
+    expect(mockRevokeXToken).toHaveBeenCalledWith('refresh-token');
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: 'account-1', status: 'recovery_required', updatedAt: account.updatedAt },
+      data: { status: 'revoking' },
+    });
   });
 
   test('removes expired local credentials without requiring provider revocation', async () => {
