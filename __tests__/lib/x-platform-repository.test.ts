@@ -5,7 +5,7 @@ import { decryptSecret, encryptSecret } from '../../lib/platforms/x/crypto';
 import { XOAuthTokenRequestError } from '../../lib/platforms/x/oauth';
 
 const mockFindUnique = jest.fn<(args: unknown) => Promise<unknown>>();
-const mockUpsert = jest.fn<(args: unknown) => Promise<unknown>>();
+const mockCreate = jest.fn<(args: unknown) => Promise<unknown>>();
 const mockUpdate = jest.fn<(args: unknown) => Promise<unknown>>();
 const mockUpdateMany = jest.fn<(args: unknown) => Promise<{ count: number }>>();
 const mockRefreshAccessToken = jest.fn<(token: string) => Promise<unknown>>();
@@ -21,7 +21,7 @@ describe('X platform account repository', () => {
       default: {
         platformAccount: {
           findUnique: mockFindUnique,
-          upsert: mockUpsert,
+          create: mockCreate,
           update: mockUpdate,
           updateMany: mockUpdateMany,
         },
@@ -41,7 +41,7 @@ describe('X platform account repository', () => {
   beforeEach(() => {
     process.env.PLATFORM_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
     mockFindUnique.mockReset();
-    mockUpsert.mockReset();
+    mockCreate.mockReset();
     mockUpdate.mockReset();
     mockUpdateMany.mockReset();
     mockRefreshAccessToken.mockReset();
@@ -53,7 +53,8 @@ describe('X platform account repository', () => {
   });
 
   test('encrypts access and refresh tokens before persistence', async () => {
-    mockUpsert.mockResolvedValueOnce({ id: 'account-1' });
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockCreate.mockResolvedValueOnce({ id: 'account-1' });
 
     await repository.saveXAccount(
       'user-1',
@@ -67,17 +68,59 @@ describe('X platform account repository', () => {
       }
     );
 
-    const call = mockUpsert.mock.calls[0][0] as {
-      create: { encryptedAccessToken: string; encryptedRefreshToken: string };
+    const call = mockCreate.mock.calls[0][0] as {
+      data: { encryptedAccessToken: string; encryptedRefreshToken: string };
     };
-    expect(call.create.encryptedAccessToken).not.toContain('plain-access-token');
-    expect(call.create.encryptedRefreshToken).not.toContain('plain-refresh-token');
-    expect(decryptSecret(call.create.encryptedAccessToken, 'x-access-token')).toBe(
+    expect(call.data.encryptedAccessToken).not.toContain('plain-access-token');
+    expect(call.data.encryptedRefreshToken).not.toContain('plain-refresh-token');
+    expect(decryptSecret(call.data.encryptedAccessToken, 'x-access-token')).toBe(
       'plain-access-token'
     );
-    expect(decryptSecret(call.create.encryptedRefreshToken, 'x-refresh-token')).toBe(
+    expect(decryptSecret(call.data.encryptedRefreshToken, 'x-refresh-token')).toBe(
       'plain-refresh-token'
     );
+  });
+
+  test('revokes displaced credentials before completing reconnect', async () => {
+    const existing = {
+      id: 'account-1',
+      status: 'connected',
+      encryptedAccessToken: encryptSecret('old-access', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('old-refresh', 'x-refresh-token'),
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
+      updatedAt: new Date('2026-07-25T12:00:00Z'),
+    };
+    mockFindUnique.mockResolvedValueOnce(existing);
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+    mockRevokeXToken.mockResolvedValueOnce();
+
+    await repository.saveXAccount(
+      'user-1',
+      { id: 'x-1', username: 'omnipost' },
+      {
+        token_type: 'bearer',
+        expires_in: 7200,
+        access_token: 'new-access',
+        refresh_token: 'new-refresh',
+        scope: 'tweet.read tweet.write users.read offline.access',
+      }
+    );
+
+    expect(mockRevokeXToken).toHaveBeenCalledWith('old-refresh');
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ data: { status: 'reconnecting' } })
+    );
+    const replacement = mockUpdateMany.mock.calls[1][0] as {
+      data: { encryptedAccessToken: string; encryptedRefreshToken: string; status: string };
+    };
+    expect(decryptSecret(replacement.data.encryptedAccessToken, 'x-access-token')).toBe(
+      'new-access'
+    );
+    expect(decryptSecret(replacement.data.encryptedRefreshToken, 'x-refresh-token')).toBe(
+      'new-refresh'
+    );
+    expect(replacement.data.status).toBe('connected');
   });
 
   test('uses a forward-only tenant-owned platform account migration', () => {
@@ -276,21 +319,66 @@ describe('X platform account repository', () => {
     expect(mockRevokeXToken).toHaveBeenCalledWith('stale-refreshed-refresh');
   });
 
-  test('does not call X when the refresh lifecycle claim is lost', async () => {
-    mockFindUnique.mockResolvedValueOnce({
-      id: 'account-1',
-      status: 'connected',
-      expiresAt: new Date(Date.now() - 1),
-      encryptedAccessToken: encryptSecret('old-access', 'x-access-token'),
-      encryptedRefreshToken: encryptSecret('old-refresh', 'x-refresh-token'),
-      updatedAt: new Date('2026-07-25T12:00:00Z'),
-    });
+  test('consumes the winning token when another caller claims refresh first', async () => {
+    const winningAccessToken = encryptSecret('winning-access', 'x-access-token');
+    mockFindUnique
+      .mockResolvedValueOnce({
+        id: 'account-1',
+        status: 'connected',
+        expiresAt: new Date(Date.now() - 1),
+        encryptedAccessToken: encryptSecret('old-access', 'x-access-token'),
+        encryptedRefreshToken: encryptSecret('old-refresh', 'x-refresh-token'),
+        updatedAt: new Date('2026-07-25T12:00:00Z'),
+      })
+      .mockResolvedValueOnce({
+        id: 'account-1',
+        status: 'connected',
+        expiresAt: new Date(Date.now() + 60_000),
+        encryptedAccessToken: winningAccessToken,
+      });
     mockUpdateMany.mockResolvedValueOnce({ count: 0 });
 
-    await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
-      'X account changed before authorization could be refreshed'
-    );
+    await expect(repository.getValidXAccessToken('user-1')).resolves.toBe('winning-access');
     expect(mockRefreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  test('waits for an in-progress refresh and consumes its token', async () => {
+    mockFindUnique
+      .mockResolvedValueOnce({
+        id: 'account-1',
+        status: 'refreshing',
+        updatedAt: new Date(),
+      })
+      .mockResolvedValueOnce({
+        id: 'account-1',
+        status: 'connected',
+        expiresAt: new Date(Date.now() + 60_000),
+        encryptedAccessToken: encryptSecret('winning-access', 'x-access-token'),
+      });
+
+    await expect(repository.getValidXAccessToken('user-1')).resolves.toBe('winning-access');
+    expect(mockRefreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  test('expires an abandoned refresh claim so the account can recover', async () => {
+    const staleUpdatedAt = new Date(Date.now() - 3 * 60 * 1000);
+    const refreshingAccount = {
+      id: 'account-1',
+      status: 'refreshing',
+      updatedAt: staleUpdatedAt,
+    };
+    mockFindUnique
+      .mockResolvedValueOnce(refreshingAccount)
+      .mockResolvedValueOnce(refreshingAccount);
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
+
+    await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
+      'X account refresh was interrupted; reconnect is required'
+    );
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'account-1', status: 'refreshing', updatedAt: staleUpdatedAt },
+      data: { status: 'expired' },
+    });
   });
 
   test('revokes at the provider before erasing stored credentials', async () => {
@@ -398,6 +486,28 @@ describe('X platform account repository', () => {
       where: { id: 'account-1', status: 'connected', connectedAt },
       data: { status: 'revoking' },
     });
+  });
+
+  test('reclaims an abandoned revocation lifecycle', async () => {
+    const staleUpdatedAt = new Date(Date.now() - 3 * 60 * 1000);
+    const account = {
+      id: 'account-1',
+      status: 'revoking',
+      encryptedAccessToken: encryptSecret('access-token', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('refresh-token', 'x-refresh-token'),
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
+      updatedAt: staleUpdatedAt,
+    };
+    mockFindUnique.mockResolvedValueOnce(account).mockResolvedValueOnce(account);
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+    mockRevokeXToken.mockResolvedValueOnce();
+
+    await expect(repository.disconnectXAccount('user-1')).resolves.toBe(true);
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: 'account-1', status: 'revoking', updatedAt: staleUpdatedAt },
+      data: { status: 'revoking' },
+    });
+    expect(mockRevokeXToken).toHaveBeenCalledWith('refresh-token');
   });
 
   test('removes expired local credentials without requiring provider revocation', async () => {

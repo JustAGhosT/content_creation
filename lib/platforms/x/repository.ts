@@ -12,6 +12,9 @@ import {
 const ACCESS_TOKEN_PURPOSE = 'x-access-token';
 const REFRESH_TOKEN_PURPOSE = 'x-refresh-token';
 const REFRESH_WINDOW_MS = 5 * 60 * 1000;
+const LIFECYCLE_CLAIM_TTL_MS = 2 * 60 * 1000;
+const REFRESH_CONTENDER_ATTEMPTS = 20;
+const REFRESH_CONTENDER_DELAY_MS = 100;
 
 function getClient(): PrismaClient {
   if (!prisma) {
@@ -34,43 +37,131 @@ function tokenExpiry(tokens: XTokenResponse): Date {
   return new Date(Date.now() + tokens.expires_in * 1000);
 }
 
+function lifecycleClaimIsStale(updatedAt: Date): boolean {
+  return updatedAt.getTime() <= Date.now() - LIFECYCLE_CLAIM_TTL_MS;
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function waitForWinningRefresh(client: PrismaClient, userId: string): Promise<string> {
+  for (let attempt = 0; attempt < REFRESH_CONTENDER_ATTEMPTS; attempt += 1) {
+    const account = await client.platformAccount.findUnique({
+      where: { userId_platform: { userId, platform: X_PLATFORM_ID } },
+    });
+    if (!account) throw new Error('X account is not connected');
+
+    if (account.status === 'connected') {
+      if (!account.expiresAt || account.expiresAt.getTime() > Date.now()) {
+        return decryptSecret(account.encryptedAccessToken, ACCESS_TOKEN_PURPOSE);
+      }
+      return getValidXAccessToken(userId);
+    }
+    if (account.status !== 'refreshing') {
+      throw new Error('X account is not connected');
+    }
+    if (lifecycleClaimIsStale(account.updatedAt)) {
+      await client.platformAccount.updateMany({
+        where: { id: account.id, status: 'refreshing', updatedAt: account.updatedAt },
+        data: { status: 'expired' },
+      });
+      throw new Error('X account refresh was interrupted; reconnect is required');
+    }
+    await wait(REFRESH_CONTENDER_DELAY_MS);
+  }
+  throw new Error('X account refresh is still in progress');
+}
+
 export async function saveXAccount(
   userId: string,
   identity: { id: string; username: string },
   tokens: XTokenResponse
 ) {
-  return getClient().platformAccount.upsert({
+  const client = getClient();
+  const encryptedAccessToken = encryptSecret(tokens.access_token, ACCESS_TOKEN_PURPOSE);
+  const encryptedRefreshToken = tokens.refresh_token
+    ? encryptSecret(tokens.refresh_token, REFRESH_TOKEN_PURPOSE)
+    : null;
+  const tokenData = {
+    providerAccountId: identity.id,
+    providerUsername: identity.username,
+    encryptedAccessToken,
+    encryptedRefreshToken,
+    tokenType: tokens.token_type.toLowerCase(),
+    scopes: tokens.scope,
+    expiresAt: tokenExpiry(tokens),
+    status: 'connected',
+  } as const;
+  const existing = await client.platformAccount.findUnique({
     where: { userId_platform: { userId, platform: X_PLATFORM_ID } },
-    create: {
-      userId,
-      platform: X_PLATFORM_ID,
-      providerAccountId: identity.id,
-      providerUsername: identity.username,
-      encryptedAccessToken: encryptSecret(tokens.access_token, ACCESS_TOKEN_PURPOSE),
-      encryptedRefreshToken: tokens.refresh_token
-        ? encryptSecret(tokens.refresh_token, REFRESH_TOKEN_PURPOSE)
-        : null,
-      tokenType: tokens.token_type.toLowerCase(),
-      scopes: tokens.scope,
-      expiresAt: tokenExpiry(tokens),
-      status: 'connected',
+  });
+
+  if (!existing) {
+    return client.platformAccount.create({
+      data: {
+        userId,
+        platform: X_PLATFORM_ID,
+        ...tokenData,
+      },
+    });
+  }
+
+  const busy = ['refreshing', 'revoking', 'reconnecting'].includes(existing.status);
+  if (busy && !lifecycleClaimIsStale(existing.updatedAt)) {
+    throw new Error('X account authorization is currently changing');
+  }
+  const claim = await client.platformAccount.updateMany({
+    where: { id: existing.id, status: existing.status, updatedAt: existing.updatedAt },
+    data: { status: 'reconnecting' },
+  });
+  if (claim.count !== 1) {
+    throw new Error('X account authorization changed during reconnect');
+  }
+
+  const displacedToken = existing.encryptedRefreshToken
+    ? decryptSecret(existing.encryptedRefreshToken, REFRESH_TOKEN_PURPOSE)
+    : existing.encryptedAccessToken
+      ? decryptSecret(existing.encryptedAccessToken, ACCESS_TOKEN_PURPOSE)
+      : null;
+  const displacedAuthorizationMayBeLive = existing.status === 'connected';
+  if (displacedToken && displacedAuthorizationMayBeLive) {
+    try {
+      await revokeXToken(displacedToken);
+    } catch (error) {
+      await client.platformAccount.updateMany({
+        where: {
+          id: existing.id,
+          status: 'reconnecting',
+          connectedAt: existing.connectedAt,
+          encryptedAccessToken: existing.encryptedAccessToken,
+          encryptedRefreshToken: existing.encryptedRefreshToken,
+        },
+        data: { status: existing.status },
+      });
+      throw error;
+    }
+  }
+
+  const update = await client.platformAccount.updateMany({
+    where: {
+      id: existing.id,
+      status: 'reconnecting',
+      connectedAt: existing.connectedAt,
+      encryptedAccessToken: existing.encryptedAccessToken,
+      encryptedRefreshToken: existing.encryptedRefreshToken,
     },
-    update: {
-      providerAccountId: identity.id,
-      providerUsername: identity.username,
-      encryptedAccessToken: encryptSecret(tokens.access_token, ACCESS_TOKEN_PURPOSE),
-      encryptedRefreshToken: tokens.refresh_token
-        ? encryptSecret(tokens.refresh_token, REFRESH_TOKEN_PURPOSE)
-        : null,
-      tokenType: tokens.token_type.toLowerCase(),
-      scopes: tokens.scope,
-      expiresAt: tokenExpiry(tokens),
-      status: 'connected',
+    data: {
+      ...tokenData,
       connectedAt: new Date(),
       refreshedAt: null,
       revokedAt: null,
     },
   });
+  if (update.count !== 1) {
+    throw new Error('X account authorization changed while reconnecting');
+  }
+  return update;
 }
 
 export async function getXConnectionStatus(userId: string): Promise<PlatformConnectionStatus> {
@@ -83,6 +174,7 @@ export async function getXConnectionStatus(userId: string): Promise<PlatformConn
       encryptedRefreshToken: true,
       status: true,
       connectedAt: true,
+      updatedAt: true,
     },
   });
 
@@ -94,7 +186,9 @@ export async function getXConnectionStatus(userId: string): Promise<PlatformConn
     account.expiresAt && account.expiresAt.getTime() <= Date.now()
   );
   const authorizationExpired = accessTokenExpired && !account.encryptedRefreshToken;
-  const lifecycleConnected = account.status === 'connected' || account.status === 'refreshing';
+  const lifecycleConnected =
+    account.status === 'connected' ||
+    (account.status === 'refreshing' && !lifecycleClaimIsStale(account.updatedAt));
   const status = authorizationExpired || !lifecycleConnected ? 'expired' : 'connected';
   return {
     platform: X_PLATFORM_ID,
@@ -112,9 +206,11 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
   const account = await client.platformAccount.findUnique({
     where: { userId_platform: { userId, platform: X_PLATFORM_ID } },
   });
-  if (!account || account.status !== 'connected') {
+  if (!account) {
     throw new Error('X account is not connected');
   }
+  if (account.status === 'refreshing') return waitForWinningRefresh(client, userId);
+  if (account.status !== 'connected') throw new Error('X account is not connected');
 
   if (!account.expiresAt || account.expiresAt.getTime() > Date.now() + REFRESH_WINDOW_MS) {
     return decryptSecret(account.encryptedAccessToken, ACCESS_TOKEN_PURPOSE);
@@ -149,7 +245,7 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
     data: { status: 'refreshing' },
   });
   if (claim.count !== 1) {
-    throw new Error('X account changed before authorization could be refreshed');
+    return waitForWinningRefresh(client, userId);
   }
 
   let tokens: XTokenResponse;
@@ -219,14 +315,15 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
     });
     return update.count === 1;
   }
-  if (account.status !== 'connected') return false;
+  const busy = ['refreshing', 'revoking', 'reconnecting'].includes(account.status);
+  if (busy && !lifecycleClaimIsStale(account.updatedAt)) return false;
+  if (account.status !== 'connected' && !busy) return false;
 
   const claim = await client.platformAccount.updateMany({
-    where: {
-      id: account.id,
-      status: 'connected',
-      connectedAt: account.connectedAt,
-    },
+    where:
+      account.status === 'connected'
+        ? { id: account.id, status: 'connected', connectedAt: account.connectedAt }
+        : { id: account.id, status: account.status, updatedAt: account.updatedAt },
     data: { status: 'revoking' },
   });
   if (claim.count !== 1) return false;
@@ -248,7 +345,7 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
         encryptedAccessToken: claimedAccount.encryptedAccessToken,
         encryptedRefreshToken: claimedAccount.encryptedRefreshToken,
       },
-      data: { status: 'connected' },
+      data: { status: account.status === 'connected' ? 'connected' : 'expired' },
     });
     throw error;
   }
