@@ -1,37 +1,39 @@
 /**
  * Platform Connections Settings Page
  *
- * Allows users to connect and disconnect social media platforms.
- * Currently uses an in-memory mock store; will be replaced with OAuth flows.
+ * X uses a server-owned OAuth lifecycle. Tokens never enter browser state.
  */
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { platforms, platformConfigurations } from '@/lib/config/platforms';
+import { apiClient } from '@/lib/api-client';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import styles from '@/styles/PlatformSettings.module.css';
 
-/** Shape of a stored platform connection (in-memory mock) */
 interface PlatformConnection {
-  apiKey: string;
-  handle: string;
-  connectedAt: string;
+  platform: 'twitter';
+  connected: boolean;
+  configured: boolean;
+  status: 'connected' | 'expired' | 'revoked';
+  username?: string;
+  scopes: string[];
+  expiresAt?: string;
+  connectedAt?: string;
 }
 
-/** Map of platform slug to connection data */
-type ConnectionStore = Record<string, PlatformConnection>;
+interface PlatformConnectionsResponse {
+  connections: {
+    twitter: PlatformConnection;
+  };
+}
 
-/** Which modal is open */
-type ModalState =
-  | { type: 'connect'; platformSlug: string }
-  | { type: 'disconnect'; platformSlug: string }
-  | null;
+type ModalState = { type: 'disconnect'; platformSlug: string } | null;
 
-/** Platform icon letter based on slug */
 function getPlatformIconLetter(slug: string): string {
   const map: Record<string, string> = {
     facebook: 'f',
@@ -42,7 +44,6 @@ function getPlatformIconLetter(slug: string): string {
   return map[slug] ?? slug.charAt(0).toUpperCase();
 }
 
-/** CSS class for platform icon color */
 function getIconColorClass(slug: string): string {
   const map: Record<string, string> = {
     facebook: styles.iconFacebook,
@@ -53,86 +54,87 @@ function getIconColorClass(slug: string): string {
   return map[slug] ?? '';
 }
 
-/** The four main platforms (excluding custom channel for this settings page) */
-const settingsPlatforms = platforms.filter(p => p.slug !== 'custom-channel');
+const settingsPlatforms = platforms.filter(platform => platform.slug !== 'custom-channel');
 
 export function PlatformSettingsPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const [connections, setConnections] = useState<ConnectionStore>({});
+  const searchParams = useSearchParams();
+  const [connections, setConnections] = useState<PlatformConnectionsResponse['connections']>();
+  const [connectionsLoading, setConnectionsLoading] = useState(true);
+  const [operationError, setOperationError] = useState('');
   const [modal, setModal] = useState<ModalState>(null);
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [handleInput, setHandleInput] = useState('');
-  const { trackPlatformConnected, track } = useAnalytics();
+  const { track } = useAnalytics();
+
+  const loadConnections = useCallback(async () => {
+    try {
+      const response = await apiClient.get<PlatformConnectionsResponse>(
+        '/api/platforms/connections'
+      );
+      setConnections(response.connections);
+    } catch {
+      setOperationError('Platform connection status could not be loaded.');
+    } finally {
+      setConnectionsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated && !isLoading) {
       router.push('/login');
+      return;
     }
-  }, [isAuthenticated, isLoading, router]);
+    if (isAuthenticated) void loadConnections();
+  }, [isAuthenticated, isLoading, loadConnections, router]);
 
-  const connectedCount = Object.keys(connections).length;
+  useEffect(() => {
+    const outcome = searchParams.get('xConnection');
+    if (outcome === 'success') {
+      track('platform_connected', { platformName: 'X' });
+    } else if (outcome === 'denied') {
+      setOperationError('X authorization was cancelled.');
+    } else if (outcome === 'invalid') {
+      setOperationError('The X authorization request expired or could not be verified.');
+    } else if (outcome === 'failed') {
+      setOperationError('X could not be connected. Please try again.');
+    }
+    if (outcome) router.replace('/settings/platforms');
+  }, [router, searchParams, track]);
 
-  const handleConnect = useCallback(
-    (platformSlug: string) => {
-      if (!apiKeyInput.trim()) return;
+  const handleConnect = useCallback(async (platformSlug: string) => {
+    if (platformSlug !== 'twitter') return;
+    setOperationError('');
+    try {
+      const response = await apiClient.post<{ authorizationUrl: string }>(
+        '/api/platforms/x/connect'
+      );
+      globalThis.location.assign(response.authorizationUrl);
+    } catch {
+      setOperationError('X authorization could not be started.');
+    }
+  }, []);
 
-      const handle = handleInput.trim() || `@${platformSlug}_user`;
-      setConnections(prev => ({
-        ...prev,
-        [platformSlug]: {
-          apiKey: apiKeyInput.trim(),
-          handle,
-          connectedAt: new Date().toISOString(),
-        },
-      }));
-
-      const platform = settingsPlatforms.find(p => p.slug === platformSlug);
-      trackPlatformConnected(platform?.name ?? platformSlug, connectedCount + 1);
-
+  const handleDisconnect = useCallback(async () => {
+    setOperationError('');
+    try {
+      const response = await apiClient.delete<{ disconnected: boolean }>('/api/platforms/x');
       setModal(null);
-      setApiKeyInput('');
-      setHandleInput('');
-    },
-    [apiKeyInput, handleInput, connectedCount, trackPlatformConnected]
-  );
+      await loadConnections();
+      if (!response.disconnected) {
+        setOperationError(
+          'The X connection changed before it could be disconnected. Review it and try again.'
+        );
+        return;
+      }
+      track('platform_disconnected', { platformName: 'X', totalPlatforms: 0 });
+    } catch {
+      setOperationError('X could not be disconnected. Please try again.');
+    }
+  }, [loadConnections, track]);
 
-  const handleDisconnect = useCallback(
-    (platformSlug: string) => {
-      setConnections(prev => {
-        const next = { ...prev };
-        delete next[platformSlug];
-        return next;
-      });
-
-      const platform = settingsPlatforms.find(p => p.slug === platformSlug);
-      track('platform_disconnected', {
-        platformName: platform?.name ?? platformSlug,
-        totalPlatforms: connectedCount - 1,
-      });
-
-      setModal(null);
-    },
-    [connectedCount, track]
-  );
-
-  const openConnectModal = (slug: string) => {
-    setApiKeyInput('');
-    setHandleInput('');
-    setModal({ type: 'connect', platformSlug: slug });
-  };
-
-  const openDisconnectModal = (slug: string) => {
-    setModal({ type: 'disconnect', platformSlug: slug });
-  };
-
-  const closeModal = () => {
-    setModal(null);
-    setApiKeyInput('');
-    setHandleInput('');
-  };
-
-  if (isLoading) return <LoadingSpinner size="lg" label="Loading..." />;
+  if (isLoading || (isAuthenticated && connectionsLoading)) {
+    return <LoadingSpinner size="lg" label="Loading..." />;
+  }
   if (!isAuthenticated) return null;
 
   return (
@@ -142,10 +144,15 @@ export function PlatformSettingsPage() {
         <p>Connect your social media accounts to publish content across platforms.</p>
       </div>
 
+      {operationError && <div className={styles.mockNotice}>{operationError}</div>}
+
       <div className={styles.platformGrid}>
         {settingsPlatforms.map(platform => {
-          const connection = connections[platform.slug];
-          const isConnected = Boolean(connection);
+          const connection = platform.slug === 'twitter' ? connections?.twitter : undefined;
+          const isConnected = Boolean(connection?.connected);
+          const requiresReconnect = connection?.status === 'expired';
+          const requiresConfiguration =
+            platform.slug === 'twitter' && connection?.configured === false;
           const config = platformConfigurations[platform.slug];
           const isComingSoon = platform.comingSoon;
 
@@ -187,21 +194,29 @@ export function PlatformSettingsPage() {
                           : styles.statusDotDisconnected
                     }`}
                   />
-                  {isComingSoon ? 'Coming Soon' : isConnected ? 'Connected' : 'Not Connected'}
+                  {isComingSoon
+                    ? 'Coming Soon'
+                    : requiresConfiguration
+                      ? 'Configuration Required'
+                      : requiresReconnect
+                        ? 'Reconnect Required'
+                        : isConnected
+                          ? 'Connected'
+                          : 'Not Connected'}
                 </span>
               </div>
 
-              {isConnected && connection && (
+              {connection?.username && (
                 <div className={styles.connectedInfo}>
-                  <strong>Handle:</strong> {connection.handle}
+                  <strong>Handle:</strong> @{connection.username}
                 </div>
               )}
 
               {config?.capabilities && (
                 <div className={styles.capabilities}>
-                  {config.capabilities.map(cap => (
-                    <span key={cap} className={styles.capabilityTag}>
-                      {cap}
+                  {config.capabilities.map(capability => (
+                    <span key={capability} className={styles.capabilityTag}>
+                      {capability}
                     </span>
                   ))}
                 </div>
@@ -211,18 +226,32 @@ export function PlatformSettingsPage() {
                 {isConnected ? (
                   <button
                     className={`${styles.connectButton} ${styles.connectButtonDanger}`}
-                    onClick={() => openDisconnectModal(platform.slug)}
+                    onClick={() => setModal({ type: 'disconnect', platformSlug: platform.slug })}
                   >
                     Disconnect
                   </button>
                 ) : (
-                  <button
-                    className={`${styles.connectButton} ${styles.connectButtonPrimary}`}
-                    onClick={() => openConnectModal(platform.slug)}
-                    disabled={isComingSoon}
-                  >
-                    {isComingSoon ? 'Coming Soon' : 'Connect'}
-                  </button>
+                  <>
+                    <button
+                      className={`${styles.connectButton} ${styles.connectButtonPrimary}`}
+                      onClick={() => void handleConnect(platform.slug)}
+                      disabled={
+                        isComingSoon || platform.slug !== 'twitter' || requiresConfiguration
+                      }
+                    >
+                      {isComingSoon ? 'Coming Soon' : requiresReconnect ? 'Reconnect' : 'Connect'}
+                    </button>
+                    {requiresReconnect && (
+                      <button
+                        className={`${styles.connectButton} ${styles.connectButtonDanger}`}
+                        onClick={() =>
+                          setModal({ type: 'disconnect', platformSlug: platform.slug })
+                        }
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -230,86 +259,18 @@ export function PlatformSettingsPage() {
         })}
       </div>
 
-      {/* Connect Modal */}
-      {modal?.type === 'connect' && (
-        <div className={styles.modalOverlay} onClick={closeModal}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <h2>
-              Connect{' '}
-              {settingsPlatforms.find(p => p.slug === modal.platformSlug)?.name ??
-                modal.platformSlug}
-            </h2>
-            <p>Enter your API credentials to connect this platform.</p>
-
-            <div className={styles.mockNotice}>
-              This is a simplified mock connection. OAuth integration will replace this in a future
-              release.
-            </div>
-
-            <div className={styles.inputGroup}>
-              <label htmlFor="api-key-input">
-                {settingsPlatforms.find(p => p.slug === modal.platformSlug)?.name ?? 'Platform'} API
-                Key
-              </label>
-              <input
-                id="api-key-input"
-                type="text"
-                value={apiKeyInput}
-                onChange={e => setApiKeyInput(e.target.value)}
-                placeholder="Enter your API key"
-                autoFocus
-              />
-            </div>
-
-            <div className={styles.inputGroup}>
-              <label htmlFor="handle-input">Username / Handle (optional)</label>
-              <input
-                id="handle-input"
-                type="text"
-                value={handleInput}
-                onChange={e => setHandleInput(e.target.value)}
-                placeholder="@yourhandle"
-              />
-            </div>
-
-            <div className={styles.modalActions}>
-              <button className={styles.modalButtonCancel} onClick={closeModal}>
-                Cancel
-              </button>
-              <button
-                className={styles.modalButtonSubmit}
-                onClick={() => handleConnect(modal.platformSlug)}
-                disabled={!apiKeyInput.trim()}
-              >
-                Connect
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Disconnect Confirmation Modal */}
       {modal?.type === 'disconnect' && (
-        <div className={styles.modalOverlay} onClick={closeModal}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <h2>
-              Disconnect{' '}
-              {settingsPlatforms.find(p => p.slug === modal.platformSlug)?.name ??
-                modal.platformSlug}
-              ?
-            </h2>
+        <div className={styles.modalOverlay} onClick={() => setModal(null)}>
+          <div className={styles.modal} onClick={event => event.stopPropagation()}>
+            <h2>Disconnect X?</h2>
             <p className={styles.confirmText}>
-              This will remove your connection. You can reconnect at any time.
+              OmniPost will revoke the authorization and remove its stored tokens.
             </p>
-
             <div className={styles.modalActions}>
-              <button className={styles.modalButtonCancel} onClick={closeModal}>
+              <button className={styles.modalButtonCancel} onClick={() => setModal(null)}>
                 Cancel
               </button>
-              <button
-                className={styles.modalButtonDanger}
-                onClick={() => handleDisconnect(modal.platformSlug)}
-              >
+              <button className={styles.modalButtonDanger} onClick={() => void handleDisconnect()}>
                 Disconnect
               </button>
             </div>

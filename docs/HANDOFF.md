@@ -1,5 +1,67 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-07-25 X OAuth Account Lifecycle — Gate 3 C1
+
+### Current State
+
+- **Draft implementation PR:** [#181 — X OAuth account lifecycle](https://github.com/neuralliquid/omnipost/pull/181)
+- **Implementation branch:** `agent/gate3-x-oauth-lifecycle`
+- **Implementation commit before this handoff:** `4bd537c13174d667ffb67c59048fbc3ab04b3136`
+- **Baton Gate 3 task:** `8b2fe3e9-1765-464d-9e88-6f8aed147769`
+- The PR remains draft until an approved X OAuth application can provide real
+  callback and account proof.
+
+### Delivered
+
+- Added tenant-owned `PlatformAccount` persistence with forward-only
+  PostgreSQL migration, provider/account uniqueness, lifecycle status, scopes,
+  expiry, and revocation timestamps.
+- Added X OAuth 2.0 Authorization Code with PKCE, short-lived sealed state and
+  verifier cookies, exact callback routing, production HTTPS enforcement,
+  refresh-token rotation, provider-side revocation, and reconnect handling.
+- Added versioned AES-256-GCM token encryption with purpose-bound associated
+  data. Raw provider tokens are neither returned by the API nor stored in
+  plaintext.
+- Added authenticated connect, connection-status, refresh-aware token access,
+  and disconnect routes plus the dashboard connection controls.
+- Added a generated Key Vault encryption key and App Service custom connection
+  reference. X client credentials deliberately remain externally supplied
+  secrets rather than Terraform-generated values.
+
+### Verification
+
+- `pnpm run type-check` passed.
+- `pnpm run lint` passed with zero errors and 120 pre-existing warnings.
+- Windows-safe repository Prettier validation passed. The standard
+  `pnpm check-all` format stage remains incompatible with the worktree's
+  existing CRLF files and reports unchanged files.
+- All 35 Jest suites and 255 executed tests passed; one PostgreSQL integration
+  suite was skipped because Docker Desktop was unavailable.
+- `pnpm run build` passed.
+- `pnpm run marketing:validate` passed.
+- Prisma 7.1 client generation passed.
+- Terraform formatting and `terraform validate` passed after provider
+  initialization.
+- At handoff, all nine checks on PR #181 passed, including the protected
+  Terraform plan. There were no submitted reviews or inline review threads.
+
+### Deployment Boundary And Continuation
+
+- This slice does not configure an X developer application, purchase provider
+  credits, connect a real account, or prove a production post/revocation flow.
+  Those steps require approved external credentials and account authorization.
+- A health check is not authenticated X proof. Keep the PR draft, obtain real
+  consent through the visible X flow, and record connect, refresh/reconnect,
+  post, and revoke proof without exposing tokens.
+- The scheduler still uses the legacy static X token path. Gate 3 C2 must wire
+  publishing to the persisted account token accessor before the static token
+  can be removed.
+- Do not merge on green CI alone: inspect current human/bot reviews and all
+  unresolved threads again immediately before any ready-for-review or merge
+  transition.
+
+---
+
 ## 2026-07-25 Durable Application Database — Gate 3 Slice
 
 ### Current State

@@ -122,19 +122,27 @@ az webapp config appsettings set \
     LINKEDIN_API_URL="https://api.linkedin.com" \
     LINKEDIN_API_KEY="your-api-key"
 
-# Twitter/X
+# Twitter/X OAuth application (Gate 3 C1)
+# Store X_CLIENT_SECRET through the approved Key Vault path, then configure:
 az webapp config appsettings set \
   --name nl-dev-omnipost-web \
   --resource-group nl-dev-omnipost-rg \
   --settings \
-    TWITTER_API_URL="https://api.x.com/2/tweets" \
-    TWITTER_ACCESS_TOKEN="@Microsoft.KeyVault(SecretUri=https://nl-dev-omnipost-kv.vault.azure.net/secrets/TWITTER-ACCESS-TOKEN/<version>)"
+    X_CLIENT_ID="<x-oauth-client-id>" \
+    X_CLIENT_SECRET="@Microsoft.KeyVault(SecretUri=https://nl-dev-omnipost-kv.vault.azure.net/secrets/X-CLIENT-SECRET/<version>)" \
+    X_OAUTH_REDIRECT_URI="https://omnipost.neuralliquid.ai/api/platforms/x/callback"
 ```
 
-`TWITTER_ACCESS_TOKEN` must be an OAuth user-context token authorized for the
-publishing account with `tweet.write`; an app-only bearer token is insufficient.
-Create or rotate `TWITTER-ACCESS-TOKEN` through the approved secret-management
-path, never in shell history or committed files. Follow
+Register the callback URI as an exact match in the X Developer Console. OmniPost
+requests `tweet.read`, `tweet.write`, `users.read`, and `offline.access` through
+Authorization Code with S256 PKCE. The Terraform environment generates
+`omnipost-platform-token-encryption-key` and supplies it to App Service as the
+custom `PLATFORM_TOKEN_ENCRYPTION_KEY` connection string; do not copy that value
+into app settings or logs.
+
+`TWITTER_ACCESS_TOKEN` remains a legacy staffed-smoke fallback until Gate 3 C2
+wires the scheduler to per-account credentials. It must be a user-context token;
+an app-only bearer token is insufficient. Follow
 [X_CAMPAIGN_GO_LIVE.md](runbooks/X_CAMPAIGN_GO_LIVE.md) for the controlled smoke
 post and rollback procedure.
 

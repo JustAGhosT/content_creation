@@ -344,6 +344,17 @@ describe('proxy (root middleware on /api/:path*)', () => {
       expect(response.status).toBe(200);
       expect(response._requestHeaders).toBeUndefined();
     });
+
+    test('allows the exact X OAuth callback to validate its sealed flow cookie', () => {
+      const proxy = loadProxy();
+      const request = createMockNextRequest({
+        pathname: '/api/platforms/x/callback',
+      });
+      const response = proxy(request) as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(response._requestHeaders).toBeUndefined();
+    });
   });
 
   // ------------------------------------------------------------------

@@ -20,6 +20,10 @@ const authenticatedPaths = [
   '/api/scheduler',
 ];
 
+// Provider callbacks cannot carry the browser's Authorization header. These
+// exact routes enforce their own sealed, expiring OAuth state boundary.
+const authenticationExemptPaths = ['/api/platforms/x/callback'];
+
 // Define paths that require admin authentication
 const adminPaths = ['/api/feature-flags', '/api/audit'];
 
@@ -92,6 +96,9 @@ function verifyToken(token: string): jwt.JwtPayload | null {
  * Check if path requires authentication
  */
 function requiresAuthentication(pathname: string): { auth: boolean; admin: boolean } {
+  if (authenticationExemptPaths.includes(pathname)) {
+    return { auth: false, admin: false };
+  }
   const requiresAdmin = adminPaths.some(path => pathname.startsWith(path));
   const requiresAuth = authenticatedPaths.some(path => pathname.startsWith(path)) || requiresAdmin;
 

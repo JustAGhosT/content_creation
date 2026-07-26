@@ -134,11 +134,26 @@ resource "azurerm_linux_web_app" "web" {
   }
 
   dynamic "connection_string" {
-    for_each = var.enable_app_postgresql && var.enable_key_vault ? [1] : []
+    for_each = merge(
+      var.enable_app_postgresql && var.enable_key_vault ? {
+        database = {
+          name  = "DATABASE_URL"
+          type  = "PostgreSQL"
+          value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_database_url[0].versionless_id})"
+        }
+      } : {},
+      var.enable_key_vault ? {
+        platform_token_key = {
+          name  = "PLATFORM_TOKEN_ENCRYPTION_KEY"
+          type  = "Custom"
+          value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.platform_token_encryption_key[0].versionless_id})"
+        }
+      } : {}
+    )
     content {
-      name  = "DATABASE_URL"
-      type  = "PostgreSQL"
-      value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_database_url[0].versionless_id})"
+      name  = connection_string.value.name
+      type  = connection_string.value.type
+      value = connection_string.value.value
     }
   }
 
@@ -501,6 +516,12 @@ resource "random_password" "app_postgresql" {
   override_special = "_%@"
 }
 
+resource "random_id" "platform_token_encryption_key" {
+  count = var.enable_key_vault ? 1 : 0
+
+  byte_length = 32
+}
+
 resource "azurerm_postgresql_flexible_server" "app" {
   count = var.enable_app_postgresql ? 1 : 0
 
@@ -558,6 +579,23 @@ resource "azurerm_key_vault_secret" "app_database_url" {
 
   depends_on = [
     azurerm_postgresql_flexible_server_database.app_database,
+    azurerm_role_assignment.deployment_key_vault_secrets_officer,
+    azurerm_role_assignment.operator_key_vault_secrets_officer,
+    azurerm_role_assignment.web_identity_key_vault_secrets_officer,
+  ]
+}
+
+resource "azurerm_key_vault_secret" "platform_token_encryption_key" {
+  count = var.enable_key_vault ? 1 : 0
+
+  name             = "omnipost-platform-token-encryption-key"
+  value_wo         = random_id.platform_token_encryption_key[0].b64_std
+  value_wo_version = 1
+  key_vault_id     = azurerm_key_vault.this[0].id
+  content_type     = "AES-256-GCM key for provider token encryption"
+  tags             = merge(local.tags, { managedBy = "terraform", component = "platform-oauth" })
+
+  depends_on = [
     azurerm_role_assignment.deployment_key_vault_secrets_officer,
     azurerm_role_assignment.operator_key_vault_secrets_officer,
     azurerm_role_assignment.web_identity_key_vault_secrets_officer,
