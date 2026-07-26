@@ -4,10 +4,12 @@
  * GET - Health check for the process endpoint
  */
 
-import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getScheduler } from '@/lib/scheduler';
-import { getSchedulerCronSecret } from '@/lib/scheduler/cron-auth';
+import {
+  getSchedulerCronSecret,
+  isSchedulerCronRequestAuthorized,
+} from '@/lib/scheduler/cron-auth';
 import { Errors, withErrorHandling } from '@/app/api/_utils/errors';
 import { withRateLimit, RateLimitPresets } from '@/app/api/_utils/rateLimit';
 
@@ -25,7 +27,6 @@ import { withRateLimit, RateLimitPresets } from '@/app/api/_utils/rateLimit';
 export const POST = withRateLimit(
   withErrorHandling(async (request: Request) => {
     // Verify cron secret - mandatory in production
-    const authHeader = request.headers.get('authorization');
     const cronSecret = getSchedulerCronSecret();
 
     // In production, CRON_SECRET must be configured
@@ -36,12 +37,7 @@ export const POST = withRateLimit(
 
     // Validate authorization with constant-time comparison
     if (cronSecret) {
-      const expected = `Bearer ${cronSecret}`;
-      const actual = authHeader || '';
-      if (
-        expected.length !== actual.length ||
-        !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual.padEnd(expected.length)))
-      ) {
+      if (!isSchedulerCronRequestAuthorized(request, cronSecret)) {
         return Errors.unauthorized('Unauthorized');
       }
     }
