@@ -15,10 +15,29 @@ import {
   WebhookEventType,
   JobQueue,
 } from './types';
+import { createHash } from 'node:crypto';
 import { getQueue, generateJobId } from './queue';
 import { getRateLimiter, RateLimiter } from './rate-limiter';
 import { getRetryHandler, RetryHandler } from './retry-handler';
 import { getPublisher, Publisher } from './publisher';
+
+function deriveIdempotencyKey(input: CreateJobInput): string {
+  const identity = JSON.stringify({
+    type: input.type,
+    campaignId: input.campaignId ?? null,
+    campaignVersion: input.campaignVersion ?? null,
+    campaignVersionId: input.campaignVersionId ?? null,
+    approvedContentHash: input.approvedContentHash ?? null,
+    variantId: input.variantId ?? null,
+    contentId: input.contentId,
+    platformId: input.platformId,
+    content: input.content,
+    scheduledTime: new Date(input.scheduledTime).toISOString(),
+    timezone: input.timezone ?? null,
+    maxAttempts: input.maxAttempts ?? null,
+  });
+  return `scheduler:v1:${createHash('sha256').update(identity).digest('hex')}`;
+}
 
 /**
  * Scheduler Service
@@ -48,6 +67,7 @@ export class Scheduler {
 
     const job: ScheduledJob = {
       id: generateJobId(),
+      idempotencyKey: input.idempotencyKey ?? deriveIdempotencyKey(input),
       type: input.type,
       campaignId: input.campaignId,
       campaignVersion: input.campaignVersion,
@@ -73,10 +93,15 @@ export class Scheduler {
       throw new Error(`Content validation failed: ${validation.errors.join(', ')}`);
     }
 
-    await this.queue.add(job);
-    await this.emitEvent('job.scheduled', { jobId: job.id, campaignId: job.campaignId });
+    const persisted = await this.queue.add(job);
+    if (persisted.created) {
+      await this.emitEvent('job.scheduled', {
+        jobId: persisted.job.id,
+        campaignId: persisted.job.campaignId,
+      });
+    }
 
-    return job;
+    return persisted.job;
   }
 
   /**
@@ -100,8 +125,8 @@ export class Scheduler {
   /**
    * Cancel a scheduled job
    */
-  async cancel(jobId: string): Promise<boolean> {
-    const job = await this.queue.get(jobId);
+  async cancel(jobId: string, userId?: string): Promise<boolean> {
+    const job = await this.queue.get(jobId, userId);
 
     if (!job) {
       return false;
@@ -122,8 +147,12 @@ export class Scheduler {
   /**
    * Reschedule a job to a new time
    */
-  async reschedule(jobId: string, newScheduledTime: string): Promise<ScheduledJob | null> {
-    const job = await this.queue.get(jobId);
+  async reschedule(
+    jobId: string,
+    newScheduledTime: string,
+    userId?: string
+  ): Promise<ScheduledJob | null> {
+    const job = await this.queue.get(jobId, userId);
 
     if (!job) {
       return null;
@@ -140,26 +169,29 @@ export class Scheduler {
       updatedAt: new Date().toISOString(),
     });
 
-    return this.queue.get(jobId);
+    return this.queue.get(jobId, userId);
   }
 
   /**
    * Process due jobs
    */
   async processDueJobs(): Promise<JobResult[]> {
-    const now = new Date();
-    const dueJobs = await this.queue.getDueJobs(now, this.config.batchSize);
-
     const results: JobResult[] = [];
 
-    for (const job of dueJobs) {
-      // Check rate limits before processing
-      if (!(await this.rateLimiter.canProcess(job.platformId))) {
-        // Skip, will be picked up in next cycle
-        continue;
-      }
+    // Claim immediately before publishing so jobs later in a batch do not spend
+    // most of their lease waiting for earlier provider calls to complete.
+    for (let processed = 0; processed < this.config.batchSize; processed += 1) {
+      const now = new Date();
+      const leaseToken = generateJobId();
+      const [job] = await this.queue.claimDueJobs(
+        now,
+        1,
+        leaseToken,
+        new Date(now.getTime() + this.config.leaseDuration)
+      );
+      if (!job) break;
 
-      const result = await this.processJob(job);
+      const result = await this.processJob(job, leaseToken);
       results.push(result);
     }
 
@@ -169,39 +201,33 @@ export class Scheduler {
   /**
    * Process a single job
    */
-  private async processJob(job: ScheduledJob): Promise<JobResult> {
+  private async processJob(job: ScheduledJob, leaseToken: string): Promise<JobResult> {
     const now = new Date().toISOString();
 
-    // Update to processing status
-    await this.queue.update(job.id, {
-      status: 'processing',
-      lastAttemptAt: now,
-      attempts: job.attempts + 1,
-    });
-
-    // Refresh job from queue
-    const currentJob = await this.queue.get(job.id);
-    if (!currentJob) {
-      return {
-        jobId: job.id,
-        status: 'failure',
-        error: { code: 'NOT_FOUND', message: 'Job not found', retryable: false },
-        executedAt: now,
-      };
-    }
-
     // Attempt to publish
-    const publishResult = await this.publisher.publish(currentJob);
+    const publishResult = await this.publisher.publish(job);
 
     if (publishResult.success && publishResult.result) {
-      // Success
-      await this.queue.update(job.id, {
+      const completed = await this.queue.updateClaimed(job.id, leaseToken, {
         status: 'published',
         publishedAt: now,
         publishedUrl: publishResult.result.url,
         platformPostId: publishResult.result.id,
         updatedAt: now,
       });
+      if (!completed) {
+        return {
+          jobId: job.id,
+          status: 'failure',
+          error: {
+            code: 'UNKNOWN_PROVIDER_RESULT',
+            message:
+              'Provider accepted the request but the processing lease could not be completed',
+            retryable: false,
+          },
+          executedAt: now,
+        };
+      }
 
       await this.emitEvent('job.published', {
         jobId: job.id,
@@ -219,7 +245,7 @@ export class Scheduler {
     }
 
     // Failure - handle retry
-    return this.handleFailure(currentJob, publishResult.error!);
+    return this.handleFailure(job, leaseToken, publishResult.error!);
   }
 
   /**
@@ -227,6 +253,7 @@ export class Scheduler {
    */
   private async handleFailure(
     job: ScheduledJob,
+    leaseToken: string,
     error: Error & { code?: string; retryable?: boolean }
   ): Promise<JobResult> {
     const now = new Date().toISOString();
@@ -235,12 +262,24 @@ export class Scheduler {
 
     if (shouldRetry.retry && shouldRetry.nextRetryAt) {
       // Schedule retry
-      await this.queue.update(job.id, {
+      const updated = await this.queue.updateClaimed(job.id, leaseToken, {
         status: 'failed',
         error: shouldRetry.classification.message,
         nextRetryAt: shouldRetry.nextRetryAt.toISOString(),
         updatedAt: now,
       });
+      if (!updated) {
+        return {
+          jobId: job.id,
+          status: 'failure',
+          error: {
+            code: 'LEASE_LOST',
+            message: 'The scheduler processing lease changed before retry state was recorded',
+            retryable: false,
+          },
+          executedAt: now,
+        };
+      }
 
       await this.emitEvent('job.failed', {
         jobId: job.id,
@@ -262,11 +301,23 @@ export class Scheduler {
     }
 
     // Move to dead letter queue (no more retries)
-    await this.queue.update(job.id, {
+    const updated = await this.queue.updateClaimed(job.id, leaseToken, {
       status: 'dead',
       error: shouldRetry.classification.message,
       updatedAt: now,
     });
+    if (!updated) {
+      return {
+        jobId: job.id,
+        status: 'failure',
+        error: {
+          code: 'LEASE_LOST',
+          message: 'The scheduler processing lease changed before dead-letter state was recorded',
+          retryable: false,
+        },
+        executedAt: now,
+      };
+    }
 
     await this.emitEvent('job.dead', {
       jobId: job.id,
@@ -290,8 +341,8 @@ export class Scheduler {
   /**
    * Manually retry a failed/dead job
    */
-  async retry(jobId: string): Promise<ScheduledJob | null> {
-    const job = await this.queue.get(jobId);
+  async retry(jobId: string, userId?: string): Promise<ScheduledJob | null> {
+    const job = await this.queue.get(jobId, userId);
 
     if (!job) {
       return null;
@@ -311,35 +362,39 @@ export class Scheduler {
       updatedAt: new Date().toISOString(),
     });
 
-    return this.queue.get(jobId);
+    return this.queue.get(jobId, userId);
   }
 
   /**
    * Get job by ID
    */
-  async getJob(jobId: string): Promise<ScheduledJob | null> {
-    return this.queue.get(jobId);
+  async getJob(jobId: string, userId?: string): Promise<ScheduledJob | null> {
+    return this.queue.get(jobId, userId);
   }
 
   /**
    * Get all jobs
    */
-  async getAllJobs(): Promise<ScheduledJob[]> {
-    return this.queue.getAll();
+  async getAllJobs(userId?: string): Promise<ScheduledJob[]> {
+    return this.queue.getAll(userId);
   }
 
   /**
    * Get jobs by status
    */
-  async getJobsByStatus(status: JobStatus, limit?: number): Promise<ScheduledJob[]> {
-    return this.queue.getByStatus(status, limit);
+  async getJobsByStatus(
+    status: JobStatus,
+    limit?: number,
+    userId?: string
+  ): Promise<ScheduledJob[]> {
+    return this.queue.getByStatus(status, limit, userId);
   }
 
   /**
    * Get jobs for a campaign
    */
-  async getJobsByCampaign(campaignId: string): Promise<ScheduledJob[]> {
-    return this.queue.getByCampaign(campaignId);
+  async getJobsByCampaign(campaignId: string, userId?: string): Promise<ScheduledJob[]> {
+    return this.queue.getByCampaign(campaignId, userId);
   }
 
   /**
@@ -375,6 +430,7 @@ export class Scheduler {
           break;
         case 'failed':
         case 'dead':
+        case 'reconciliation_required':
           if (job.lastAttemptAt && new Date(job.lastAttemptAt) >= today) {
             stats.failedToday++;
           }
@@ -430,8 +486,8 @@ export class Scheduler {
   /**
    * Clear all jobs (for testing)
    */
-  async clearAll(): Promise<void> {
-    await this.queue.clear();
+  async clearAll(userId?: string): Promise<void> {
+    await this.queue.clear(userId);
   }
 }
 

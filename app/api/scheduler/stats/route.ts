@@ -18,6 +18,7 @@ const JOB_STATUSES: JobStatus[] = [
   'published',
   'failed',
   'dead',
+  'reconciliation_required',
   'cancelled',
 ];
 
@@ -40,8 +41,7 @@ export const GET = withRateLimit(
     const scheduler = getScheduler();
 
     // Get all jobs and filter by user
-    const allJobs = await scheduler.getAllJobs();
-    const userJobs = allJobs.filter(job => job.createdBy === currentUserId);
+    const userJobs = await scheduler.getAllJobs(currentUserId);
 
     // Calculate user-specific stats dynamically from JobStatus enum
     const userStats: Record<string, number> = {

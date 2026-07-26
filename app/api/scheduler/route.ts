@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getScheduler } from '@/lib/scheduler';
+import { SchedulerQueueError } from '@/lib/scheduler/prisma-queue';
 import type { JobStatus } from '@/lib/scheduler/types';
 import { isAuthenticated, getCurrentUserId } from '@/app/api/_utils/auth';
 import { Errors, withErrorHandling } from '@/app/api/_utils/errors';
@@ -20,7 +21,16 @@ import { campaignErrorResponse } from '@/app/api/campaigns/_errors';
 
 const listJobsQuerySchema = z.object({
   status: z
-    .enum(['pending', 'scheduled', 'processing', 'published', 'failed', 'dead', 'cancelled'])
+    .enum([
+      'pending',
+      'scheduled',
+      'processing',
+      'published',
+      'failed',
+      'dead',
+      'reconciliation_required',
+      'cancelled',
+    ])
     .optional(),
   campaignId: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
@@ -69,6 +79,7 @@ const createJobSchema = z
     }),
     timezone: z.string().optional(),
     maxAttempts: z.number().int().min(1).max(20).optional(),
+    idempotencyKey: z.string().min(8).max(200).optional(),
   })
   .superRefine((value, context) => {
     if (value.type !== 'campaign_post') return;
@@ -88,6 +99,16 @@ function getComingSoonPlatformName(platformId: string): string | undefined {
   const platform = platforms.find(p => p.slug === normalizedPlatformId);
 
   return platform?.comingSoon ? platform.name : undefined;
+}
+
+function isIdempotencyConflict(error: unknown): boolean {
+  return (
+    error instanceof SchedulerQueueError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'IDEMPOTENCY_CONFLICT')
+  );
 }
 
 // ── Route Handlers ───────────────────────────────────────────────────────
@@ -125,23 +146,20 @@ export const GET = withRateLimit(
 
     let jobs;
     if (campaignId) {
-      jobs = await scheduler.getJobsByCampaign(campaignId);
+      jobs = await scheduler.getJobsByCampaign(campaignId, currentUserId);
     } else if (status) {
-      jobs = await scheduler.getJobsByStatus(status as JobStatus, limit + offset);
+      jobs = await scheduler.getJobsByStatus(status as JobStatus, limit + offset, currentUserId);
     } else {
-      jobs = await scheduler.getAllJobs();
+      jobs = await scheduler.getAllJobs(currentUserId);
     }
 
-    // Filter jobs by current user
-    const userJobs = jobs.filter(job => job.createdBy === currentUserId);
-
     // Apply pagination
-    const paginated = userJobs.slice(offset, offset + limit);
+    const paginated = jobs.slice(offset, offset + limit);
 
     return NextResponse.json({
       jobs: paginated,
       count: paginated.length,
-      total: userJobs.length,
+      total: jobs.length,
     });
   }),
   '/api/scheduler',
@@ -209,21 +227,30 @@ export const POST = withRateLimit(
     }
 
     const scheduler = getScheduler();
-    const job = await scheduler.schedule({
-      type: data.type,
-      campaignId: data.campaignId,
-      campaignVersion: data.campaignVersion,
-      campaignVersionId: approvalBinding?.versionId,
-      approvedContentHash: approvalBinding?.contentHash,
-      variantId: data.variantId,
-      contentId: data.contentId,
-      platformId: data.platformId,
-      content: approvalBinding?.content ?? data.content,
-      scheduledTime: data.scheduledTime,
-      timezone: data.timezone,
-      maxAttempts: data.maxAttempts,
-      createdBy: currentUserId,
-    });
+    let job;
+    try {
+      job = await scheduler.schedule({
+        type: data.type,
+        campaignId: data.campaignId,
+        campaignVersion: data.campaignVersion,
+        campaignVersionId: approvalBinding?.versionId,
+        approvedContentHash: approvalBinding?.contentHash,
+        variantId: data.variantId,
+        contentId: data.contentId,
+        platformId: data.platformId,
+        content: approvalBinding?.content ?? data.content,
+        scheduledTime: data.scheduledTime,
+        timezone: data.timezone,
+        maxAttempts: data.maxAttempts,
+        createdBy: currentUserId,
+        idempotencyKey: data.idempotencyKey,
+      });
+    } catch (error) {
+      if (isIdempotencyConflict(error)) {
+        return Errors.conflict('Idempotency key already identifies another scheduler request');
+      }
+      throw error;
+    }
 
     return NextResponse.json({ job }, { status: 201 });
   }),

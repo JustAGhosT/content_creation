@@ -13,6 +13,7 @@ export type JobStatus =
   | 'published' // Successfully published
   | 'failed' // Failed, will retry
   | 'dead' // Exceeded max retries
+  | 'reconciliation_required' // Provider outcome is unknown; never auto-republish
   | 'cancelled'; // Manually cancelled
 
 /**
@@ -25,6 +26,7 @@ export type JobType = 'campaign_post' | 'series_promotion' | 'standalone';
  */
 export interface ScheduledJob {
   id: string;
+  idempotencyKey: string;
   type: JobType;
 
   // Reference to content
@@ -57,6 +59,8 @@ export interface ScheduledJob {
   maxAttempts: number;
   lastAttemptAt?: string;
   nextRetryAt?: string;
+  leaseToken?: string;
+  leaseExpiresAt?: string;
 
   // Results
   publishedAt?: string;
@@ -139,6 +143,7 @@ export interface SchedulerConfig {
   batchSize: number; // Max jobs to process per cycle
   maxRetries: number; // Default max retry attempts
   retryDelays: number[]; // Backoff delays in seconds
+  leaseDuration: number; // Processing lease duration (ms)
 }
 
 /**
@@ -149,6 +154,7 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   batchSize: 50,
   maxRetries: 5,
   retryDelays: [60, 300, 900, 3600, 14400], // 1m, 5m, 15m, 1h, 4h
+  leaseDuration: 2 * 60 * 1000,
 };
 
 /**
@@ -168,22 +174,34 @@ export interface CreateJobInput {
   timezone?: string;
   maxAttempts?: number;
   createdBy?: string;
+  idempotencyKey?: string;
+}
+
+export interface ClaimedJobUpdate extends Partial<ScheduledJob> {
+  status: Exclude<JobStatus, 'processing'>;
 }
 
 /**
  * Job queue interface
  */
 export interface JobQueue {
-  add(job: ScheduledJob): Promise<void>;
-  get(id: string): Promise<ScheduledJob | null>;
+  add(job: ScheduledJob): Promise<{ job: ScheduledJob; created: boolean }>;
+  get(id: string, userId?: string): Promise<ScheduledJob | null>;
   update(id: string, updates: Partial<ScheduledJob>): Promise<void>;
   remove(id: string): Promise<void>;
   getDueJobs(before: Date, limit: number): Promise<ScheduledJob[]>;
-  getByStatus(status: JobStatus, limit?: number): Promise<ScheduledJob[]>;
-  getByCampaign(campaignId: string): Promise<ScheduledJob[]>;
-  getAll(): Promise<ScheduledJob[]>;
+  claimDueJobs(
+    before: Date,
+    limit: number,
+    leaseToken: string,
+    leaseExpiresAt: Date
+  ): Promise<ScheduledJob[]>;
+  updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean>;
+  getByStatus(status: JobStatus, limit?: number, userId?: string): Promise<ScheduledJob[]>;
+  getByCampaign(campaignId: string, userId?: string): Promise<ScheduledJob[]>;
+  getAll(userId?: string): Promise<ScheduledJob[]>;
   count(): Promise<number>;
-  clear(): Promise<void>;
+  clear(userId?: string): Promise<void>;
 }
 
 /**

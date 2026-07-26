@@ -6,6 +6,7 @@
  */
 
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { SchedulerQueueError } from '../../lib/scheduler/prisma-queue';
 import '../setup';
 
 // Mock audit trail
@@ -191,6 +192,30 @@ describe('Scheduler API Routes', () => {
       expect(response.status).toBe(400);
       expect(data.message).toContain('Invalid input');
       expect(mockSchedule).not.toHaveBeenCalled();
+    });
+
+    test('rejects an idempotency key reused for a different request', async () => {
+      mockSchedule.mockRejectedValueOnce(
+        new SchedulerQueueError(
+          'IDEMPOTENCY_CONFLICT',
+          'Idempotency key belongs to another request'
+        )
+      );
+
+      const response = await POST(
+        createRequest('POST', {
+          type: 'standalone',
+          contentId: 'content-1',
+          platformId: 'twitter',
+          content: { text: 'Hello world from scheduler test' },
+          scheduledTime: '2026-04-01T12:00:00Z',
+          idempotencyKey: 'request-key-123',
+        })
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(409);
+      expect(data.message).toContain('Idempotency key');
     });
 
     test('binds a campaign post to its approved immutable version', async () => {

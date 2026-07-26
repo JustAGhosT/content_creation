@@ -71,7 +71,7 @@ async function getOwnedJob(
   userId: string
 ): Promise<{ job: ScheduledJob } | NextResponse> {
   const scheduler = getScheduler();
-  const job = await scheduler.getJob(jobId);
+  const job = await scheduler.getJob(jobId, userId);
 
   if (!job) {
     return Errors.notFound('Job not found') as NextResponse;
@@ -143,7 +143,7 @@ export const PATCH = withRateLimit(
 
     // Handle retry action
     if (action === 'retry') {
-      const retried = await scheduler.retry(idValidation.data.id);
+      const retried = await scheduler.retry(idValidation.data.id, authResult.userId);
       if (!retried) {
         return Errors.notFound('Job not found');
       }
@@ -154,7 +154,8 @@ export const PATCH = withRateLimit(
     if (scheduledTime) {
       const rescheduled = await scheduler.reschedule(
         idValidation.data.id,
-        new Date(scheduledTime).toISOString()
+        new Date(scheduledTime).toISOString(),
+        authResult.userId
       );
       if (!rescheduled) {
         return Errors.notFound('Job not found');
@@ -187,7 +188,7 @@ export const DELETE = withRateLimit(
     if (isJobError(result)) return result;
 
     const scheduler = getScheduler();
-    const cancelled = await scheduler.cancel(idValidation.data.id);
+    const cancelled = await scheduler.cancel(idValidation.data.id, authResult.userId);
 
     if (!cancelled) {
       return Errors.internalServerError('Failed to cancel job');

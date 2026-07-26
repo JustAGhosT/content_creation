@@ -1,0 +1,24 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+describe('scheduler persistence migration', () => {
+  test('creates a forward-only tenant-owned queue with idempotency and lease indexes', () => {
+    const migration = readFileSync(
+      path.join(
+        process.cwd(),
+        'prisma',
+        'migrations',
+        '20260726080500_scheduler_jobs',
+        'migration.sql'
+      ),
+      'utf8'
+    );
+
+    expect(migration).toContain('CREATE TABLE "SchedulerJob"');
+    expect(migration).toContain('SchedulerJob_userId_idempotencyKey_key');
+    expect(migration).toContain('SchedulerJob_status_scheduledAt_idx');
+    expect(migration).toContain('SchedulerJob_leaseExpiresAt_idx');
+    expect(migration).toContain('REFERENCES "User"("id")');
+    expect(migration).not.toContain('DROP TABLE');
+  });
+});
