@@ -2,7 +2,7 @@
 
 import type { PrismaClient } from '@prisma/client';
 import { PrismaJobQueue, SchedulerQueueError } from '@/lib/scheduler/prisma-queue';
-import type { JobQueue } from '@/lib/scheduler/types';
+import type { JobQueue, ScheduleJobResult } from '@/lib/scheduler/types';
 
 jest.mock('@/lib/scheduler/queue', () => ({
   generateJobId: jest.fn(),
@@ -101,5 +101,60 @@ describe('scheduler request idempotency', () => {
         idempotencyContent: { text: 'Different request' },
       })
     ).rejects.toBeInstanceOf(SchedulerQueueError);
+  });
+
+  test('starts lease renewal only after the provider attempt is marked', async () => {
+    const order: string[] = [];
+    jest.mocked(getPublisher).mockReturnValue({
+      validate: () => ({ valid: true, errors: [] }),
+      publish: async (
+        _job: ScheduleJobResult['job'],
+        options: { quotaReserved?: boolean; beforeProviderCall?: () => Promise<boolean> }
+      ) => {
+        order.push('publisher-ready');
+        const proceed = await options?.beforeProviderCall?.();
+        if (!proceed) throw new Error('attempt was not marked');
+        order.push('provider');
+        return { success: true, result: { id: 'post-1' } };
+      },
+    } as unknown as ReturnType<typeof getPublisher>);
+    const scheduler = new Scheduler();
+    Object.assign(scheduler, {
+      startLeaseHeartbeat: () => {
+        order.push('heartbeat');
+        return async () => undefined;
+      },
+    });
+    const publishWithLeaseHeartbeat = (
+      scheduler as unknown as {
+        publishWithLeaseHeartbeat: (
+          job: ScheduleJobResult['job'],
+          leaseToken: string,
+          beforeProviderCall: () => Promise<boolean>
+        ) => Promise<unknown>;
+      }
+    ).publishWithLeaseHeartbeat.bind(scheduler);
+
+    await publishWithLeaseHeartbeat(
+      {
+        ...(await scheduler.scheduleWithResult({ ...input, idempotencyKey: 'heartbeat-key' })).job,
+        leaseToken: 'lease-1',
+      },
+      'lease-1',
+      async () => {
+        order.push('mark-start');
+        await Promise.resolve();
+        order.push('mark-complete');
+        return true;
+      }
+    );
+
+    expect(order).toEqual([
+      'publisher-ready',
+      'mark-start',
+      'mark-complete',
+      'heartbeat',
+      'provider',
+    ]);
   });
 });

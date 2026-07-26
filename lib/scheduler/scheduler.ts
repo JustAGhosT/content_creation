@@ -370,11 +370,20 @@ export class Scheduler {
     leaseToken: string,
     beforeProviderCall: () => Promise<boolean>
   ): Promise<Awaited<ReturnType<Publisher['publish']>>> {
-    const stopHeartbeat = this.startLeaseHeartbeat(job.id, leaseToken);
+    let stopHeartbeat: (() => Promise<void>) | undefined;
     try {
-      return await this.publisher.publish(job, { quotaReserved: true, beforeProviderCall });
+      return await this.publisher.publish(job, {
+        quotaReserved: true,
+        beforeProviderCall: async () => {
+          const marked = await beforeProviderCall();
+          if (marked) {
+            stopHeartbeat = this.startLeaseHeartbeat(job.id, leaseToken);
+          }
+          return marked;
+        },
+      });
     } finally {
-      await stopHeartbeat();
+      await stopHeartbeat?.();
     }
   }
 
