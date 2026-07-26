@@ -72,6 +72,7 @@ jobs:
             --settings \
               'CRON_SECRET=@Microsoft.KeyVault(SecretUri=https://nl-dev-omnipost-kv.vault.azure.net/secrets/omnipost-scheduler-cron-secret)' \
               'SCHEDULER_CRON_SECRET_URI=https://nl-dev-omnipost-kv.vault.azure.net/secrets/omnipost-scheduler-cron-secret' \
+              'SCHEDULER_MANAGED_IDENTITY_CLIENT_ID=30dae5c1-1175-4f09-8efa-2773bcf4b1f7' \
             --output none
           az webapp restart \
             --resource-group nl-dev-omnipost-rg \

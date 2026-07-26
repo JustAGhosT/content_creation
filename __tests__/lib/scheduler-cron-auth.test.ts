@@ -12,6 +12,7 @@ describe('scheduler cron authentication configuration', () => {
   const originalIdentityEndpoint = process.env.IDENTITY_ENDPOINT;
   const originalIdentityHeader = process.env.IDENTITY_HEADER;
   const originalSecretUri = process.env.SCHEDULER_CRON_SECRET_URI;
+  const originalManagedIdentityClientId = process.env.SCHEDULER_MANAGED_IDENTITY_CLIENT_ID;
   const originalFetch = global.fetch;
 
   afterEach(() => {
@@ -34,6 +35,12 @@ describe('scheduler cron authentication configuration', () => {
 
     if (originalSecretUri === undefined) delete process.env.SCHEDULER_CRON_SECRET_URI;
     else process.env.SCHEDULER_CRON_SECRET_URI = originalSecretUri;
+
+    if (originalManagedIdentityClientId === undefined) {
+      delete process.env.SCHEDULER_MANAGED_IDENTITY_CLIENT_ID;
+    } else {
+      process.env.SCHEDULER_MANAGED_IDENTITY_CLIENT_ID = originalManagedIdentityClientId;
+    }
 
     if (originalFetch === undefined) delete (global as { fetch?: typeof fetch }).fetch;
     else global.fetch = originalFetch;
@@ -73,6 +80,7 @@ describe('scheduler cron authentication configuration', () => {
     process.env.IDENTITY_HEADER = 'identity-header';
     process.env.SCHEDULER_CRON_SECRET_URI =
       'https://example.vault.azure.net/secrets/scheduler-secret';
+    process.env.SCHEDULER_MANAGED_IDENTITY_CLIENT_ID = 'managed-identity-client-id';
 
     const fetchMock = jest
       .fn<typeof fetch>()
@@ -100,6 +108,8 @@ describe('scheduler cron authentication configuration', () => {
         signal: expect.any(AbortSignal),
       }
     );
+    const tokenRequestUrl = fetchMock.mock.calls[0][0] as URL;
+    expect(tokenRequestUrl.searchParams.get('client_id')).toBe('managed-identity-client-id');
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ hostname: 'example.vault.azure.net' }),
