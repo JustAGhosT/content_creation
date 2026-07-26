@@ -14,7 +14,7 @@ import { Errors, withErrorHandling } from '@/app/api/_utils/errors';
 import { withRateLimit, RateLimitPresets } from '@/app/api/_utils/rateLimit';
 import { sanitizeText, validateAndSanitize } from '@/app/api/_utils/sanitize';
 import { platforms } from '@/lib/config/platforms';
-import { assertApprovedForQueue, recordPublishAttempt } from '@/lib/campaigns/repository';
+import { assertApprovedForQueue } from '@/lib/campaigns/repository';
 import { campaignErrorResponse } from '@/app/api/campaigns/_errors';
 
 // ── Zod Schemas ──────────────────────────────────────────────────────────
@@ -220,7 +220,7 @@ export const POST = withRateLimit(
     const scheduler = getScheduler();
     let scheduled;
     try {
-      scheduled = await scheduler.scheduleWithResult({
+      const scheduleInput = {
         type: data.type,
         campaignId: data.campaignId,
         campaignVersion: data.campaignVersion,
@@ -235,38 +235,23 @@ export const POST = withRateLimit(
         maxAttempts: data.maxAttempts,
         createdBy: currentUserId,
         idempotencyKey: data.idempotencyKey,
-      });
+      };
+      scheduled = approvalBinding
+        ? await scheduler.scheduleCampaignWithAudit(scheduleInput, {
+            campaignId: data.campaignId!,
+            campaignVersionId: approvalBinding.versionId,
+            contentId: data.contentId,
+            variantId: data.variantId!,
+            platformId: data.platformId,
+            contentHash: approvalBinding.contentHash,
+            requestedBy: currentUserId,
+          })
+        : await scheduler.scheduleWithResult(scheduleInput);
     } catch (error) {
       if (isIdempotencyConflict(error)) {
         return Errors.conflict('Idempotency key already identifies another scheduler request');
       }
       throw error;
-    }
-
-    if (
-      data.type === 'campaign_post' &&
-      data.campaignId &&
-      data.campaignVersion &&
-      data.contentHash &&
-      data.variantId
-    ) {
-      try {
-        await recordPublishAttempt({
-          userId: currentUserId,
-          campaignId: data.campaignId,
-          version: data.campaignVersion,
-          contentId: data.contentId,
-          variantId: data.variantId,
-          platformId: data.platformId,
-          contentHash: data.contentHash,
-          schedulerJobId: scheduled.job.id,
-        });
-      } catch (error) {
-        if (scheduled.created) {
-          await scheduler.cancel(scheduled.job.id, currentUserId);
-        }
-        return campaignErrorResponse(error) ?? Errors.internalServerError();
-      }
     }
 
     return NextResponse.json({ job: scheduled.job }, { status: scheduled.created ? 201 : 200 });

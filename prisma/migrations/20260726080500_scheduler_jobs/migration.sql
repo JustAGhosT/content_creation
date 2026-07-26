@@ -22,6 +22,7 @@ CREATE TABLE "SchedulerJob" (
     "nextRetryAt" TIMESTAMP(3),
     "leaseToken" TEXT,
     "leaseExpiresAt" TIMESTAMP(3),
+    "attemptStartedAt" TIMESTAMP(3),
     "publishedAt" TIMESTAMP(3),
     "publishedUrl" TEXT,
     "platformPostId" TEXT,
@@ -55,7 +56,7 @@ ALTER TABLE "SchedulerJob"
 ALTER TABLE "SchedulerJob"
     ADD CONSTRAINT "SchedulerJob_campaignVersionId_fkey"
     FOREIGN KEY ("campaignVersionId") REFERENCES "CampaignVersion"("id")
-    ON DELETE RESTRICT ON UPDATE CASCADE;
+    ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE "PublishAttempt" ADD COLUMN "schedulerJobId" TEXT;
 CREATE UNIQUE INDEX "PublishAttempt_schedulerJobId_key"

@@ -21,6 +21,7 @@ describe('scheduler persistence migration', () => {
     expect(migration).toContain('SchedulerJob_leaseExpiresAt_idx');
     expect(migration).toContain('REFERENCES "User"("id")');
     expect(migration).toContain('PublishAttempt_schedulerJobId_key');
+    expect(migration).toContain('ON DELETE SET NULL ON UPDATE CASCADE');
     expect(migration).not.toContain('DROP TABLE');
   });
 });

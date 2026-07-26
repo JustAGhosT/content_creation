@@ -62,6 +62,7 @@ export interface ScheduledJob {
   nextRetryAt?: string;
   leaseToken?: string;
   leaseExpiresAt?: string;
+  attemptStartedAt?: string;
 
   // Results
   publishedAt?: string;

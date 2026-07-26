@@ -36,6 +36,8 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
   const suffix = `${process.pid}-${Date.now()}`;
   const ownerId = `scheduler-owner-${suffix}`;
   const otherOwnerId = `scheduler-other-owner-${suffix}`;
+  const campaignId = `scheduler-campaign-${suffix}`;
+  const campaignVersionId = `scheduler-campaign-version-${suffix}`;
   let setupClient: PrismaClient | null = null;
 
   beforeAll(async () => {
@@ -59,10 +61,27 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
         },
       ],
     });
+    await setupClient.campaign.create({
+      data: {
+        id: campaignId,
+        userId: ownerId,
+        name: 'Scheduler atomic campaign',
+        versions: {
+          create: {
+            id: campaignVersionId,
+            version: 1,
+            snapshot: '{}',
+            snapshotHash: `sha256:${'b'.repeat(64)}`,
+            createdBy: ownerId,
+          },
+        },
+      },
+    });
   });
 
   afterEach(async () => {
     if (setupClient) {
+      await setupClient.publishAttempt.deleteMany({ where: { campaignId } });
       await setupClient.schedulerJob.deleteMany({
         where: { userId: { in: [ownerId, otherOwnerId] } },
       });
@@ -143,6 +162,42 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     await secondClient.$disconnect();
   });
 
+  test('reclaims pre-attempt expiry but quarantines an unknown provider result', async () => {
+    if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
+    const queue = new PrismaJobQueue(setupClient);
+    const beforeAttempt = testJob(ownerId, `${suffix}-before-attempt`);
+    const afterAttempt = testJob(ownerId, `${suffix}-after-attempt`);
+    await queue.add({
+      ...beforeAttempt,
+      status: 'processing',
+      leaseToken: 'expired-before-attempt',
+      leaseExpiresAt: '2026-07-26T07:59:00.000Z',
+    });
+    await queue.add({
+      ...afterAttempt,
+      status: 'processing',
+      attempts: 1,
+      leaseToken: 'expired-after-attempt',
+      leaseExpiresAt: '2026-07-26T07:59:00.000Z',
+      attemptStartedAt: '2026-07-26T07:58:00.000Z',
+    });
+
+    await expect(
+      queue.claimDueJobs(
+        new Date('2026-07-26T08:00:00Z'),
+        1,
+        'recovery-lease',
+        new Date('2026-07-26T08:02:00Z')
+      )
+    ).resolves.toEqual([
+      expect.objectContaining({ id: beforeAttempt.id, leaseToken: 'recovery-lease' }),
+    ]);
+    await expect(queue.get(afterAttempt.id, ownerId)).resolves.toMatchObject({
+      status: 'reconciliation_required',
+      leaseToken: undefined,
+    });
+  });
+
   test('does not expose jobs across tenants', async () => {
     if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
     const queue = new PrismaJobQueue(setupClient);
@@ -156,5 +211,87 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     await expect(queue.getAll(otherOwnerId)).resolves.toEqual([
       expect.objectContaining({ id: otherJob.id, createdBy: otherOwnerId }),
     ]);
+  });
+
+  test('creates a campaign job and its audit attempt atomically and idempotently', async () => {
+    if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
+    const queue = new PrismaJobQueue(setupClient);
+    const campaignJob = testJob(ownerId, `${suffix}-campaign`);
+    Object.assign(campaignJob, {
+      type: 'campaign_post',
+      campaignId,
+      campaignVersion: 1,
+      campaignVersionId,
+      approvedContentHash: `sha256:${'c'.repeat(64)}`,
+      variantId: 'variant-1',
+    });
+    const audit = {
+      campaignId,
+      campaignVersionId,
+      contentId: campaignJob.contentId,
+      variantId: 'variant-1',
+      platformId: campaignJob.platformId,
+      contentHash: campaignJob.approvedContentHash!,
+      requestedBy: ownerId,
+    };
+
+    await expect(queue.addCampaignJob(campaignJob, audit)).resolves.toMatchObject({
+      created: true,
+    });
+    await expect(
+      queue.addCampaignJob({ ...campaignJob, id: `${campaignJob.id}-replay` }, audit)
+    ).resolves.toMatchObject({ created: false, job: { id: campaignJob.id } });
+    await expect(
+      setupClient.publishAttempt.count({ where: { schedulerJobId: campaignJob.id } })
+    ).resolves.toBe(1);
+
+    const invalidJob = {
+      ...campaignJob,
+      id: `${campaignJob.id}-invalid`,
+      idempotencyKey: `${campaignJob.idempotencyKey}-invalid`,
+      requestFingerprint: `${campaignJob.requestFingerprint}-invalid`,
+      campaignVersionId: 'missing-campaign-version',
+    };
+    await expect(
+      queue.addCampaignJob(invalidJob, {
+        ...audit,
+        campaignVersionId: 'missing-campaign-version',
+      })
+    ).rejects.toBeDefined();
+    await expect(queue.get(invalidJob.id, ownerId)).resolves.toBeNull();
+  });
+
+  test('preserves scheduler history when its campaign is deleted', async () => {
+    if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
+    const deleteCampaignId = `${campaignId}-delete`;
+    const deleteVersionId = `${campaignVersionId}-delete`;
+    await setupClient.campaign.create({
+      data: {
+        id: deleteCampaignId,
+        userId: ownerId,
+        name: 'Deletable scheduler campaign',
+        versions: {
+          create: {
+            id: deleteVersionId,
+            version: 1,
+            snapshot: '{}',
+            snapshotHash: `sha256:${'d'.repeat(64)}`,
+            createdBy: ownerId,
+          },
+        },
+      },
+    });
+    const queue = new PrismaJobQueue(setupClient);
+    const scheduled = testJob(ownerId, `${suffix}-campaign-delete`);
+    scheduled.campaignId = deleteCampaignId;
+    scheduled.campaignVersionId = deleteVersionId;
+    await queue.add(scheduled);
+
+    await setupClient.campaign.delete({ where: { id: deleteCampaignId } });
+
+    await expect(queue.get(scheduled.id, ownerId)).resolves.toMatchObject({
+      campaignId: deleteCampaignId,
+      campaignVersionId: undefined,
+    });
   });
 });

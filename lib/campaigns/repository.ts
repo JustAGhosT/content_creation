@@ -433,7 +433,6 @@ export async function recordPublishAttempt(input: {
   variantId: string;
   platformId: string;
   contentHash: string;
-  schedulerJobId: string;
 }) {
   const client = getClient();
   const campaign = await ownedCampaign(client, input.campaignId, input.userId);
@@ -454,9 +453,8 @@ export async function recordPublishAttempt(input: {
       'Publish attempt content hash does not match its campaign version'
     );
   }
-  return client.publishAttempt.upsert({
-    where: { schedulerJobId: input.schedulerJobId },
-    create: {
+  return client.publishAttempt.create({
+    data: {
       campaignId: campaign.id,
       campaignVersionId: version.id,
       contentId: input.contentId,
@@ -464,9 +462,7 @@ export async function recordPublishAttempt(input: {
       platformId: input.platformId,
       contentHash: input.contentHash,
       requestedBy: input.userId,
-      schedulerJobId: input.schedulerJobId,
     },
-    update: {},
   });
 }
 

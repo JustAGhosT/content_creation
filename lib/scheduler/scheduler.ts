@@ -21,6 +21,7 @@ import { getQueue, generateJobId } from './queue';
 import { getRateLimiter, RateLimiter } from './rate-limiter';
 import { getRetryHandler, RetryHandler } from './retry-handler';
 import { getPublisher, Publisher } from './publisher';
+import { CampaignPublishAuditInput, PrismaJobQueue } from './prisma-queue';
 
 function deriveRequestFingerprint(
   input: CreateJobInput,
@@ -71,7 +72,7 @@ export class Scheduler {
     return (await this.scheduleWithResult(input)).job;
   }
 
-  async scheduleWithResult(input: CreateJobInput): Promise<ScheduleJobResult> {
+  private createValidatedJob(input: CreateJobInput): ScheduledJob {
     const now = new Date().toISOString();
     const timezone = input.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const maxAttempts = input.maxAttempts || this.config.maxRetries;
@@ -106,15 +107,34 @@ export class Scheduler {
       throw new Error(`Content validation failed: ${validation.errors.join(', ')}`);
     }
 
-    const persisted = await this.queue.add(job);
-    if (persisted.created) {
+    return job;
+  }
+
+  private async emitCreated(result: ScheduleJobResult): Promise<ScheduleJobResult> {
+    if (result.created) {
       await this.emitEvent('job.scheduled', {
-        jobId: persisted.job.id,
-        campaignId: persisted.job.campaignId,
+        jobId: result.job.id,
+        campaignId: result.job.campaignId,
       });
     }
+    return result;
+  }
 
-    return persisted;
+  async scheduleWithResult(input: CreateJobInput): Promise<ScheduleJobResult> {
+    const job = this.createValidatedJob(input);
+    return this.emitCreated(await this.queue.add(job));
+  }
+
+  async scheduleCampaignWithAudit(
+    input: CreateJobInput,
+    audit: CampaignPublishAuditInput
+  ): Promise<ScheduleJobResult> {
+    if (!(this.queue instanceof PrismaJobQueue)) {
+      throw new Error('Campaign scheduling requires durable PostgreSQL persistence');
+    }
+
+    const job = this.createValidatedJob(input);
+    return this.emitCreated(await this.queue.addCampaignJob(job, audit));
   }
 
   /**

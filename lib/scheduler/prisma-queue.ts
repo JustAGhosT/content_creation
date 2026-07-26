@@ -2,6 +2,16 @@ import type { Prisma, PrismaClient, SchedulerJob as StoredSchedulerJob } from '@
 import { z } from 'zod';
 import type { ClaimedJobUpdate, JobQueue, JobStatus, ScheduledJob } from './types';
 
+export interface CampaignPublishAuditInput {
+  campaignId: string;
+  campaignVersionId: string;
+  contentId: string;
+  variantId: string;
+  platformId: string;
+  contentHash: string;
+  requestedBy: string;
+}
+
 const jobStatusSchema = z.enum([
   'pending',
   'scheduled',
@@ -67,6 +77,7 @@ function parseStoredJob(row: StoredSchedulerJob): ScheduledJob {
       nextRetryAt: row.nextRetryAt?.toISOString(),
       leaseToken: row.leaseToken ?? undefined,
       leaseExpiresAt: row.leaseExpiresAt?.toISOString(),
+      attemptStartedAt: row.attemptStartedAt?.toISOString(),
       publishedAt: row.publishedAt?.toISOString(),
       publishedUrl: row.publishedUrl ?? undefined,
       platformPostId: row.platformPostId ?? undefined,
@@ -110,6 +121,7 @@ function createData(job: ScheduledJob): Prisma.SchedulerJobUncheckedCreateInput 
     nextRetryAt: job.nextRetryAt ? new Date(job.nextRetryAt) : undefined,
     leaseToken: job.leaseToken,
     leaseExpiresAt: job.leaseExpiresAt ? new Date(job.leaseExpiresAt) : undefined,
+    attemptStartedAt: job.attemptStartedAt ? new Date(job.attemptStartedAt) : undefined,
     publishedAt: job.publishedAt ? new Date(job.publishedAt) : undefined,
     publishedUrl: job.publishedUrl,
     platformPostId: job.platformPostId,
@@ -144,6 +156,9 @@ function updateData(updates: Partial<ScheduledJob>): Prisma.SchedulerJobUnchecke
   if (hasOwn(updates, 'leaseExpiresAt')) {
     data.leaseExpiresAt = updates.leaseExpiresAt ? new Date(updates.leaseExpiresAt) : null;
   }
+  if (hasOwn(updates, 'attemptStartedAt')) {
+    data.attemptStartedAt = updates.attemptStartedAt ? new Date(updates.attemptStartedAt) : null;
+  }
   if (hasOwn(updates, 'publishedAt')) {
     data.publishedAt = updates.publishedAt ? new Date(updates.publishedAt) : null;
   }
@@ -159,11 +174,14 @@ function updateData(updates: Partial<ScheduledJob>): Prisma.SchedulerJobUnchecke
 export class PrismaJobQueue implements JobQueue {
   constructor(private readonly client: PrismaClient) {}
 
-  async add(job: ScheduledJob): Promise<{ job: ScheduledJob; created: boolean }> {
+  private async addUsing(
+    client: PrismaClient | Prisma.TransactionClient,
+    job: ScheduledJob
+  ): Promise<{ job: ScheduledJob; created: boolean }> {
     if (!job.createdBy) {
       throw new SchedulerQueueError('TENANT_REQUIRED', 'Durable scheduler jobs require an owner');
     }
-    const existing = await this.client.schedulerJob.findUnique({
+    const existing = await client.schedulerJob.findUnique({
       where: {
         userId_idempotencyKey: {
           userId: job.createdBy,
@@ -181,27 +199,66 @@ export class PrismaJobQueue implements JobQueue {
       return { job: parseStoredJob(existing), created: false };
     }
 
-    try {
-      const created = await this.client.schedulerJob.create({ data: createData(job) });
-      return { job: parseStoredJob(created), created: true };
-    } catch (error) {
-      const winner = await this.client.schedulerJob.findUnique({
-        where: {
-          userId_idempotencyKey: {
-            userId: job.createdBy,
-            idempotencyKey: job.idempotencyKey,
-          },
+    const persisted = await client.schedulerJob.upsert({
+      where: {
+        userId_idempotencyKey: {
+          userId: job.createdBy,
+          idempotencyKey: job.idempotencyKey,
         },
-      });
-      if (!winner) throw error;
-      if (!sameIdempotentRequest(winner, job)) {
-        throw new SchedulerQueueError(
-          'IDEMPOTENCY_CONFLICT',
-          'The idempotency key already identifies a different scheduler request'
-        );
-      }
-      return { job: parseStoredJob(winner), created: false };
+      },
+      create: createData(job),
+      update: {},
+    });
+    if (!sameIdempotentRequest(persisted, job)) {
+      throw new SchedulerQueueError(
+        'IDEMPOTENCY_CONFLICT',
+        'The idempotency key already identifies a different scheduler request'
+      );
     }
+    return { job: parseStoredJob(persisted), created: persisted.id === job.id };
+  }
+
+  async add(job: ScheduledJob): Promise<{ job: ScheduledJob; created: boolean }> {
+    return this.addUsing(this.client, job);
+  }
+
+  async addCampaignJob(
+    job: ScheduledJob,
+    audit: CampaignPublishAuditInput
+  ): Promise<{ job: ScheduledJob; created: boolean }> {
+    if (
+      job.createdBy !== audit.requestedBy ||
+      job.campaignId !== audit.campaignId ||
+      job.campaignVersionId !== audit.campaignVersionId ||
+      job.contentId !== audit.contentId ||
+      job.variantId !== audit.variantId ||
+      job.platformId !== audit.platformId ||
+      job.approvedContentHash !== audit.contentHash
+    ) {
+      throw new SchedulerQueueError(
+        'IDEMPOTENCY_CONFLICT',
+        'Campaign audit binding does not match the scheduler request'
+      );
+    }
+
+    return this.client.$transaction(async transaction => {
+      const persisted = await this.addUsing(transaction, job);
+      await transaction.publishAttempt.upsert({
+        where: { schedulerJobId: persisted.job.id },
+        create: {
+          campaignId: audit.campaignId,
+          campaignVersionId: audit.campaignVersionId,
+          contentId: audit.contentId,
+          variantId: audit.variantId,
+          platformId: audit.platformId,
+          contentHash: audit.contentHash,
+          requestedBy: audit.requestedBy,
+          schedulerJobId: persisted.job.id,
+        },
+        update: {},
+      });
+      return persisted;
+    });
   }
 
   async get(id: string, userId?: string): Promise<ScheduledJob | null> {
@@ -251,7 +308,41 @@ export class PrismaJobQueue implements JobQueue {
     leaseExpiresAt: Date
   ): Promise<ScheduledJob[]> {
     await this.client.schedulerJob.updateMany({
-      where: { status: 'processing', leaseExpiresAt: { lte: before } },
+      where: {
+        status: 'processing',
+        leaseExpiresAt: { lte: before },
+        attemptStartedAt: null,
+        nextRetryAt: null,
+      },
+      data: {
+        status: 'scheduled',
+        leaseToken: null,
+        leaseExpiresAt: null,
+        errorCode: 'LEASE_EXPIRED_BEFORE_ATTEMPT',
+        error: 'Processing lease expired before a provider request started',
+      },
+    });
+    await this.client.schedulerJob.updateMany({
+      where: {
+        status: 'processing',
+        leaseExpiresAt: { lte: before },
+        attemptStartedAt: null,
+        nextRetryAt: { not: null },
+      },
+      data: {
+        status: 'failed',
+        leaseToken: null,
+        leaseExpiresAt: null,
+        errorCode: 'LEASE_EXPIRED_BEFORE_ATTEMPT',
+        error: 'Processing lease expired before a provider request started',
+      },
+    });
+    await this.client.schedulerJob.updateMany({
+      where: {
+        status: 'processing',
+        leaseExpiresAt: { lte: before },
+        attemptStartedAt: { not: null },
+      },
       data: {
         status: 'reconciliation_required',
         leaseToken: null,
@@ -285,6 +376,7 @@ export class PrismaJobQueue implements JobQueue {
           status: 'processing',
           leaseToken,
           leaseExpiresAt,
+          attemptStartedAt: null,
           errorCode: null,
           error: null,
         },
@@ -303,7 +395,11 @@ export class PrismaJobQueue implements JobQueue {
   ): Promise<ScheduledJob | null> {
     const result = await this.client.schedulerJob.updateMany({
       where: { id, status: 'processing', leaseToken },
-      data: { attempts: { increment: 1 }, lastAttemptAt: attemptedAt },
+      data: {
+        attempts: { increment: 1 },
+        lastAttemptAt: attemptedAt,
+        attemptStartedAt: attemptedAt,
+      },
     });
     if (result.count !== 1) return null;
     const row = await this.client.schedulerJob.findFirst({
@@ -319,6 +415,7 @@ export class PrismaJobQueue implements JobQueue {
         ...updateData(updates),
         leaseToken: null,
         leaseExpiresAt: null,
+        attemptStartedAt: null,
       },
     });
     return result.count === 1;

@@ -308,6 +308,7 @@ model SchedulerJob {
   nextRetryAt         DateTime?
   leaseToken          String?
   leaseExpiresAt      DateTime?
+  attemptStartedAt    DateTime?
   publishedAt         DateTime?
   publishedUrl        String?
   platformPostId      String?
@@ -317,7 +318,7 @@ model SchedulerJob {
   updatedAt           DateTime  @updatedAt
 
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  campaignVersionRow CampaignVersion? @relation(fields: [campaignVersionId], references: [id], onDelete: Restrict)
+  campaignVersionRow CampaignVersion? @relation(fields: [campaignVersionId], references: [id], onDelete: SetNull)
   publishAttempt     PublishAttempt?
 
   @@unique([userId, idempotencyKey])

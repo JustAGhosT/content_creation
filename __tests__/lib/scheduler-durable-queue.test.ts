@@ -108,6 +108,7 @@ describe('durable scheduler queue contract', () => {
         attempts: 1,
         leaseToken: 'abandoned-lease',
         leaseExpiresAt: '2026-07-26T07:59:00.000Z',
+        attemptStartedAt: '2026-07-26T07:58:00.000Z',
       })
     );
 
@@ -123,6 +124,33 @@ describe('durable scheduler queue contract', () => {
       status: 'reconciliation_required',
       attempts: 1,
     });
+  });
+
+  test('reclaims an expired lease when no provider attempt started', async () => {
+    const queue = new ServerMemoryQueue();
+    await queue.add(
+      job({
+        status: 'processing',
+        leaseToken: 'abandoned-before-attempt',
+        leaseExpiresAt: '2026-07-26T07:59:00.000Z',
+      })
+    );
+
+    await expect(
+      queue.claimDueJobs(
+        new Date('2026-07-26T08:00:00Z'),
+        1,
+        'recovery-lease',
+        new Date('2026-07-26T08:02:00Z')
+      )
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: 'job-1',
+        status: 'processing',
+        attempts: 0,
+        leaseToken: 'recovery-lease',
+      }),
+    ]);
   });
 
   test('keeps reads tenant-scoped', async () => {

@@ -186,10 +186,17 @@ export class InMemoryQueue implements JobQueue {
       ) {
         this.jobs.set(job.id, {
           ...job,
-          status: 'reconciliation_required',
+          status: job.attemptStartedAt
+            ? 'reconciliation_required'
+            : job.nextRetryAt
+              ? 'failed'
+              : 'scheduled',
           leaseToken: undefined,
           leaseExpiresAt: undefined,
-          error: 'Processing lease expired before the provider result was recorded',
+          attemptStartedAt: undefined,
+          error: job.attemptStartedAt
+            ? 'Processing lease expired before the provider result was recorded'
+            : 'Processing lease expired before a provider request started',
           updatedAt: before.toISOString(),
         });
       }
@@ -206,6 +213,7 @@ export class InMemoryQueue implements JobQueue {
         status: 'processing',
         leaseToken,
         leaseExpiresAt: leaseExpiresAt.toISOString(),
+        attemptStartedAt: undefined,
         error: undefined,
         updatedAt: before.toISOString(),
       };
@@ -230,6 +238,7 @@ export class InMemoryQueue implements JobQueue {
       ...current,
       attempts: current.attempts + 1,
       lastAttemptAt: attemptedAt.toISOString(),
+      attemptStartedAt: attemptedAt.toISOString(),
       updatedAt: attemptedAt.toISOString(),
     };
     this.jobs.set(id, updated);
@@ -248,6 +257,7 @@ export class InMemoryQueue implements JobQueue {
       ...updates,
       leaseToken: undefined,
       leaseExpiresAt: undefined,
+      attemptStartedAt: undefined,
       updatedAt: new Date().toISOString(),
     });
     this.persist();
@@ -387,10 +397,17 @@ export class ServerMemoryQueue implements JobQueue {
       ) {
         this.jobs.set(job.id, {
           ...job,
-          status: 'reconciliation_required',
+          status: job.attemptStartedAt
+            ? 'reconciliation_required'
+            : job.nextRetryAt
+              ? 'failed'
+              : 'scheduled',
           leaseToken: undefined,
           leaseExpiresAt: undefined,
-          error: 'Processing lease expired before the provider result was recorded',
+          attemptStartedAt: undefined,
+          error: job.attemptStartedAt
+            ? 'Processing lease expired before the provider result was recorded'
+            : 'Processing lease expired before a provider request started',
           updatedAt: before.toISOString(),
         });
       }
@@ -407,6 +424,7 @@ export class ServerMemoryQueue implements JobQueue {
         status: 'processing',
         leaseToken,
         leaseExpiresAt: leaseExpiresAt.toISOString(),
+        attemptStartedAt: undefined,
         error: undefined,
         updatedAt: before.toISOString(),
       };
@@ -429,6 +447,7 @@ export class ServerMemoryQueue implements JobQueue {
       ...current,
       attempts: current.attempts + 1,
       lastAttemptAt: attemptedAt.toISOString(),
+      attemptStartedAt: attemptedAt.toISOString(),
       updatedAt: attemptedAt.toISOString(),
     };
     this.jobs.set(id, updated);
@@ -445,6 +464,7 @@ export class ServerMemoryQueue implements JobQueue {
       ...updates,
       leaseToken: undefined,
       leaseExpiresAt: undefined,
+      attemptStartedAt: undefined,
       updatedAt: new Date().toISOString(),
     });
     return true;
