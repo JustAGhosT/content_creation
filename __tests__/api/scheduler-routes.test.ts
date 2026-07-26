@@ -24,6 +24,7 @@ const mockScheduleCampaign = jest.fn<any>();
 const mockListJobs = jest.fn<any>();
 const mockAssertApprovedForQueue = jest.fn<
   () => Promise<{
+    campaignRowId: string;
     versionId: string;
     contentHash: string;
     content: { text: string; mediaUrls?: string[]; hashtags?: string[]; mentions?: string[] };
@@ -92,6 +93,7 @@ describe('Scheduler API Routes', () => {
     mockSchedule.mockResolvedValue({ job: sampleJob, created: true });
     mockScheduleCampaign.mockResolvedValue({ job: sampleJob, created: true });
     mockAssertApprovedForQueue.mockResolvedValue({
+      campaignRowId: 'campaign-row-1',
       versionId: 'version-1',
       contentHash: `sha256:${'a'.repeat(64)}`,
       content: {
@@ -274,7 +276,7 @@ describe('Scheduler API Routes', () => {
           },
         }),
         expect.objectContaining({
-          campaignId: 'campaign-1',
+          campaignId: 'campaign-row-1',
           campaignVersionId: 'version-1',
           variantId: 'variant-1',
         })

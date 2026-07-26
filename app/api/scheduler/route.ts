@@ -234,7 +234,7 @@ export const POST = withRateLimit(
       };
       scheduled = approvalBinding
         ? await scheduler.scheduleCampaignWithAudit(scheduleInput, {
-            campaignId: data.campaignId!,
+            campaignId: approvalBinding.campaignRowId,
             campaignVersionId: approvalBinding.versionId,
             contentId: data.contentId,
             variantId: data.variantId!,
