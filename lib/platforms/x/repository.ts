@@ -314,8 +314,27 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
   });
   if (!account || account.status === 'revoked') return false;
 
+  if (account.status === 'expired') {
+    const update = await client.platformAccount.updateMany({
+      where: {
+        id: account.id,
+        status: 'expired',
+        encryptedAccessToken: account.encryptedAccessToken,
+        encryptedRefreshToken: account.encryptedRefreshToken,
+        updatedAt: account.updatedAt,
+      },
+      data: {
+        encryptedAccessToken: '',
+        encryptedRefreshToken: null,
+        status: 'revoked',
+        revokedAt: new Date(),
+      },
+    });
+    return update.count === 1;
+  }
+
   const activeClaim = ['refreshing', 'revoking', 'reconnecting'].includes(account.status);
-  const recoveryRequired = account.status === 'recovery_required' || account.status === 'expired';
+  const recoveryRequired = account.status === 'recovery_required';
   const revocationRequired = account.status === 'revocation_required';
   if (activeClaim && !lifecycleClaimIsStale(account.updatedAt)) return false;
   if (account.status !== 'connected' && !activeClaim && !recoveryRequired && !revocationRequired)
@@ -348,12 +367,7 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
         encryptedRefreshToken: claimedAccount.encryptedRefreshToken,
       },
       data: {
-        status:
-          account.status === 'connected'
-            ? 'connected'
-            : account.status === 'expired'
-              ? 'expired'
-              : 'recovery_required',
+        status: account.status === 'connected' ? 'connected' : 'recovery_required',
       },
     });
     throw error;
