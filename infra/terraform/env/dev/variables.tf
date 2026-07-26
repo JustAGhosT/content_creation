@@ -34,6 +34,12 @@ variable "enable_sluice_gateway" {
   default     = true
 }
 
+variable "enable_scheduler_processor" {
+  type        = bool
+  description = "Whether to run the durable scheduler processor every two minutes as a Container Apps Job."
+  default     = true
+}
+
 variable "sluice_image" {
   type        = string
   description = "Container image for the Sluice gateway."

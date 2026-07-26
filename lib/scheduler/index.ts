@@ -16,6 +16,7 @@ export type {
   JobQueue,
   ClaimedJobUpdate,
   PlatformAdapter,
+  PlatformPublishContext,
   PlatformPublishResult,
   ValidationResult,
   SchedulerStats,

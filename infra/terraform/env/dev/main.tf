@@ -148,6 +148,13 @@ resource "azurerm_linux_web_app" "web" {
           type  = "Custom"
           value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.platform_token_encryption_key[0].versionless_id})"
         }
+      } : {},
+      var.enable_scheduler_processor && var.enable_key_vault ? {
+        scheduler_cron = {
+          name  = "CRON_SECRET"
+          type  = "Custom"
+          value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.scheduler_cron[0].versionless_id})"
+        }
       } : {}
     )
     content {
@@ -335,13 +342,93 @@ resource "azurerm_role_assignment" "operator_key_vault_secrets_officer" {
 }
 
 resource "azurerm_container_app_environment" "sluice" {
-  count = var.enable_sluice_gateway ? 1 : 0
+  count = var.enable_sluice_gateway || var.enable_scheduler_processor ? 1 : 0
 
   name                       = "${local.base}-cae"
   resource_group_name        = azurerm_resource_group.this.name
   location                   = azurerm_resource_group.this.location
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
   tags                       = merge(local.tags, { managedBy = "terraform", component = "sluice-gateway" })
+}
+
+resource "random_password" "scheduler_cron" {
+  count = var.enable_scheduler_processor && var.enable_key_vault ? 1 : 0
+
+  length           = 48
+  special          = true
+  override_special = "_%@"
+}
+
+resource "azurerm_key_vault_secret" "scheduler_cron" {
+  count = var.enable_scheduler_processor && var.enable_key_vault ? 1 : 0
+
+  name             = "omnipost-scheduler-cron-secret"
+  value_wo         = random_password.scheduler_cron[0].result
+  value_wo_version = 1
+  key_vault_id     = azurerm_key_vault.this[0].id
+  content_type     = "Bearer secret for the recurring scheduler processor"
+  tags             = merge(local.tags, { managedBy = "terraform", component = "scheduler" })
+
+  depends_on = [
+    azurerm_role_assignment.deployment_key_vault_secrets_officer,
+    azurerm_role_assignment.operator_key_vault_secrets_officer,
+    azurerm_role_assignment.web_identity_key_vault_secrets_officer,
+  ]
+}
+
+resource "azurerm_container_app_job" "scheduler" {
+  count = var.enable_scheduler_processor ? 1 : 0
+
+  name                         = "${local.base}-scheduler"
+  location                     = azurerm_resource_group.this.location
+  resource_group_name          = azurerm_resource_group.this.name
+  container_app_environment_id = azurerm_container_app_environment.sluice[0].id
+  replica_timeout_in_seconds   = 60
+  replica_retry_limit          = 0
+  tags                         = merge(local.tags, { managedBy = "terraform", component = "scheduler" })
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.web_key_vault.id]
+  }
+
+  secret {
+    name                = "cron-secret"
+    identity            = azurerm_user_assigned_identity.web_key_vault.id
+    key_vault_secret_id = azurerm_key_vault_secret.scheduler_cron[0].versionless_id
+  }
+
+  schedule_trigger_config {
+    cron_expression          = "*/2 * * * *"
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+
+  template {
+    container {
+      name   = "processor"
+      image  = "curlimages/curl:8.16.0@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6"
+      cpu    = 0.25
+      memory = "0.5Gi"
+
+      command = ["/bin/sh", "-c"]
+      args = [
+        "curl --fail --silent --show-error --max-time 50 --output /dev/null --request POST --header \"Authorization: Bearer $CRON_SECRET\" --header \"User-Agent: omnipost-azure-scheduler/1.0\" \"$PROCESSOR_URL\""
+      ]
+
+      env {
+        name  = "PROCESSOR_URL"
+        value = "https://${var.custom_hostname}/api/scheduler/process"
+      }
+
+      env {
+        name        = "CRON_SECRET"
+        secret_name = "cron-secret"
+      }
+    }
+  }
+
+  depends_on = [azurerm_role_assignment.web_identity_key_vault_secrets_officer]
 }
 
 resource "azurerm_container_app" "sluice" {

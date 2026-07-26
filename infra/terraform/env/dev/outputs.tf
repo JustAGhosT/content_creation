@@ -27,6 +27,10 @@ output "sluice_gateway_url" {
   value = var.enable_sluice_gateway ? "https://${azurerm_container_app.sluice[0].ingress[0].fqdn}" : null
 }
 
+output "scheduler_job_name" {
+  value = var.enable_scheduler_processor ? azurerm_container_app_job.scheduler[0].name : null
+}
+
 output "postgresql_server_name" {
   value = var.enable_postgresql ? azurerm_postgresql_flexible_server.this[0].name : null
 }

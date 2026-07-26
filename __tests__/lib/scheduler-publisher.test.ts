@@ -42,6 +42,7 @@ const job: ScheduledJob = {
   maxAttempts: 5,
   createdAt: '2026-07-26T08:00:00.000Z',
   updatedAt: '2026-07-26T08:00:00.000Z',
+  createdBy: 'user-1',
 };
 
 describe('scheduler publisher request boundary', () => {
@@ -80,6 +81,7 @@ describe('scheduler publisher request boundary', () => {
 
     expect(result.success).toBe(true);
     expect(order).toEqual(['attempt', 'provider']);
+    expect(mockProviderPublish).toHaveBeenCalledWith(job.content, { userId: 'user-1' });
   });
 
   test('does not invoke the provider when attempt marking loses the lease', async () => {

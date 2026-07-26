@@ -134,7 +134,7 @@ export class Publisher {
         };
       }
       // Publish
-      const result = await adapter.publish(job.content);
+      const result = await adapter.publish(job.content, { userId: job.createdBy });
 
       return {
         success: true,

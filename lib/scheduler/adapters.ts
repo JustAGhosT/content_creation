@@ -3,8 +3,15 @@
  * Platform-specific implementations for content publishing
  */
 
-import { PlatformAdapter, PlatformPublishResult, ValidationResult, ScheduledJob } from './types';
+import {
+  PlatformAdapter,
+  PlatformPublishContext,
+  PlatformPublishResult,
+  ValidationResult,
+  ScheduledJob,
+} from './types';
 import { getPlatformConfig } from '@/lib/config/platforms';
+import { getValidXAccessToken } from '@/lib/platforms/x/repository';
 import { generatePlatformPostId } from '@/lib/utils/id';
 
 /**
@@ -155,18 +162,30 @@ abstract class BasePlatformAdapter implements PlatformAdapter {
 export class TwitterAdapter extends BasePlatformAdapter {
   platformId = 'twitter';
 
+  constructor(
+    private readonly resolveAccessToken: typeof getValidXAccessToken = getValidXAccessToken
+  ) {
+    super();
+  }
+
   getMaxLength(): number {
     return 280;
   }
 
-  async publish(content: ScheduledJob['content']): Promise<PlatformPublishResult> {
+  async publish(
+    content: ScheduledJob['content'],
+    context?: PlatformPublishContext
+  ): Promise<PlatformPublishResult> {
     const config = getPlatformConfig('twitter');
 
-    // In production, use the X API with an OAuth user-context access token.
-    if (config?.apiKey && process.env.NODE_ENV === 'production') {
-      return this.publishToTwitter(content, config);
+    if (process.env.NODE_ENV === 'production') {
+      if (!context?.userId) throw new Error('X account owner is required');
+      const accessToken = await this.resolveAccessToken(context.userId);
+      return this.publishToTwitter(content, {
+        apiUrl: config?.apiUrl ?? 'https://api.x.com/2/tweets',
+        apiKey: accessToken,
+      });
     }
-    this.assertProductionCredentials(config);
 
     // Development: simulate
     return this.simulatePublish(content, 'Twitter');

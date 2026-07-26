@@ -7,6 +7,7 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getScheduler } from '@/lib/scheduler';
+import { getSchedulerCronSecret } from '@/lib/scheduler/cron-auth';
 import { Errors, withErrorHandling } from '@/app/api/_utils/errors';
 import { withRateLimit, RateLimitPresets } from '@/app/api/_utils/rateLimit';
 
@@ -25,7 +26,7 @@ export const POST = withRateLimit(
   withErrorHandling(async (request: Request) => {
     // Verify cron secret - mandatory in production
     const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
+    const cronSecret = getSchedulerCronSecret();
 
     // In production, CRON_SECRET must be configured
     if (process.env.NODE_ENV === 'production' && !cronSecret) {

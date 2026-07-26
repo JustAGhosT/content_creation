@@ -22,12 +22,12 @@ the smoke window. Use a dedicated OmniPost brand account, not a personal account
 
 1. Create an X developer project and app.
 2. Enable OAuth 2.0 user authentication.
-3. Because the alpha does not yet have an account-connection flow, configure a
-   callback URL for a trusted OAuth 2.0 PKCE client used by the technical
-   operator to complete this single-account authorization.
-4. Request `tweet.read`, `tweet.write`, and `users.read`. Request
-   `offline.access` only when refresh-token handling is in place.
-5. Authorize the exact X account chosen in step 1.
+3. Configure the exact production callback URL:
+   `https://omnipost.neuralliquid.ai/api/platforms/x/callback`.
+4. Request `tweet.read`, `tweet.write`, `users.read`, and `offline.access` so
+   OmniPost can refresh the user grant without retaining a static token.
+5. Sign in to OmniPost, open **Settings > Platform Connections**, choose
+   **Connect** for X, and authorize the exact account chosen in step 1.
 6. Confirm the X project has enough API credits for the smoke post and
    verification calls.
 
@@ -39,21 +39,16 @@ Reference the official
 and check the current [X API pricing](https://docs.x.com/x-api/getting-started/pricing)
 before the smoke window.
 
-## 3. Store the credential without exposing it
+## 3. Verify the credential boundary
 
-1. Add the token to Azure Key Vault `nl-dev-omnipost-kv` as
-   `TWITTER-ACCESS-TOKEN` using the approved secret-management interface.
-2. Record the new secret version URI without copying the secret value.
-3. Set these App Service settings on `nl-dev-omnipost-web`:
-
-   ```text
-   TWITTER_API_URL=https://api.x.com/2/tweets
-   TWITTER_ACCESS_TOKEN=@Microsoft.KeyVault(SecretUri=https://nl-dev-omnipost-kv.vault.azure.net/secrets/TWITTER-ACCESS-TOKEN/<version>)
-   ```
-
-4. Restart the App Service after the settings resolve.
-5. Verify the Key Vault reference reports `Resolved`. Never print the setting
-   value, token, or full environment.
+1. Confirm the X client ID and client secret App Service references report
+   `Resolved`. Never print a setting value, token, or full environment.
+2. Confirm **Platform Connections** shows the approved handle as `Connected`.
+3. Do not copy the user access or refresh token into Key Vault, shell history,
+   browser storage, or evidence. OmniPost encrypts the per-account grant in the
+   application database and refreshes it server-side.
+4. If the connection shows `Reconnect Required`, complete a staffed reconnect
+   before queueing content. Do not bypass it with a static bearer token.
 
 ## 4. Preflight production
 
@@ -66,13 +61,17 @@ before the smoke window.
    ```
 
 3. Open the dashboard with the production operator account.
-4. Open **Campaigns** and select **OmniPost on X - First Live Campaign**. The
+4. Open **Settings > Platform Connections** and confirm X is `Connected` to the
+   approved handle.
+5. Open **Campaigns** and select **OmniPost on X - First Live Campaign**. The
    seed reconciler adds it on dashboard load without replacing existing
    campaigns.
-5. Confirm the campaign is `draft`, contains three posts, and has only X enabled.
-6. Confirm the first adaptation is at most 280 characters, has no media, URL,
+6. Confirm the campaign is `draft`, contains three posts, and has only X enabled.
+7. Confirm the first adaptation is at most 280 characters, has no media, URL,
    mention, or hashtag, and matches the account owner's approved copy.
-7. Choose a staffed smoke window. Do not queue any other X job for that window.
+8. Confirm `nl-dev-omnipost-scheduler` has a recent successful execution and no
+   unexplained processor failures.
+9. Choose a staffed smoke window. Do not queue any other X job for that window.
 
 ## 5. Queue only the smoke post
 
@@ -103,20 +102,28 @@ published result, and a post URL beginning with `https://x.com/`.
 
 ## 6. Process the due job
 
-The current Azure alpha has no recurring scheduler trigger. From a trusted
-operator environment where `OMNIPOST_CRON_SECRET` is injected without placing
-the value in shell history, invoke the protected processor once:
+The Azure Container Apps Job `nl-dev-omnipost-scheduler` invokes the protected
+processor every two minutes. It has one replica and no platform-level retry;
+the durable scheduler owns leases, classified retries, and unknown-result
+reconciliation.
+
+For a scheduler-only smoke, first prove there are no due jobs and then start one
+execution manually:
 
 ```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri 'https://omnipost.neuralliquid.ai/api/scheduler/process' `
-  -Headers @{ Authorization = "Bearer $env:OMNIPOST_CRON_SECRET" }
+az containerapp job start `
+  --name nl-dev-omnipost-scheduler `
+  --resource-group nl-dev-omnipost-rg
 ```
 
-Require `processed: 1`, `successful: 1`, and `failed: 0`. If `processed` is
-zero, inspect the job and scheduled time before considering a retry. Never call
-the processor repeatedly to compensate for an unknown state.
+Require the Container Apps execution to succeed and the application summary to
+show `processed: 0`, `successful: 0`, and `failed: 0`.
+
+For the staffed X smoke, queue exactly one approved due job and let the next
+scheduled execution process it. Require `processed: 1`, `successful: 1`, and
+`failed: 0`. If `processed` is zero, inspect the job and scheduled time before
+considering any manual start. Never invoke the processor repeatedly to
+compensate for an unknown state.
 
 ## 7. Verify before expanding
 
@@ -140,18 +147,18 @@ Stop immediately on a 401/403, wrong-account post, duplicate, altered copy,
 unresolved Key Vault reference, or missing audit evidence.
 
 1. Pause the campaign and cancel pending X jobs through the scheduler API.
-2. Remove `TWITTER_ACCESS_TOKEN` from the App Service settings to restore the
-   scheduler's fail-closed behavior.
-3. Revoke or rotate the affected X token when authorization is in doubt.
+2. Disconnect X in **Settings > Platform Connections** to revoke the provider
+   grant and remove the stored credentials.
+3. Reconnect only after the account owner confirms the intended account and
+   scopes.
 4. Delete an incorrect public post only with the account owner's approval.
 5. Record the failure status and evidence in Baton before retrying.
 
 ## Known starter limitation
 
-This first path accepts a provisioned user-context access token but does not yet
-refresh OAuth tokens. Campaign data is local to the browser, the campaign screen
-does not create jobs, the server queue is memory-backed, and Azure has no
-recurring scheduler trigger. Treat an app restart, token expiry, or unknown job
-state as a stop condition. A production-grade multi-account flow must add
-encrypted per-account token storage, refresh handling, a persistent queue,
-recurring processing, revocation, and reconnect UX before broad rollout.
+The production path has encrypted per-account OAuth storage, refresh and
+revocation handling, a persistent leased queue, rate-limit coordination, and a
+recurring Azure processor. The first authentic X connect/publish/revoke proof is
+still operator- and credential-gated. Treat a wrong account, provider outcome
+requiring reconciliation, or missing audit evidence as a stop condition; do not
+expand to unattended multi-account publishing until that evidence passes.
