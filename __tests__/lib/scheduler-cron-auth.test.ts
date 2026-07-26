@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test } from '@jest/globals';
-import { getSchedulerCronSecret } from '../../lib/scheduler/cron-auth';
+import {
+  getSchedulerCronSecret,
+  isSchedulerCronRequestAuthorized,
+} from '../../lib/scheduler/cron-auth';
 
 describe('scheduler cron authentication configuration', () => {
   const originalCronSecret = process.env.CRON_SECRET;
@@ -42,5 +45,33 @@ describe('scheduler cron authentication configuration', () => {
     process.env.CUSTOMCONNSTR_CRON_SECRET = '   ';
 
     expect(getSchedulerCronSecret()).toBeUndefined();
+  });
+});
+
+describe('scheduler cron request authentication', () => {
+  it('accepts the dedicated scheduler header', () => {
+    const request = new Request('https://example.test', {
+      headers: { 'X-OmniPost-Cron-Secret': 'scheduler-secret' },
+    });
+
+    expect(isSchedulerCronRequestAuthorized(request, 'scheduler-secret')).toBe(true);
+  });
+
+  it('retains Bearer compatibility', () => {
+    const request = new Request('https://example.test', {
+      headers: { Authorization: 'Bearer scheduler-secret' },
+    });
+
+    expect(isSchedulerCronRequestAuthorized(request, 'scheduler-secret')).toBe(true);
+  });
+
+  it.each([
+    ['missing headers', {}],
+    ['malformed Bearer header', { Authorization: 'scheduler-secret' }],
+    ['wrong dedicated secret', { 'X-OmniPost-Cron-Secret': 'wrong-secret' }],
+  ])('rejects %s', (_label, headers) => {
+    const request = new Request('https://example.test', { headers });
+
+    expect(isSchedulerCronRequestAuthorized(request, 'scheduler-secret')).toBe(false);
   });
 });

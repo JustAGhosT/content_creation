@@ -148,13 +148,6 @@ resource "azurerm_linux_web_app" "web" {
           type  = "Custom"
           value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.platform_token_encryption_key[0].versionless_id})"
         }
-      } : {},
-      var.enable_scheduler_processor && var.enable_key_vault ? {
-        scheduler_cron = {
-          name  = "CRON_SECRET"
-          type  = "Custom"
-          value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.scheduler_cron[0].versionless_id})"
-        }
       } : {}
     )
     content {
@@ -413,7 +406,7 @@ resource "azurerm_container_app_job" "scheduler" {
 
       command = ["/bin/sh", "-c"]
       args = [
-        "curl --fail --silent --show-error --max-time 50 --output /dev/null --request POST --header \"Authorization: Bearer $CRON_SECRET\" --header \"User-Agent: omnipost-azure-scheduler/1.0\" \"$PROCESSOR_URL\""
+        "curl --fail --silent --show-error --max-time 50 --output /dev/null --request POST --header \"X-OmniPost-Cron-Secret: $CRON_SECRET\" --header \"User-Agent: omnipost-azure-scheduler/1.0\" \"$PROCESSOR_URL\""
       ]
 
       env {
