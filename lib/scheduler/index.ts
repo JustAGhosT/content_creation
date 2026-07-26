@@ -14,6 +14,7 @@ export type {
   SchedulerConfig,
   CreateJobInput,
   JobQueue,
+  ClaimedJobUpdate,
   PlatformAdapter,
   PlatformPublishResult,
   ValidationResult,
@@ -26,6 +27,7 @@ export { RATE_LIMITS, DEFAULT_SCHEDULER_CONFIG } from './types';
 
 // Queue
 export { getQueue, generateJobId, InMemoryQueue } from './queue';
+export { PrismaJobQueue, SchedulerQueueError } from './prisma-queue';
 
 // Rate Limiter
 export { getRateLimiter, RateLimiter } from './rate-limiter';

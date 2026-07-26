@@ -12,51 +12,21 @@ import { Errors, withErrorHandling } from '../../../_utils/errors';
 import { withRateLimit, RateLimitPresets } from '../../../_utils/rateLimit';
 import { authService } from '../../../../../lib/auth/auth-service';
 import {
+  ExternalIdentityEmailConflictError,
+  resolveExternalUser,
+} from '../../../../../lib/auth/external-user';
+import {
   handleAuthCallback,
   initiateExternalAuth,
 } from '../../../../../lib/auth/identity-provider';
+import { prisma } from '../../../../../lib/db/prisma';
 
 const OAUTH_STATE_COOKIE_PREFIX = 'oauth-state-';
-
-interface ExternalUserRecord {
-  id: string;
-  username: string;
-  email: string;
-  role: string;
-  provider: string;
-  externalId: string;
-}
 
 interface StoredOAuthState {
   state: string;
   redirect: string;
   codeVerifier: string;
-}
-
-/**
- * In-memory store for users created via external providers.
- * In production this should be backed by a database.
- */
-const externalUsers = new Map<string, ExternalUserRecord>();
-
-/**
- * Find an existing user by external provider + external ID, or by email.
- */
-function findExistingUser(
-  provider: string,
-  externalId: string,
-  email: string
-): { id: string; username: string; role: string; isNew: false } | null {
-  for (const user of externalUsers.values()) {
-    if (user.provider === provider && user.externalId === externalId) {
-      return { id: user.id, username: user.username, role: user.role, isNew: false };
-    }
-    if (user.email === email) {
-      return { id: user.id, username: user.username, role: user.role, isNew: false };
-    }
-  }
-
-  return null;
 }
 
 function getPublicOrigin(request: Request, fallbackUrl: URL): string {
@@ -183,31 +153,23 @@ async function handleCallback(
   }
 
   const { externalId, email, name } = authResult.user;
-  const existingUser = findExistingUser(provider, externalId, email);
-  let userId: string;
-  let username: string;
-  let role: string;
-  let isNewUser = false;
-
-  if (existingUser) {
-    userId = existingUser.id;
-    username = existingUser.username;
-    role = existingUser.role;
-  } else {
-    userId = `user-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    username = name.replace(/\s+/g, '').toLowerCase() || email.split('@')[0];
-    role = 'user';
-    isNewUser = true;
-
-    externalUsers.set(userId, {
-      id: userId,
-      username,
-      email,
-      role,
-      provider,
-      externalId,
-    });
+  if (!prisma) {
+    return Errors.internalServerError('Database is not available');
   }
+
+  let localUser;
+  try {
+    localUser = await resolveExternalUser(prisma, { provider, externalId, email, name });
+  } catch (error) {
+    if (error instanceof ExternalIdentityEmailConflictError) {
+      const loginUrl = new URL('/login', publicOrigin);
+      loginUrl.searchParams.set('error', error.message);
+      return NextResponse.redirect(loginUrl);
+    }
+    throw error;
+  }
+
+  const { id: userId, username, role, isNew: isNewUser } = localUser;
 
   const token = authService.generateToken({ id: userId, username, role });
 

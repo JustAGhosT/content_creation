@@ -6,6 +6,17 @@
  */
 
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
+import type {
+  CreateJobInput,
+  ListJobsOptions,
+  ListJobsResult,
+  ScheduleJobResult,
+  ScheduledJob,
+} from '../../lib/scheduler/types';
+import {
+  type CampaignPublishAuditInput,
+  SchedulerQueueError,
+} from '../../lib/scheduler/prisma-queue';
 import '../setup';
 
 // Mock audit trail
@@ -15,26 +26,24 @@ jest.mock('../../app/api/_utils/audit', () => ({
 }));
 
 // Mock scheduler module
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockSchedule = jest.fn<any>();
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockGetAllJobs = jest.fn<any>();
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockGetJobsByStatus = jest.fn<any>();
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockGetJobsByCampaign = jest.fn<any>();
+const mockSchedule = jest.fn<(input: CreateJobInput) => Promise<ScheduleJobResult>>();
+const mockFindIdempotentReplay =
+  jest.fn<(input: CreateJobInput) => Promise<ScheduleJobResult | null>>();
+const mockScheduleCampaign =
+  jest.fn<
+    (input: CreateJobInput, audit: CampaignPublishAuditInput) => Promise<ScheduleJobResult>
+  >();
+const mockListJobs = jest.fn<(options: ListJobsOptions) => Promise<ListJobsResult>>();
 const mockAssertApprovedForQueue = jest.fn<
   () => Promise<{
+    campaignRowId: string;
     versionId: string;
     contentHash: string;
     content: { text: string; mediaUrls?: string[]; hashtags?: string[]; mentions?: string[] };
   }>
 >();
-const mockRecordPublishAttempt = jest.fn<() => Promise<{ id: string }>>();
-
 jest.mock('../../lib/campaigns/repository', () => ({
   assertApprovedForQueue: mockAssertApprovedForQueue,
-  recordPublishAttempt: mockRecordPublishAttempt,
 }));
 
 // Mock the sanitize module
@@ -75,15 +84,21 @@ function createRequest(
   } as unknown as Request;
 }
 
-const sampleJob = {
+const sampleJob: ScheduledJob = {
   id: 'job-1',
+  idempotencyKey: 'scheduler-route-key',
+  requestFingerprint: 'scheduler-route-fingerprint',
   type: 'standalone',
   contentId: 'content-1',
   platformId: 'twitter',
   content: { text: 'Hello world' },
   scheduledTime: '2026-04-01T12:00:00Z',
   timezone: 'UTC',
-  status: 'pending',
+  status: 'scheduled',
+  attempts: 0,
+  maxAttempts: 5,
+  createdAt: '2026-04-01T11:00:00Z',
+  updatedAt: '2026-04-01T11:00:00Z',
   createdBy: '1', // Matches the mock x-user-id from setup.ts
 };
 
@@ -92,11 +107,12 @@ describe('Scheduler API Routes', () => {
     jest.clearAllMocks();
     jest.resetModules();
 
-    mockGetAllJobs.mockResolvedValue([sampleJob]);
-    mockGetJobsByStatus.mockResolvedValue([sampleJob]);
-    mockGetJobsByCampaign.mockResolvedValue([sampleJob]);
-    mockSchedule.mockResolvedValue(sampleJob);
+    mockListJobs.mockResolvedValue({ jobs: [sampleJob], total: 1 });
+    mockSchedule.mockResolvedValue({ job: sampleJob, created: true });
+    mockFindIdempotentReplay.mockResolvedValue(null);
+    mockScheduleCampaign.mockResolvedValue({ job: sampleJob, created: true });
     mockAssertApprovedForQueue.mockResolvedValue({
+      campaignRowId: 'campaign-row-1',
       versionId: 'version-1',
       contentHash: `sha256:${'a'.repeat(64)}`,
       content: {
@@ -104,15 +120,15 @@ describe('Scheduler API Routes', () => {
         hashtags: ['approved'],
       },
     });
-    mockRecordPublishAttempt.mockResolvedValue({ id: 'attempt-1' });
 
     // Mock the scheduler before importing the route
     jest.doMock('../../lib/scheduler', () => ({
       getScheduler: () => ({
-        schedule: mockSchedule,
-        getAllJobs: mockGetAllJobs,
-        getJobsByStatus: mockGetJobsByStatus,
-        getJobsByCampaign: mockGetJobsByCampaign,
+        scheduleWithResult: mockSchedule,
+        findIdempotentReplay: mockFindIdempotentReplay,
+        scheduleCampaignWithAudit: mockScheduleCampaign,
+        cancel: jest.fn(),
+        listJobs: mockListJobs,
       }),
     }));
 
@@ -147,6 +163,13 @@ describe('Scheduler API Routes', () => {
       expect(Array.isArray(data.jobs)).toBe(true);
       expect(data.count).toBeDefined();
       expect(data.total).toBeDefined();
+      expect(mockListJobs).toHaveBeenCalledWith({
+        userId: '1',
+        status: undefined,
+        campaignId: undefined,
+        limit: 100,
+        offset: 0,
+      });
     });
   });
 
@@ -193,6 +216,51 @@ describe('Scheduler API Routes', () => {
       expect(mockSchedule).not.toHaveBeenCalled();
     });
 
+    test('rejects an idempotency key reused for a different request', async () => {
+      mockSchedule.mockRejectedValueOnce(
+        new SchedulerQueueError(
+          'IDEMPOTENCY_CONFLICT',
+          'Idempotency key belongs to another request'
+        )
+      );
+
+      const response = await POST(
+        createRequest('POST', {
+          type: 'standalone',
+          contentId: 'content-1',
+          platformId: 'twitter',
+          content: { text: 'Hello world from scheduler test' },
+          scheduledTime: '2026-04-01T12:00:00Z',
+          idempotencyKey: 'request-key-123',
+        })
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(409);
+      expect(data.message).toContain('Idempotency key');
+    });
+
+    test('does not misreport a corrupt durable row as an idempotency conflict', async () => {
+      mockSchedule.mockRejectedValueOnce(
+        new SchedulerQueueError('CORRUPT_JOB', 'Stored scheduler content is invalid')
+      );
+
+      const response = await POST(
+        createRequest('POST', {
+          type: 'standalone',
+          contentId: 'content-1',
+          platformId: 'twitter',
+          content: { text: 'Hello world from scheduler test' },
+          scheduledTime: '2026-04-01T12:00:00Z',
+          idempotencyKey: 'request-key-123',
+        })
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.message).not.toContain('Idempotency key');
+    });
+
     test('binds a campaign post to its approved immutable version', async () => {
       const contentHash = `sha256:${'a'.repeat(64)}`;
       const request = createRequest('POST', {
@@ -218,10 +286,7 @@ describe('Scheduler API Routes', () => {
           platformId: 'twitter',
         })
       );
-      expect(mockRecordPublishAttempt).toHaveBeenCalledWith(
-        expect.objectContaining({ campaignId: 'campaign-1', variantId: 'variant-1' })
-      );
-      expect(mockSchedule).toHaveBeenCalledWith(
+      expect(mockScheduleCampaign).toHaveBeenCalledWith(
         expect.objectContaining({
           campaignVersionId: 'version-1',
           approvedContentHash: contentHash,
@@ -229,8 +294,61 @@ describe('Scheduler API Routes', () => {
             text: 'Approved campaign post',
             hashtags: ['approved'],
           },
+        }),
+        expect.objectContaining({
+          campaignId: 'campaign-row-1',
+          campaignVersionId: 'version-1',
+          variantId: 'variant-1',
         })
       );
+    });
+
+    test('replays an idempotent campaign request without duplicating its audit attempt', async () => {
+      mockFindIdempotentReplay.mockResolvedValueOnce({ job: sampleJob, created: false });
+      const contentHash = `sha256:${'a'.repeat(64)}`;
+      const response = await POST(
+        createRequest('POST', {
+          type: 'campaign_post',
+          campaignId: 'campaign-1',
+          campaignVersion: 2,
+          contentHash,
+          variantId: 'variant-1',
+          contentId: 'content-1',
+          platformId: 'twitter',
+          content: { text: 'Approved campaign post' },
+          scheduledTime: '2026-04-01T12:00:00Z',
+          idempotencyKey: 'campaign-request-123',
+        })
+      );
+
+      expect(response.status).toBe(200);
+      expect(mockFindIdempotentReplay).toHaveBeenCalledTimes(1);
+      expect(mockAssertApprovedForQueue).not.toHaveBeenCalled();
+      expect(mockScheduleCampaign).not.toHaveBeenCalled();
+    });
+
+    test('rejects a changed campaign replay before approval validation', async () => {
+      mockFindIdempotentReplay.mockRejectedValueOnce(
+        new SchedulerQueueError('IDEMPOTENCY_CONFLICT', 'Different request')
+      );
+      const response = await POST(
+        createRequest('POST', {
+          type: 'campaign_post',
+          campaignId: 'campaign-1',
+          campaignVersion: 2,
+          contentHash: `sha256:${'a'.repeat(64)}`,
+          variantId: 'variant-1',
+          contentId: 'content-1',
+          platformId: 'twitter',
+          content: { text: 'Changed campaign request' },
+          scheduledTime: '2026-04-01T12:00:00Z',
+          idempotencyKey: 'campaign-request-123',
+        })
+      );
+
+      expect(response.status).toBe(409);
+      expect(mockAssertApprovedForQueue).not.toHaveBeenCalled();
+      expect(mockScheduleCampaign).not.toHaveBeenCalled();
     });
 
     test('rejects a campaign post without immutable approval fields', async () => {

@@ -27,9 +27,28 @@ model User {
   updatedAt    DateTime @updatedAt
 
   // Relations
-  campaigns        Campaign[]
-  auditLogs        AuditLog[]
-  platformAccounts PlatformAccount[]
+  campaigns          Campaign[]
+  auditLogs          AuditLog[]
+  platformAccounts   PlatformAccount[]
+  externalIdentities ExternalIdentity[]
+  schedulerJobs      SchedulerJob[]
+}
+
+// Durable mapping from an external provider subject to its local tenant owner.
+// Email is deliberately not used as an identity key because an unverified
+// provider claim must never silently take over an existing local account.
+model ExternalIdentity {
+  id         String   @id @default(cuid())
+  provider   String
+  externalId String
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalId])
+  @@index([userId])
 }
 
 // Tenant-owned provider credentials. Token values are encrypted by the
@@ -112,6 +131,7 @@ model CampaignVersion {
   publishAttempts     PublishAttempt[]
   decisions           CampaignDecision[]
   scheduledPosts      ScheduledPost[]
+  schedulerJobs       SchedulerJob[]
 
   @@unique([campaignId, version])
   @@unique([campaignId, snapshotHash])
@@ -190,11 +210,13 @@ model PublishAttempt {
   auditEventId      String?
   errorCode         String?
   requestedBy       String
+  schedulerJobId    String?   @unique
   requestedAt       DateTime  @default(now())
   completedAt       DateTime?
 
   campaign        Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   campaignVersion CampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+  schedulerJob    SchedulerJob?   @relation(fields: [schedulerJobId], references: [id], onDelete: SetNull)
 
   @@index([campaignId, requestedAt])
   @@index([campaignVersionId, variantId])
@@ -276,6 +298,70 @@ model ScheduledPost {
   @@index([campaignVersionId])
   @@index([status])
   @@index([scheduledAt])
+}
+
+// Tenant-owned durable publish queue. A processing lease is never retried
+// automatically after expiry because the provider result may be unknown;
+// reconciliation must establish the provider outcome first.
+model SchedulerJob {
+  id                  String    @id @default(cuid())
+  userId              String
+  idempotencyKey      String
+  requestFingerprint  String
+  type                String
+  campaignId          String?
+  campaignVersion     Int?
+  campaignVersionId   String?
+  approvedContentHash String?
+  variantId           String?
+  contentId           String
+  platformId          String
+  content             String
+  scheduledAt         DateTime
+  timezone            String
+  status              String    @default("scheduled")
+  attempts            Int       @default(0)
+  maxAttempts         Int       @default(5)
+  lastAttemptAt       DateTime?
+  nextRetryAt         DateTime?
+  leaseToken          String?
+  leaseExpiresAt      DateTime?
+  attemptStartedAt    DateTime?
+  publishedAt         DateTime?
+  publishedUrl        String?
+  platformPostId      String?
+  errorCode           String?
+  error               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignVersionRow CampaignVersion? @relation(fields: [campaignVersionId], references: [id], onDelete: SetNull)
+  publishAttempt     PublishAttempt?
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status])
+  @@index([status, scheduledAt])
+  @@index([status, nextRetryAt])
+  @@index([leaseExpiresAt])
+  @@index([campaignId])
+  @@index([campaignVersionId])
+}
+
+// Shared scheduler dispatch quota. PostgreSQL transactions serialize reservations
+// per platform so overlapping workers cannot each consume a process-local limit.
+model SchedulerPlatformQuota {
+  platformId     String    @id
+  windowStart    DateTime
+  windowDuration Int
+  requestCount   Int       @default(0)
+  requestLimit   Int
+  dailyCount     Int?
+  dailyLimit     Int?
+  dailyResetAt   DateTime?
+  backoffUntil   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 // Series model for content series

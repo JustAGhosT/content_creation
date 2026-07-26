@@ -128,6 +128,7 @@ describePostgres('campaign persistence restart behavior', () => {
 
     expect(afterRestart.snapshotHash).toBe(persisted.snapshotHash);
     expect(approvalBinding).toEqual({
+      campaignRowId: expect.any(String),
       versionId: persisted.versionId,
       contentHash,
       content: {
@@ -137,6 +138,7 @@ describePostgres('campaign persistence restart behavior', () => {
         mentions: omnipostXCampaignSeed.contentItems[0].adaptations[0].mentions,
       },
     });
+    expect(approvalBinding.campaignRowId).not.toBe(omnipostXCampaignSeed.id);
 
     await restartedRepository.recordApproval({
       userId: ownerId,

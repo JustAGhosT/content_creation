@@ -1,0 +1,160 @@
+/** @jest-environment node */
+
+import type { PrismaClient } from '@prisma/client';
+import { PrismaJobQueue, SchedulerQueueError } from '@/lib/scheduler/prisma-queue';
+import type { JobQueue, ScheduleJobResult } from '@/lib/scheduler/types';
+
+jest.mock('@/lib/scheduler/queue', () => ({
+  generateJobId: jest.fn(),
+  getQueue: jest.fn(),
+}));
+jest.mock('@/lib/scheduler/rate-limiter', () => ({ getRateLimiter: jest.fn() }));
+jest.mock('@/lib/scheduler/retry-handler', () => ({ getRetryHandler: jest.fn() }));
+jest.mock('@/lib/scheduler/publisher', () => ({ getPublisher: jest.fn() }));
+
+import { generateJobId, getQueue } from '@/lib/scheduler/queue';
+import { getPublisher } from '@/lib/scheduler/publisher';
+import { getRateLimiter } from '@/lib/scheduler/rate-limiter';
+import { getRetryHandler } from '@/lib/scheduler/retry-handler';
+import { Scheduler } from '@/lib/scheduler/scheduler';
+
+describe('scheduler request idempotency', () => {
+  const add = jest.fn(async job => ({ job, created: true }));
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(getQueue).mockReturnValue({ add } as unknown as JobQueue);
+    jest.mocked(getRateLimiter).mockReturnValue({} as ReturnType<typeof getRateLimiter>);
+    jest.mocked(getRetryHandler).mockReturnValue({} as ReturnType<typeof getRetryHandler>);
+    jest.mocked(getPublisher).mockReturnValue({
+      validate: () => ({ valid: true, errors: [] }),
+    } as unknown as ReturnType<typeof getPublisher>);
+  });
+
+  const input = {
+    type: 'standalone' as const,
+    contentId: 'content-1',
+    platformId: 'twitter',
+    content: { text: 'Publish this again intentionally' },
+    scheduledTime: '2026-07-26T14:00:00.000Z',
+    timezone: 'UTC',
+    createdBy: 'user-1',
+  };
+
+  test('creates a unique server key for each request that omits one', async () => {
+    jest.mocked(generateJobId).mockReturnValueOnce('job-1').mockReturnValueOnce('job-2');
+    const scheduler = new Scheduler();
+
+    const first = await scheduler.scheduleWithResult(input);
+    const second = await scheduler.scheduleWithResult(input);
+
+    expect(first.job.idempotencyKey).toBe('scheduler:v1:job-1');
+    expect(second.job.idempotencyKey).toBe('scheduler:v1:job-2');
+    expect(first.job.requestFingerprint).toBe(second.job.requestFingerprint);
+  });
+
+  test('preserves a caller-supplied key for durable replay', async () => {
+    jest.mocked(generateJobId).mockReturnValue('job-with-client-key');
+    const scheduler = new Scheduler();
+
+    const result = await scheduler.scheduleWithResult({
+      ...input,
+      idempotencyKey: 'client-request-key',
+    });
+
+    expect(result.job.idempotencyKey).toBe('client-request-key');
+  });
+
+  test('returns a matching durable replay before mutable campaign validation', async () => {
+    const durableQueue = new PrismaJobQueue({} as PrismaClient);
+    jest.mocked(getQueue).mockReturnValue(durableQueue);
+    jest.mocked(generateJobId).mockReturnValue('campaign-job');
+    jest.spyOn(durableQueue, 'add').mockImplementation(async job => ({ job, created: true }));
+    const scheduler = new Scheduler();
+    const campaignInput = {
+      ...input,
+      type: 'campaign_post' as const,
+      campaignId: 'campaign-1',
+      campaignVersion: 1,
+      campaignVersionId: 'version-row-1',
+      approvedContentHash: `sha256:${'a'.repeat(64)}`,
+      variantId: 'variant-1',
+      content: { text: 'Canonical approved content' },
+      idempotencyContent: { text: 'Original client content' },
+      idempotencyKey: 'campaign-request-key',
+    };
+    const created = await scheduler.scheduleWithResult(campaignInput);
+    jest.spyOn(durableQueue, 'getByIdempotencyKey').mockResolvedValue(created.job);
+
+    await expect(
+      scheduler.findIdempotentReplay({
+        ...campaignInput,
+        campaignVersionId: undefined,
+        content: campaignInput.idempotencyContent,
+      })
+    ).resolves.toEqual({ job: created.job, created: false });
+    await expect(
+      scheduler.findIdempotentReplay({
+        ...campaignInput,
+        campaignVersionId: undefined,
+        content: { text: 'Different request' },
+        idempotencyContent: { text: 'Different request' },
+      })
+    ).rejects.toBeInstanceOf(SchedulerQueueError);
+  });
+
+  test('starts lease renewal only after the provider attempt is marked', async () => {
+    const order: string[] = [];
+    jest.mocked(getPublisher).mockReturnValue({
+      validate: () => ({ valid: true, errors: [] }),
+      publish: async (
+        _job: ScheduleJobResult['job'],
+        options: { quotaReserved?: boolean; beforeProviderCall?: () => Promise<boolean> }
+      ) => {
+        order.push('publisher-ready');
+        const proceed = await options?.beforeProviderCall?.();
+        if (!proceed) throw new Error('attempt was not marked');
+        order.push('provider');
+        return { success: true, result: { id: 'post-1' } };
+      },
+    } as unknown as ReturnType<typeof getPublisher>);
+    const scheduler = new Scheduler();
+    Object.assign(scheduler, {
+      startLeaseHeartbeat: () => {
+        order.push('heartbeat');
+        return async () => undefined;
+      },
+    });
+    const publishWithLeaseHeartbeat = (
+      scheduler as unknown as {
+        publishWithLeaseHeartbeat: (
+          job: ScheduleJobResult['job'],
+          leaseToken: string,
+          beforeProviderCall: () => Promise<boolean>
+        ) => Promise<unknown>;
+      }
+    ).publishWithLeaseHeartbeat.bind(scheduler);
+
+    await publishWithLeaseHeartbeat(
+      {
+        ...(await scheduler.scheduleWithResult({ ...input, idempotencyKey: 'heartbeat-key' })).job,
+        leaseToken: 'lease-1',
+      },
+      'lease-1',
+      async () => {
+        order.push('mark-start');
+        await Promise.resolve();
+        order.push('mark-complete');
+        return true;
+      }
+    );
+
+    expect(order).toEqual([
+      'publisher-ready',
+      'mark-start',
+      'mark-complete',
+      'heartbeat',
+      'provider',
+    ]);
+  });
+});

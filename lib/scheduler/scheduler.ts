@@ -14,11 +14,38 @@ import {
   WebhookEvent,
   WebhookEventType,
   JobQueue,
+  ScheduleJobResult,
+  ListJobsOptions,
+  ListJobsResult,
 } from './types';
+import { createHash } from 'node:crypto';
 import { getQueue, generateJobId } from './queue';
 import { getRateLimiter, RateLimiter } from './rate-limiter';
 import { getRetryHandler, RetryHandler } from './retry-handler';
 import { getPublisher, Publisher } from './publisher';
+import { CampaignPublishAuditInput, PrismaJobQueue, SchedulerQueueError } from './prisma-queue';
+
+function deriveRequestFingerprint(
+  input: CreateJobInput,
+  timezone: string,
+  maxAttempts: number
+): string {
+  const identity = JSON.stringify({
+    type: input.type,
+    campaignId: input.campaignId ?? null,
+    campaignVersion: input.campaignVersion ?? null,
+    campaignVersionId: input.campaignVersionId ?? null,
+    approvedContentHash: input.approvedContentHash ?? null,
+    variantId: input.variantId ?? null,
+    contentId: input.contentId,
+    platformId: input.platformId,
+    content: input.idempotencyContent ?? input.content,
+    scheduledTime: new Date(input.scheduledTime).toISOString(),
+    timezone,
+    maxAttempts,
+  });
+  return createHash('sha256').update(identity).digest('hex');
+}
 
 /**
  * Scheduler Service
@@ -44,10 +71,20 @@ export class Scheduler {
    * Schedule a new job
    */
   async schedule(input: CreateJobInput): Promise<ScheduledJob> {
+    return (await this.scheduleWithResult(input)).job;
+  }
+
+  private createValidatedJob(input: CreateJobInput): ScheduledJob {
     const now = new Date().toISOString();
+    const timezone = input.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const maxAttempts = input.maxAttempts || this.config.maxRetries;
+    const requestFingerprint = deriveRequestFingerprint(input, timezone, maxAttempts);
+    const id = generateJobId();
 
     const job: ScheduledJob = {
-      id: generateJobId(),
+      id,
+      idempotencyKey: input.idempotencyKey ?? `scheduler:v1:${id}`,
+      requestFingerprint,
       type: input.type,
       campaignId: input.campaignId,
       campaignVersion: input.campaignVersion,
@@ -58,10 +95,10 @@ export class Scheduler {
       platformId: input.platformId,
       content: input.content,
       scheduledTime: input.scheduledTime,
-      timezone: input.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezone,
       status: 'scheduled',
       attempts: 0,
-      maxAttempts: input.maxAttempts || this.config.maxRetries,
+      maxAttempts,
       createdAt: now,
       updatedAt: now,
       createdBy: input.createdBy,
@@ -73,10 +110,56 @@ export class Scheduler {
       throw new Error(`Content validation failed: ${validation.errors.join(', ')}`);
     }
 
-    await this.queue.add(job);
-    await this.emitEvent('job.scheduled', { jobId: job.id, campaignId: job.campaignId });
-
     return job;
+  }
+
+  private async emitCreated(result: ScheduleJobResult): Promise<ScheduleJobResult> {
+    if (result.created) {
+      await this.emitEvent('job.scheduled', {
+        jobId: result.job.id,
+        campaignId: result.job.campaignId,
+      });
+    }
+    return result;
+  }
+
+  async scheduleWithResult(input: CreateJobInput): Promise<ScheduleJobResult> {
+    const job = this.createValidatedJob(input);
+    return this.emitCreated(await this.queue.add(job));
+  }
+
+  async findIdempotentReplay(input: CreateJobInput): Promise<ScheduleJobResult | null> {
+    if (!input.createdBy || !input.idempotencyKey || !(this.queue instanceof PrismaJobQueue)) {
+      return null;
+    }
+    const existing = await this.queue.getByIdempotencyKey(input.createdBy, input.idempotencyKey);
+    if (!existing) return null;
+
+    const candidate = this.createValidatedJob({
+      ...input,
+      campaignVersionId: input.campaignVersionId ?? existing.campaignVersionId,
+      timezone: input.timezone ?? existing.timezone,
+      maxAttempts: input.maxAttempts ?? existing.maxAttempts,
+    });
+    if (candidate.requestFingerprint !== existing.requestFingerprint) {
+      throw new SchedulerQueueError(
+        'IDEMPOTENCY_CONFLICT',
+        'The idempotency key already identifies a different scheduler request'
+      );
+    }
+    return { job: existing, created: false };
+  }
+
+  async scheduleCampaignWithAudit(
+    input: CreateJobInput,
+    audit: CampaignPublishAuditInput
+  ): Promise<ScheduleJobResult> {
+    if (!(this.queue instanceof PrismaJobQueue)) {
+      throw new Error('Campaign scheduling requires durable PostgreSQL persistence');
+    }
+
+    const job = this.createValidatedJob(input);
+    return this.emitCreated(await this.queue.addCampaignJob(job, audit));
   }
 
   /**
@@ -100,8 +183,8 @@ export class Scheduler {
   /**
    * Cancel a scheduled job
    */
-  async cancel(jobId: string): Promise<boolean> {
-    const job = await this.queue.get(jobId);
+  async cancel(jobId: string, userId?: string): Promise<boolean> {
+    const job = await this.queue.get(jobId, userId);
 
     if (!job) {
       return false;
@@ -111,19 +194,23 @@ export class Scheduler {
       throw new Error(`Cannot cancel job in status: ${job.status}`);
     }
 
-    await this.queue.update(jobId, {
-      status: 'cancelled',
-      updatedAt: new Date().toISOString(),
-    });
-
-    return true;
+    return this.queue.updateIfStatus(
+      jobId,
+      ['scheduled', 'failed'],
+      { status: 'cancelled', updatedAt: new Date().toISOString() },
+      userId
+    );
   }
 
   /**
    * Reschedule a job to a new time
    */
-  async reschedule(jobId: string, newScheduledTime: string): Promise<ScheduledJob | null> {
-    const job = await this.queue.get(jobId);
+  async reschedule(
+    jobId: string,
+    newScheduledTime: string,
+    userId?: string
+  ): Promise<ScheduledJob | null> {
+    const job = await this.queue.get(jobId, userId);
 
     if (!job) {
       return null;
@@ -133,33 +220,89 @@ export class Scheduler {
       throw new Error(`Cannot reschedule job in status: ${job.status}`);
     }
 
-    await this.queue.update(jobId, {
-      scheduledTime: newScheduledTime,
-      status: 'scheduled',
-      nextRetryAt: undefined,
-      updatedAt: new Date().toISOString(),
-    });
+    const updated = await this.queue.updateIfStatus(
+      jobId,
+      ['scheduled', 'failed', 'cancelled'],
+      {
+        scheduledTime: newScheduledTime,
+        status: 'scheduled',
+        nextRetryAt: undefined,
+        updatedAt: new Date().toISOString(),
+      },
+      userId
+    );
+    if (!updated) return null;
 
-    return this.queue.get(jobId);
+    return this.queue.get(jobId, userId);
   }
 
   /**
    * Process due jobs
    */
   async processDueJobs(): Promise<JobResult[]> {
-    const now = new Date();
-    const dueJobs = await this.queue.getDueJobs(now, this.config.batchSize);
-
     const results: JobResult[] = [];
 
-    for (const job of dueJobs) {
-      // Check rate limits before processing
-      if (!(await this.rateLimiter.canProcess(job.platformId))) {
-        // Skip, will be picked up in next cycle
+    // Claim immediately before publishing so jobs later in a batch do not spend
+    // most of their lease waiting for earlier provider calls to complete.
+    for (let processed = 0; processed < this.config.batchSize; processed += 1) {
+      const now = new Date();
+      const leaseToken = generateJobId();
+      const [job] = await this.queue.claimDueJobs(
+        now,
+        1,
+        leaseToken,
+        new Date(now.getTime() + this.config.leaseDuration)
+      );
+      if (!job) break;
+
+      const validation = this.publisher.validate(job);
+      if (!validation.valid) {
+        const rejected = await this.queue.updateClaimed(job.id, leaseToken, {
+          status: 'dead',
+          error: `Content validation failed: ${validation.errors.join(', ')}`,
+          updatedAt: now.toISOString(),
+        });
+        results.push({
+          jobId: job.id,
+          status: 'failure',
+          error: {
+            code: rejected ? 'VALIDATION_FAILED' : 'LEASE_LOST',
+            message: rejected
+              ? `Content validation failed: ${validation.errors.join(', ')}`
+              : 'The scheduler processing lease changed before validation was recorded',
+            retryable: false,
+          },
+          executedAt: now.toISOString(),
+        });
         continue;
       }
 
-      const result = await this.processJob(job);
+      const quota = await this.rateLimiter.reserveRequest(job.platformId);
+      if (!quota.allowed) {
+        const nextAvailableAt =
+          quota.nextAvailableAt ?? new Date(now.getTime() + this.config.checkInterval);
+        const deferred = await this.queue.updateClaimed(job.id, leaseToken, {
+          status: 'failed',
+          error: 'Platform rate limit is active; no provider request was attempted',
+          nextRetryAt: nextAvailableAt.toISOString(),
+          updatedAt: now.toISOString(),
+        });
+        results.push({
+          jobId: job.id,
+          status: 'failure',
+          error: {
+            code: deferred ? 'RATE_LIMITED' : 'LEASE_LOST',
+            message: deferred
+              ? 'Platform rate limit is active; job deferred without consuming an attempt'
+              : 'The scheduler processing lease changed before rate-limit deferral was recorded',
+            retryable: deferred,
+          },
+          executedAt: now.toISOString(),
+        });
+        continue;
+      }
+
+      const result = await this.processJob(job, leaseToken);
       results.push(result);
     }
 
@@ -169,39 +312,39 @@ export class Scheduler {
   /**
    * Process a single job
    */
-  private async processJob(job: ScheduledJob): Promise<JobResult> {
+  private async processJob(job: ScheduledJob, leaseToken: string): Promise<JobResult> {
     const now = new Date().toISOString();
-
-    // Update to processing status
-    await this.queue.update(job.id, {
-      status: 'processing',
-      lastAttemptAt: now,
-      attempts: job.attempts + 1,
-    });
-
-    // Refresh job from queue
-    const currentJob = await this.queue.get(job.id);
-    if (!currentJob) {
-      return {
-        jobId: job.id,
-        status: 'failure',
-        error: { code: 'NOT_FOUND', message: 'Job not found', retryable: false },
-        executedAt: now,
-      };
-    }
+    let attemptedJob = job;
 
     // Attempt to publish
-    const publishResult = await this.publisher.publish(currentJob);
+    const publishResult = await this.publishWithLeaseHeartbeat(job, leaseToken, async () => {
+      const marked = await this.queue.markClaimAttempt(job.id, leaseToken, new Date());
+      if (!marked) return false;
+      attemptedJob = marked;
+      return true;
+    });
 
     if (publishResult.success && publishResult.result) {
-      // Success
-      await this.queue.update(job.id, {
+      const completed = await this.queue.updateClaimed(job.id, leaseToken, {
         status: 'published',
         publishedAt: now,
         publishedUrl: publishResult.result.url,
         platformPostId: publishResult.result.id,
         updatedAt: now,
       });
+      if (!completed) {
+        return {
+          jobId: job.id,
+          status: 'failure',
+          error: {
+            code: 'UNKNOWN_PROVIDER_RESULT',
+            message:
+              'Provider accepted the request but the processing lease could not be completed',
+            retryable: false,
+          },
+          executedAt: now,
+        };
+      }
 
       await this.emitEvent('job.published', {
         jobId: job.id,
@@ -219,7 +362,58 @@ export class Scheduler {
     }
 
     // Failure - handle retry
-    return this.handleFailure(currentJob, publishResult.error!);
+    return this.handleFailure(attemptedJob, leaseToken, publishResult.error!);
+  }
+
+  private async publishWithLeaseHeartbeat(
+    job: ScheduledJob,
+    leaseToken: string,
+    beforeProviderCall: () => Promise<boolean>
+  ): Promise<Awaited<ReturnType<Publisher['publish']>>> {
+    let stopHeartbeat: (() => Promise<void>) | undefined;
+    try {
+      return await this.publisher.publish(job, {
+        quotaReserved: true,
+        beforeProviderCall: async () => {
+          const marked = await beforeProviderCall();
+          if (marked) {
+            stopHeartbeat = this.startLeaseHeartbeat(job.id, leaseToken);
+          }
+          return marked;
+        },
+      });
+    } finally {
+      await stopHeartbeat?.();
+    }
+  }
+
+  private startLeaseHeartbeat(jobId: string, leaseToken: string): () => Promise<void> {
+    const heartbeatInterval = Math.max(100, Math.floor(this.config.leaseDuration / 3));
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let activeRenewal: Promise<void> = Promise.resolve();
+
+    const renew = (): void => {
+      activeRenewal = this.queue
+        .renewClaimLease(jobId, leaseToken, new Date(Date.now() + this.config.leaseDuration))
+        .then(renewed => {
+          if (!renewed) stopped = true;
+        })
+        .catch(error => {
+          console.error(`Failed to renew scheduler lease for ${jobId}:`, error);
+        })
+        .finally(() => {
+          if (!stopped) timer = setTimeout(renew, heartbeatInterval);
+        });
+    };
+
+    timer = setTimeout(renew, heartbeatInterval);
+    return async () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      await activeRenewal;
+      if (timer) clearTimeout(timer);
+    };
   }
 
   /**
@@ -227,6 +421,7 @@ export class Scheduler {
    */
   private async handleFailure(
     job: ScheduledJob,
+    leaseToken: string,
     error: Error & { code?: string; retryable?: boolean }
   ): Promise<JobResult> {
     const now = new Date().toISOString();
@@ -235,12 +430,24 @@ export class Scheduler {
 
     if (shouldRetry.retry && shouldRetry.nextRetryAt) {
       // Schedule retry
-      await this.queue.update(job.id, {
+      const updated = await this.queue.updateClaimed(job.id, leaseToken, {
         status: 'failed',
         error: shouldRetry.classification.message,
         nextRetryAt: shouldRetry.nextRetryAt.toISOString(),
         updatedAt: now,
       });
+      if (!updated) {
+        return {
+          jobId: job.id,
+          status: 'failure',
+          error: {
+            code: 'LEASE_LOST',
+            message: 'The scheduler processing lease changed before retry state was recorded',
+            retryable: false,
+          },
+          executedAt: now,
+        };
+      }
 
       await this.emitEvent('job.failed', {
         jobId: job.id,
@@ -262,11 +469,23 @@ export class Scheduler {
     }
 
     // Move to dead letter queue (no more retries)
-    await this.queue.update(job.id, {
+    const updated = await this.queue.updateClaimed(job.id, leaseToken, {
       status: 'dead',
       error: shouldRetry.classification.message,
       updatedAt: now,
     });
+    if (!updated) {
+      return {
+        jobId: job.id,
+        status: 'failure',
+        error: {
+          code: 'LEASE_LOST',
+          message: 'The scheduler processing lease changed before dead-letter state was recorded',
+          retryable: false,
+        },
+        executedAt: now,
+      };
+    }
 
     await this.emitEvent('job.dead', {
       jobId: job.id,
@@ -290,8 +509,8 @@ export class Scheduler {
   /**
    * Manually retry a failed/dead job
    */
-  async retry(jobId: string): Promise<ScheduledJob | null> {
-    const job = await this.queue.get(jobId);
+  async retry(jobId: string, userId?: string): Promise<ScheduledJob | null> {
+    const job = await this.queue.get(jobId, userId);
 
     if (!job) {
       return null;
@@ -302,44 +521,58 @@ export class Scheduler {
     }
 
     // Reset for retry
-    await this.queue.update(jobId, {
-      status: 'scheduled',
-      scheduledTime: new Date().toISOString(),
-      nextRetryAt: undefined,
-      error: undefined,
-      attempts: 0,
-      updatedAt: new Date().toISOString(),
-    });
+    const updated = await this.queue.updateIfStatus(
+      jobId,
+      ['failed', 'dead'],
+      {
+        status: 'scheduled',
+        scheduledTime: new Date().toISOString(),
+        nextRetryAt: undefined,
+        error: undefined,
+        attempts: 0,
+        updatedAt: new Date().toISOString(),
+      },
+      userId
+    );
+    if (!updated) return null;
 
-    return this.queue.get(jobId);
+    return this.queue.get(jobId, userId);
   }
 
   /**
    * Get job by ID
    */
-  async getJob(jobId: string): Promise<ScheduledJob | null> {
-    return this.queue.get(jobId);
+  async getJob(jobId: string, userId?: string): Promise<ScheduledJob | null> {
+    return this.queue.get(jobId, userId);
   }
 
   /**
    * Get all jobs
    */
-  async getAllJobs(): Promise<ScheduledJob[]> {
-    return this.queue.getAll();
+  async getAllJobs(userId?: string): Promise<ScheduledJob[]> {
+    return this.queue.getAll(userId);
+  }
+
+  async listJobs(options: ListJobsOptions): Promise<ListJobsResult> {
+    return this.queue.list(options);
   }
 
   /**
    * Get jobs by status
    */
-  async getJobsByStatus(status: JobStatus, limit?: number): Promise<ScheduledJob[]> {
-    return this.queue.getByStatus(status, limit);
+  async getJobsByStatus(
+    status: JobStatus,
+    limit?: number,
+    userId?: string
+  ): Promise<ScheduledJob[]> {
+    return this.queue.getByStatus(status, limit, userId);
   }
 
   /**
    * Get jobs for a campaign
    */
-  async getJobsByCampaign(campaignId: string): Promise<ScheduledJob[]> {
-    return this.queue.getByCampaign(campaignId);
+  async getJobsByCampaign(campaignId: string, userId?: string): Promise<ScheduledJob[]> {
+    return this.queue.getByCampaign(campaignId, userId);
   }
 
   /**
@@ -375,6 +608,7 @@ export class Scheduler {
           break;
         case 'failed':
         case 'dead':
+        case 'reconciliation_required':
           if (job.lastAttemptAt && new Date(job.lastAttemptAt) >= today) {
             stats.failedToday++;
           }
@@ -430,8 +664,8 @@ export class Scheduler {
   /**
    * Clear all jobs (for testing)
    */
-  async clearAll(): Promise<void> {
-    await this.queue.clear();
+  async clearAll(userId?: string): Promise<void> {
+    await this.queue.clear(userId);
   }
 }
 

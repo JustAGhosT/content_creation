@@ -319,6 +319,7 @@ export async function assertApprovedForQueue(input: {
   platformId: string;
   contentHash: string;
 }): Promise<{
+  campaignRowId: string;
   versionId: string;
   contentHash: string;
   content: ScheduledJob['content'];
@@ -370,6 +371,7 @@ export async function assertApprovedForQueue(input: {
   }
 
   return {
+    campaignRowId: campaign.id,
     versionId: version.id,
     contentHash: approval.contentHash,
     content: {

@@ -71,7 +71,10 @@ export class Publisher {
   /**
    * Publish a job to its platform
    */
-  async publish(job: ScheduledJob): Promise<PublishResultWithMeta> {
+  async publish(
+    job: ScheduledJob,
+    options: { quotaReserved?: boolean; beforeProviderCall?: () => Promise<boolean> } = {}
+  ): Promise<PublishResultWithMeta> {
     const startTime = Date.now();
 
     // Get adapter
@@ -86,17 +89,6 @@ export class Publisher {
         ),
         duration: Date.now() - startTime,
         rateLimited: false,
-      };
-    }
-
-    // Check rate limits
-    const canProceed = await this.rateLimiter.canProcess(job.platformId);
-    if (!canProceed) {
-      return {
-        success: false,
-        error: new PublishError('Rate limit exceeded', 'RATE_LIMITED', true),
-        duration: Date.now() - startTime,
-        rateLimited: true,
       };
     }
 
@@ -115,12 +107,34 @@ export class Publisher {
       };
     }
 
+    // Reserve shared capacity only after all local validation succeeds.
+    const quota = options.quotaReserved
+      ? { allowed: true }
+      : await this.rateLimiter.reserveRequest(job.platformId);
+    if (!quota.allowed) {
+      return {
+        success: false,
+        error: new PublishError('Rate limit exceeded', 'RATE_LIMITED', true),
+        duration: Date.now() - startTime,
+        rateLimited: true,
+      };
+    }
+
     try {
+      if (options.beforeProviderCall && !(await options.beforeProviderCall())) {
+        return {
+          success: false,
+          error: new PublishError(
+            'The scheduler processing lease changed before the provider call',
+            'LEASE_LOST',
+            false
+          ),
+          duration: Date.now() - startTime,
+          rateLimited: false,
+        };
+      }
       // Publish
       const result = await adapter.publish(job.content);
-
-      // Record the request
-      await this.rateLimiter.recordRequest(job.platformId);
 
       return {
         success: true,
