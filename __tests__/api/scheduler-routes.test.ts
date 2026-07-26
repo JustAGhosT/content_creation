@@ -6,7 +6,17 @@
  */
 
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { SchedulerQueueError } from '../../lib/scheduler/prisma-queue';
+import type {
+  CreateJobInput,
+  ListJobsOptions,
+  ListJobsResult,
+  ScheduleJobResult,
+  ScheduledJob,
+} from '../../lib/scheduler/types';
+import {
+  type CampaignPublishAuditInput,
+  SchedulerQueueError,
+} from '../../lib/scheduler/prisma-queue';
 import '../setup';
 
 // Mock audit trail
@@ -16,12 +26,12 @@ jest.mock('../../app/api/_utils/audit', () => ({
 }));
 
 // Mock scheduler module
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockSchedule = jest.fn<any>();
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockScheduleCampaign = jest.fn<any>();
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockListJobs = jest.fn<any>();
+const mockSchedule = jest.fn<(input: CreateJobInput) => Promise<ScheduleJobResult>>();
+const mockScheduleCampaign =
+  jest.fn<
+    (input: CreateJobInput, audit: CampaignPublishAuditInput) => Promise<ScheduleJobResult>
+  >();
+const mockListJobs = jest.fn<(options: ListJobsOptions) => Promise<ListJobsResult>>();
 const mockAssertApprovedForQueue = jest.fn<
   () => Promise<{
     campaignRowId: string;
@@ -72,15 +82,21 @@ function createRequest(
   } as unknown as Request;
 }
 
-const sampleJob = {
+const sampleJob: ScheduledJob = {
   id: 'job-1',
+  idempotencyKey: 'scheduler-route-key',
+  requestFingerprint: 'scheduler-route-fingerprint',
   type: 'standalone',
   contentId: 'content-1',
   platformId: 'twitter',
   content: { text: 'Hello world' },
   scheduledTime: '2026-04-01T12:00:00Z',
   timezone: 'UTC',
-  status: 'pending',
+  status: 'scheduled',
+  attempts: 0,
+  maxAttempts: 5,
+  createdAt: '2026-04-01T11:00:00Z',
+  updatedAt: '2026-04-01T11:00:00Z',
   createdBy: '1', // Matches the mock x-user-id from setup.ts
 };
 
