@@ -210,6 +210,7 @@ export interface JobQueue {
     leaseExpiresAt: Date
   ): Promise<ScheduledJob[]>;
   markClaimAttempt(id: string, leaseToken: string, attemptedAt: Date): Promise<ScheduledJob | null>;
+  renewClaimLease(id: string, leaseToken: string, leaseExpiresAt: Date): Promise<boolean>;
   updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean>;
   getByStatus(status: JobStatus, limit?: number, userId?: string): Promise<ScheduledJob[]>;
   getByCampaign(campaignId: string, userId?: string): Promise<ScheduledJob[]>;

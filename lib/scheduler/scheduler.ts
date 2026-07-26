@@ -284,7 +284,7 @@ export class Scheduler {
     const now = new Date().toISOString();
 
     // Attempt to publish
-    const publishResult = await this.publisher.publish(job);
+    const publishResult = await this.publishWithLeaseHeartbeat(job, leaseToken);
 
     if (publishResult.success && publishResult.result) {
       const completed = await this.queue.updateClaimed(job.id, leaseToken, {
@@ -325,6 +325,47 @@ export class Scheduler {
 
     // Failure - handle retry
     return this.handleFailure(job, leaseToken, publishResult.error!);
+  }
+
+  private async publishWithLeaseHeartbeat(
+    job: ScheduledJob,
+    leaseToken: string
+  ): Promise<Awaited<ReturnType<Publisher['publish']>>> {
+    const stopHeartbeat = this.startLeaseHeartbeat(job.id, leaseToken);
+    try {
+      return await this.publisher.publish(job);
+    } finally {
+      await stopHeartbeat();
+    }
+  }
+
+  private startLeaseHeartbeat(jobId: string, leaseToken: string): () => Promise<void> {
+    const heartbeatInterval = Math.max(100, Math.floor(this.config.leaseDuration / 3));
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let activeRenewal: Promise<void> = Promise.resolve();
+
+    const renew = (): void => {
+      activeRenewal = this.queue
+        .renewClaimLease(jobId, leaseToken, new Date(Date.now() + this.config.leaseDuration))
+        .then(renewed => {
+          if (!renewed) stopped = true;
+        })
+        .catch(error => {
+          console.error(`Failed to renew scheduler lease for ${jobId}:`, error);
+        })
+        .finally(() => {
+          if (!stopped) timer = setTimeout(renew, heartbeatInterval);
+        });
+    };
+
+    timer = setTimeout(renew, heartbeatInterval);
+    return async () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      await activeRenewal;
+      if (timer) clearTimeout(timer);
+    };
   }
 
   /**

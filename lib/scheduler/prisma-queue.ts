@@ -408,6 +408,19 @@ export class PrismaJobQueue implements JobQueue {
     return row ? parseStoredJob(row) : null;
   }
 
+  async renewClaimLease(id: string, leaseToken: string, leaseExpiresAt: Date): Promise<boolean> {
+    const result = await this.client.schedulerJob.updateMany({
+      where: {
+        id,
+        status: 'processing',
+        leaseToken,
+        attemptStartedAt: { not: null },
+      },
+      data: { leaseExpiresAt },
+    });
+    return result.count === 1;
+  }
+
   async updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean> {
     const result = await this.client.schedulerJob.updateMany({
       where: { id, status: 'processing', leaseToken },

@@ -246,6 +246,26 @@ export class InMemoryQueue implements JobQueue {
     return updated;
   }
 
+  async renewClaimLease(id: string, leaseToken: string, leaseExpiresAt: Date): Promise<boolean> {
+    this.ensureInitialized();
+    const current = this.jobs.get(id);
+    if (
+      !current ||
+      current.status !== 'processing' ||
+      current.leaseToken !== leaseToken ||
+      !current.attemptStartedAt
+    ) {
+      return false;
+    }
+    this.jobs.set(id, {
+      ...current,
+      leaseExpiresAt: leaseExpiresAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    this.persist();
+    return true;
+  }
+
   async updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean> {
     this.ensureInitialized();
     const current = this.jobs.get(id);
@@ -452,6 +472,24 @@ export class ServerMemoryQueue implements JobQueue {
     };
     this.jobs.set(id, updated);
     return updated;
+  }
+
+  async renewClaimLease(id: string, leaseToken: string, leaseExpiresAt: Date): Promise<boolean> {
+    const current = this.jobs.get(id);
+    if (
+      !current ||
+      current.status !== 'processing' ||
+      current.leaseToken !== leaseToken ||
+      !current.attemptStartedAt
+    ) {
+      return false;
+    }
+    this.jobs.set(id, {
+      ...current,
+      leaseExpiresAt: leaseExpiresAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
   }
 
   async updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean> {

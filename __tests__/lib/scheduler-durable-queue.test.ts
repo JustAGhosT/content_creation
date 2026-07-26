@@ -80,6 +80,15 @@ describe('durable scheduler queue contract', () => {
       attempts: 1,
       lastAttemptAt: dueAt.toISOString(),
     });
+    await expect(
+      queue.renewClaimLease('job-1', 'lease-b', new Date('2026-07-26T08:05:00Z'))
+    ).resolves.toBe(false);
+    await expect(
+      queue.renewClaimLease('job-1', 'lease-a', new Date('2026-07-26T08:05:00Z'))
+    ).resolves.toBe(true);
+    await expect(queue.get('job-1')).resolves.toMatchObject({
+      leaseExpiresAt: '2026-07-26T08:05:00.000Z',
+    });
 
     await expect(
       queue.updateClaimed('job-1', 'lease-b', {
