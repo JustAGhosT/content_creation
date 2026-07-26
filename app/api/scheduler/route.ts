@@ -13,7 +13,7 @@ import { isAuthenticated, getCurrentUserId } from '@/app/api/_utils/auth';
 import { Errors, withErrorHandling } from '@/app/api/_utils/errors';
 import { withRateLimit, RateLimitPresets } from '@/app/api/_utils/rateLimit';
 import { sanitizeText, validateAndSanitize } from '@/app/api/_utils/sanitize';
-import { platforms } from '@/lib/config/platforms';
+import { getPublishReadiness } from '@/lib/platforms/readiness';
 import { assertApprovedForQueue } from '@/lib/campaigns/repository';
 import { campaignErrorResponse } from '@/app/api/campaigns/_errors';
 
@@ -93,13 +93,6 @@ const createJobSchema = z
       }
     }
   });
-
-function getComingSoonPlatformName(platformId: string): string | undefined {
-  const normalizedPlatformId = platformId.toLowerCase();
-  const platform = platforms.find(p => p.slug === normalizedPlatformId);
-
-  return platform?.comingSoon ? platform.name : undefined;
-}
 
 function isIdempotencyConflict(error: unknown): boolean {
   return (
@@ -185,9 +178,9 @@ export const POST = withRateLimit(
     }
 
     const data = validation.data;
-    const comingSoonPlatformName = getComingSoonPlatformName(data.platformId);
-    if (comingSoonPlatformName) {
-      return Errors.badRequest(`${comingSoonPlatformName} publishing is coming soon`);
+    const readiness = await getPublishReadiness(currentUserId, data.platformId);
+    if (!readiness.canPublish) {
+      return Errors.badRequest(readiness.message);
     }
 
     const scheduler = getScheduler();

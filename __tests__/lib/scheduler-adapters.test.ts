@@ -74,7 +74,13 @@ describe('Scheduler platform adapters', () => {
       .map(platform => platform.slug)
       .sort();
 
-    expect(comingSoonSlugs).toEqual(['facebook', 'instagram', 'tiktok']);
+    expect(comingSoonSlugs).toEqual([
+      'custom-channel',
+      'facebook',
+      'instagram',
+      'linkedin',
+      'tiktok',
+    ]);
   });
 
   test('X publishes through the v2 create-post contract and returns an X URL', async () => {

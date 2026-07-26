@@ -38,7 +38,13 @@ export const platforms: Platform[] = [
     description: 'Instagram photo sharing platform',
     comingSoon: true,
   },
-  { id: 3, name: 'LinkedIn', slug: 'linkedin', description: 'LinkedIn professional network' },
+  {
+    id: 3,
+    name: 'LinkedIn',
+    slug: 'linkedin',
+    description: 'LinkedIn professional network',
+    comingSoon: true,
+  },
   { id: 4, name: 'X', slug: 'twitter', description: 'X social network' },
   {
     id: 5,
@@ -54,6 +60,7 @@ export const platforms: Platform[] = [
     name: 'Custom Channel',
     slug: 'custom-channel',
     description: 'Custom publishing channel',
+    comingSoon: true,
   },
 ];
 
