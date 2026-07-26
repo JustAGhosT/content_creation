@@ -123,14 +123,17 @@ az webapp config appsettings set \
     LINKEDIN_API_KEY="your-api-key"
 
 # Twitter/X OAuth application (Gate 3 C1)
-# Store X_CLIENT_SECRET through the approved Key Vault path, then configure:
-az webapp config appsettings set \
-  --name nl-dev-omnipost-web \
-  --resource-group nl-dev-omnipost-rg \
-  --settings \
-    X_CLIENT_ID="<x-oauth-client-id>" \
-    X_CLIENT_SECRET="@Microsoft.KeyVault(SecretUri=https://nl-dev-omnipost-kv.vault.azure.net/secrets/X-CLIENT-SECRET/<version>)" \
-    X_OAUTH_REDIRECT_URI="https://omnipost.neuralliquid.ai/api/platforms/x/callback"
+# Add both values through the approved Key Vault interface. Do not paste them
+# into a shell command, repository file, Terraform variable, or support chat.
+#
+#   X-CLIENT-ID
+#   X-CLIENT-SECRET
+#
+# The Azure Web App deployment workflow verifies that both secrets exist and
+# configures versionless Key Vault references for X_CLIENT_ID and
+# X_CLIENT_SECRET. It also sets the public X_OAUTH_REDIRECT_URI. The workflow
+# discards the Azure CLI settings response so existing app settings are not
+# printed to Actions logs.
 ```
 
 Register the callback URI as an exact match in the X Developer Console. OmniPost

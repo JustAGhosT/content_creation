@@ -202,6 +202,26 @@ jobs:
           tenant-id: 9530cd32-9e33-47f0-9247-ed964730b580
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Verify X OAuth Key Vault secrets
+        shell: bash
+        env:
+          KEY_VAULT_NAME: nl-dev-omnipost-kv
+          X_CLIENT_ID_SECRET_NAME: X-CLIENT-ID
+          X_CLIENT_SECRET_SECRET_NAME: X-CLIENT-SECRET
+        run: |
+          set -euo pipefail
+
+          for secret_name in "$X_CLIENT_ID_SECRET_NAME" "$X_CLIENT_SECRET_SECRET_NAME"; do
+            if ! az keyvault secret show \
+              --vault-name "$KEY_VAULT_NAME" \
+              --name "$secret_name" \
+              --query id \
+              --output tsv >/dev/null; then
+              echo "::error::Required Key Vault secret '$secret_name' is missing or inaccessible."
+              exit 1
+            fi
+          done
+
       - name: Apply production database migrations
         shell: bash
         run: |
@@ -215,16 +235,44 @@ jobs:
 
       - name: Generate Resource Names
         id: generate-names
+        env:
+          DEPLOY_ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           chmod +x ./source/infra/naming.sh
           while IFS= read -r line; do
             echo "$line" >> $GITHUB_ENV
-          done < <(./source/infra/naming.sh ${{ env.ORG_CODE }} ${{ github.event.inputs.environment || 'dev' }} ${{ env.PROJECT_NAME }} ${{ env.REGION_CODE }})
+          done < <(./source/infra/naming.sh "${{ env.ORG_CODE }}" "$DEPLOY_ENVIRONMENT" "${{ env.PROJECT_NAME }}" "${{ env.REGION_CODE }}")
 
-          if [ "${{ github.event.inputs.environment || 'dev' }}" = "dev" ]; then
+          if [ "$DEPLOY_ENVIRONMENT" = "dev" ]; then
             echo "APP_NAME=nl-dev-omnipost-web" >> $GITHUB_ENV
             echo "RESOURCE_GROUP=nl-dev-omnipost-rg" >> $GITHUB_ENV
           fi
+
+      - name: Configure X OAuth Key Vault references
+        shell: bash
+        env:
+          KEY_VAULT_NAME: nl-dev-omnipost-kv
+          X_CLIENT_ID_SECRET_NAME: X-CLIENT-ID
+          X_CLIENT_SECRET_SECRET_NAME: X-CLIENT-SECRET
+          X_OAUTH_REDIRECT_URI: https://omnipost.neuralliquid.ai/api/platforms/x/callback
+        run: |
+          set -euo pipefail
+
+          vault_uri="$(az keyvault show \
+            --name "$KEY_VAULT_NAME" \
+            --query properties.vaultUri \
+            --output tsv)"
+
+          az webapp config appsettings set \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --settings \
+              "X_CLIENT_ID=@Microsoft.KeyVault(SecretUri=${vault_uri}secrets/${X_CLIENT_ID_SECRET_NAME})" \
+              "X_CLIENT_SECRET=@Microsoft.KeyVault(SecretUri=${vault_uri}secrets/${X_CLIENT_SECRET_SECRET_NAME})" \
+              "X_OAUTH_REDIRECT_URI=${X_OAUTH_REDIRECT_URI}" \
+            >/dev/null
+
+          echo "Configured versionless Key Vault references for X OAuth."
 
       - name: 'Deploy to Azure WebApp'
         id: deploy-to-webapp
