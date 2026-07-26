@@ -79,10 +79,11 @@ export class Scheduler {
     const timezone = input.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const maxAttempts = input.maxAttempts || this.config.maxRetries;
     const requestFingerprint = deriveRequestFingerprint(input, timezone, maxAttempts);
+    const id = generateJobId();
 
     const job: ScheduledJob = {
-      id: generateJobId(),
-      idempotencyKey: input.idempotencyKey ?? `scheduler:v1:${requestFingerprint}`,
+      id,
+      idempotencyKey: input.idempotencyKey ?? `scheduler:v1:${id}`,
       requestFingerprint,
       type: input.type,
       campaignId: input.campaignId,
