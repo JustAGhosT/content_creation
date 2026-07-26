@@ -219,6 +219,27 @@ describe('Scheduler API Routes', () => {
       expect(data.message).toContain('Idempotency key');
     });
 
+    test('does not misreport a corrupt durable row as an idempotency conflict', async () => {
+      mockSchedule.mockRejectedValueOnce(
+        new SchedulerQueueError('CORRUPT_JOB', 'Stored scheduler content is invalid')
+      );
+
+      const response = await POST(
+        createRequest('POST', {
+          type: 'standalone',
+          contentId: 'content-1',
+          platformId: 'twitter',
+          content: { text: 'Hello world from scheduler test' },
+          scheduledTime: '2026-04-01T12:00:00Z',
+          idempotencyKey: 'request-key-123',
+        })
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.message).not.toContain('Idempotency key');
+    });
+
     test('binds a campaign post to its approved immutable version', async () => {
       const contentHash = `sha256:${'a'.repeat(64)}`;
       const request = createRequest('POST', {

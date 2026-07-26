@@ -3,6 +3,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { PrismaJobQueue } from '@/lib/scheduler/prisma-queue';
+import { DurableRateLimiter } from '@/lib/scheduler/rate-limiter';
 import type { ScheduledJob } from '@/lib/scheduler/types';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -158,6 +159,37 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     await expect(
       claimingQueue.markClaimAttempt(claimed.id, claimed.leaseToken!, dueAt)
     ).resolves.toMatchObject({ attempts: 1, lastAttemptAt: dueAt.toISOString() });
+    await firstClient.$disconnect();
+    await secondClient.$disconnect();
+  });
+
+  test('atomically reserves shared platform quota across database clients', async () => {
+    if (!databaseUrl) throw new Error('PostgreSQL DATABASE_URL is required');
+    const platformId = `quota-${suffix}`;
+    const firstClient = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: databaseUrl }),
+    });
+    const secondClient = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: databaseUrl }),
+    });
+    const config = { [platformId]: { requests: 1, window: 900 } };
+
+    const reservations = await Promise.all([
+      new DurableRateLimiter(firstClient, config).reserveRequest(platformId),
+      new DurableRateLimiter(secondClient, config).reserveRequest(platformId),
+    ]);
+
+    expect(reservations.filter(reservation => reservation.allowed)).toHaveLength(1);
+    expect(reservations.filter(reservation => !reservation.allowed)).toEqual([
+      expect.objectContaining({ nextAvailableAt: expect.any(Date) }),
+    ]);
+    const rows = await firstClient.$queryRaw<Array<{ requestCount: number }>>`
+      SELECT "requestCount" FROM "SchedulerPlatformQuota" WHERE "platformId" = ${platformId}
+    `;
+    expect(rows).toEqual([{ requestCount: 1 }]);
+    await firstClient.$executeRaw`
+      DELETE FROM "SchedulerPlatformQuota" WHERE "platformId" = ${platformId}
+    `;
     await firstClient.$disconnect();
     await secondClient.$disconnect();
   });

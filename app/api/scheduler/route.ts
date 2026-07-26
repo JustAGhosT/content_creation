@@ -103,7 +103,7 @@ function getComingSoonPlatformName(platformId: string): string | undefined {
 
 function isIdempotencyConflict(error: unknown): boolean {
   return (
-    error instanceof SchedulerQueueError ||
+    (error instanceof SchedulerQueueError && error.code === 'IDEMPOTENCY_CONFLICT') ||
     (typeof error === 'object' &&
       error !== null &&
       'code' in error &&

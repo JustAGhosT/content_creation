@@ -230,10 +230,10 @@ export class Scheduler {
       );
       if (!job) break;
 
-      if (!(await this.rateLimiter.canProcess(job.platformId))) {
+      const quota = await this.rateLimiter.reserveRequest(job.platformId);
+      if (!quota.allowed) {
         const nextAvailableAt =
-          (await this.rateLimiter.getNextAvailableAt(job.platformId)) ??
-          new Date(now.getTime() + this.config.checkInterval);
+          quota.nextAvailableAt ?? new Date(now.getTime() + this.config.checkInterval);
         const deferred = await this.queue.updateClaimed(job.id, leaseToken, {
           status: 'failed',
           error: 'Platform rate limit is active; no provider request was attempted',
@@ -333,7 +333,7 @@ export class Scheduler {
   ): Promise<Awaited<ReturnType<Publisher['publish']>>> {
     const stopHeartbeat = this.startLeaseHeartbeat(job.id, leaseToken);
     try {
-      return await this.publisher.publish(job);
+      return await this.publisher.publish(job, { quotaReserved: true });
     } finally {
       await stopHeartbeat();
     }

@@ -24,4 +24,21 @@ describe('scheduler persistence migration', () => {
     expect(migration).toContain('ON DELETE SET NULL ON UPDATE CASCADE');
     expect(migration).not.toContain('DROP TABLE');
   });
+
+  test('creates shared PostgreSQL scheduler quota state', () => {
+    const migration = readFileSync(
+      path.join(
+        process.cwd(),
+        'prisma',
+        'migrations',
+        '20260726102500_scheduler_platform_quotas',
+        'migration.sql'
+      ),
+      'utf8'
+    );
+
+    expect(migration).toContain('CREATE TABLE "SchedulerPlatformQuota"');
+    expect(migration).toContain('"platformId" TEXT NOT NULL');
+    expect(migration).not.toContain('DROP TABLE');
+  });
 });

@@ -71,7 +71,10 @@ export class Publisher {
   /**
    * Publish a job to its platform
    */
-  async publish(job: ScheduledJob): Promise<PublishResultWithMeta> {
+  async publish(
+    job: ScheduledJob,
+    options: { quotaReserved?: boolean } = {}
+  ): Promise<PublishResultWithMeta> {
     const startTime = Date.now();
 
     // Get adapter
@@ -90,8 +93,10 @@ export class Publisher {
     }
 
     // Check rate limits
-    const canProceed = await this.rateLimiter.canProcess(job.platformId);
-    if (!canProceed) {
+    const quota = options.quotaReserved
+      ? { allowed: true }
+      : await this.rateLimiter.reserveRequest(job.platformId);
+    if (!quota.allowed) {
       return {
         success: false,
         error: new PublishError('Rate limit exceeded', 'RATE_LIMITED', true),
@@ -118,9 +123,6 @@ export class Publisher {
     try {
       // Publish
       const result = await adapter.publish(job.content);
-
-      // Record the request
-      await this.rateLimiter.recordRequest(job.platformId);
 
       return {
         success: true,

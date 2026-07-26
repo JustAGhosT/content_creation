@@ -330,6 +330,22 @@ model SchedulerJob {
   @@index([campaignVersionId])
 }
 
+// Shared scheduler dispatch quota. PostgreSQL transactions serialize reservations
+// per platform so overlapping workers cannot each consume a process-local limit.
+model SchedulerPlatformQuota {
+  platformId     String   @id
+  windowStart    DateTime
+  windowDuration Int
+  requestCount   Int      @default(0)
+  requestLimit   Int
+  dailyCount     Int?
+  dailyLimit     Int?
+  dailyResetAt   DateTime?
+  backoffUntil   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 // Series model for content series
 model Series {
   id          String   @id @default(cuid())
