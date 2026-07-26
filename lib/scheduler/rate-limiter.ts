@@ -388,7 +388,11 @@ export class DurableRateLimiter extends RateLimiter {
   }
 
   private async lockPlatform(tx: Prisma.TransactionClient, platformId: string): Promise<void> {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${'scheduler-quota:' + platformId}))`;
+    // Keep PostgreSQL's void lock result out of Prisma's result decoder.
+    await tx.$queryRaw<Array<{ locked: number }>>`
+      SELECT 1 AS "locked"
+      FROM (SELECT pg_advisory_xact_lock(hashtext(${'scheduler-quota:' + platformId}))) AS acquired
+    `;
   }
 
   private async save(tx: Prisma.TransactionClient, state: QuotaState): Promise<void> {
