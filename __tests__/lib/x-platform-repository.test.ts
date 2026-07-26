@@ -376,6 +376,27 @@ describe('X platform account repository', () => {
     });
   });
 
+  test('requires revocation when refresh is rejected before the access token expires', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 'account-1',
+      status: 'connected',
+      expiresAt: new Date(Date.now() + 60_000),
+      encryptedAccessToken: encryptSecret('still-live-access', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('invalid-refresh', 'x-refresh-token'),
+      updatedAt: new Date('2026-07-25T12:00:00Z'),
+    });
+    mockRefreshAccessToken.mockRejectedValueOnce(new XOAuthTokenRequestError(400, 'invalid_grant'));
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+
+    await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
+      'X OAuth token request failed with status 400'
+    );
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ data: { status: 'revocation_required' } })
+    );
+  });
+
   test('does not overwrite a concurrent disconnect or reconnect after refresh', async () => {
     mockFindUnique.mockResolvedValueOnce({
       id: 'account-1',

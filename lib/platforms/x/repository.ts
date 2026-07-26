@@ -269,6 +269,14 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
   try {
     tokens = await refreshAccessToken(currentRefreshToken);
   } catch (error) {
+    const accessTokenMayStillBeLive = Boolean(
+      account.expiresAt && account.expiresAt.getTime() > Date.now()
+    );
+    const failureStatus = isDefinitiveXAuthorizationError(error)
+      ? accessTokenMayStillBeLive
+        ? 'revocation_required'
+        : 'expired'
+      : 'connected';
     await client.platformAccount.updateMany({
       where: {
         id: account.id,
@@ -276,7 +284,7 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
         encryptedRefreshToken: account.encryptedRefreshToken,
         connectedAt: account.connectedAt,
       },
-      data: { status: isDefinitiveXAuthorizationError(error) ? 'expired' : 'connected' },
+      data: { status: failureStatus },
     });
     throw error;
   }
