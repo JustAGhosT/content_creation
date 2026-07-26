@@ -8,7 +8,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Layout from '@/components/layouts/Layout';
 import { CampaignForm } from '@/components/campaigns';
 import { Button, LoadingSpinner, EmptyState, StatusBadge, FormField } from '@/components/ui';
 import { useCampaign } from '@/hooks/useCampaign';
@@ -62,20 +61,20 @@ export default function CampaignDetail({ campaignId }: CampaignDetailProps) {
   // Show loading state while data is being loaded from localStorage
   if (isLoading) {
     return (
-      <Layout title="Loading Campaign" description="">
+      <>
         <div className={styles.container}>
           <div className={styles.loadingContainer}>
             <LoadingSpinner size="lg" />
             <p className={styles.loadingText}>Loading campaign...</p>
           </div>
         </div>
-      </Layout>
+      </>
     );
   }
 
   if (!campaign) {
     return (
-      <Layout title="Campaign Not Found" description="">
+      <>
         <div className={styles.container}>
           <EmptyState
             variant="error"
@@ -87,7 +86,7 @@ export default function CampaignDetail({ campaignId }: CampaignDetailProps) {
             }}
           />
         </div>
-      </Layout>
+      </>
     );
   }
 
@@ -218,7 +217,7 @@ export default function CampaignDetail({ campaignId }: CampaignDetailProps) {
     campaign.status === 'paused';
 
   return (
-    <Layout title={campaign.name} description={campaign.description}>
+    <>
       <div className={styles.container}>
         {/* Header */}
         <div className={styles.headerActions}>
@@ -331,9 +330,7 @@ export default function CampaignDetail({ campaignId }: CampaignDetailProps) {
                   <button
                     key={platform.platformId}
                     type="button"
-                    className={`${styles.platformOption} ${
-                      platform.enabled ? styles.selected : ''
-                    }`}
+                    className={`${styles.platformOption} ${platform.enabled ? styles.selected : ''}`}
                     onClick={() => handleTogglePlatform(platform.platformId)}
                     aria-pressed={platform.enabled}
                     style={{ cursor: 'pointer' }}
@@ -661,6 +658,6 @@ export default function CampaignDetail({ campaignId }: CampaignDetailProps) {
           </Link>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

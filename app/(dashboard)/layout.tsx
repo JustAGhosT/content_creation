@@ -8,8 +8,9 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { ErrorBoundary } from '@/components/ui';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import Header from '@/components/ui/Header';
+import layoutStyles from '@/styles/MainLayout.module.css';
 import styles from '@/styles/shared.module.css';
 
 export default function DashboardLayout({ children }: { readonly children: React.ReactNode }) {
@@ -25,10 +26,13 @@ export default function DashboardLayout({ children }: { readonly children: React
   if (isLoading) {
     return (
       <>
+        <a href="#main-content" className={layoutStyles.skipLink}>
+          Skip to main content
+        </a>
         <Header />
-        <div className={styles.container}>
+        <main id="main-content" className={styles.container} tabIndex={-1}>
           <div>Loading...</div>
-        </div>
+        </main>
       </>
     );
   }
@@ -39,10 +43,13 @@ export default function DashboardLayout({ children }: { readonly children: React
 
   return (
     <>
+      <a href="#main-content" className={layoutStyles.skipLink}>
+        Skip to main content
+      </a>
       <Header />
-      <div className={styles.container}>
+      <main id="main-content" className={styles.container} tabIndex={-1}>
         <ErrorBoundary>{children}</ErrorBoundary>
-      </div>
+      </main>
     </>
   );
 }

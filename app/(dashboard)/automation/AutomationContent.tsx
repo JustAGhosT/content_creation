@@ -5,7 +5,6 @@
  * Handles interactive tool selection and modal display
  */
 
-import Layout from '@/components/layouts/Layout';
 import ToolGrid from '@/components/automation/ToolGrid';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorMessage from '@/components/ui/ErrorMessage';
@@ -41,10 +40,7 @@ export default function AutomationContent({ initialTools, initialError }: Automa
   ];
 
   return (
-    <Layout
-      title="Workflow Automation"
-      description="Leverage system architecture expertise to automate repetitive tasks in your content workflow."
-    >
+    <>
       <div className={styles.container}>
         <div className={styles.section}>
           <div className={styles.automation}>
@@ -70,6 +66,6 @@ export default function AutomationContent({ initialTools, initialError }: Automa
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }
