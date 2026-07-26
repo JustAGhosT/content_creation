@@ -94,7 +94,8 @@ export async function getXConnectionStatus(userId: string): Promise<PlatformConn
     account.expiresAt && account.expiresAt.getTime() <= Date.now()
   );
   const authorizationExpired = accessTokenExpired && !account.encryptedRefreshToken;
-  const status = authorizationExpired || account.status !== 'connected' ? 'expired' : 'connected';
+  const lifecycleConnected = account.status === 'connected' || account.status === 'refreshing';
+  const status = authorizationExpired || !lifecycleConnected ? 'expired' : 'connected';
   return {
     platform: X_PLATFORM_ID,
     connected: status === 'connected',
@@ -142,35 +143,55 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
     encryptedRefreshToken: account.encryptedRefreshToken,
     updatedAt: account.updatedAt,
   };
+
+  const claim = await client.platformAccount.updateMany({
+    where: refreshGuard,
+    data: { status: 'refreshing' },
+  });
+  if (claim.count !== 1) {
+    throw new Error('X account changed before authorization could be refreshed');
+  }
+
+  let tokens: XTokenResponse;
   try {
-    const tokens = await refreshAccessToken(currentRefreshToken);
-    const update = await client.platformAccount.updateMany({
-      where: refreshGuard,
-      data: {
-        encryptedAccessToken: encryptSecret(tokens.access_token, ACCESS_TOKEN_PURPOSE),
-        encryptedRefreshToken: tokens.refresh_token
-          ? encryptSecret(tokens.refresh_token, REFRESH_TOKEN_PURPOSE)
-          : account.encryptedRefreshToken,
-        tokenType: tokens.token_type.toLowerCase(),
-        scopes: tokens.scope,
-        expiresAt: tokenExpiry(tokens),
-        refreshedAt: new Date(),
-        status: 'connected',
-      },
-    });
-    if (update.count !== 1) {
-      throw new Error('X account changed while authorization was refreshing');
-    }
-    return tokens.access_token;
+    tokens = await refreshAccessToken(currentRefreshToken);
   } catch (error) {
-    if (isDefinitiveXAuthorizationError(error)) {
-      await client.platformAccount.updateMany({
-        where: refreshGuard,
-        data: { status: 'expired' },
-      });
-    }
+    await client.platformAccount.updateMany({
+      where: {
+        id: account.id,
+        status: 'refreshing',
+        encryptedRefreshToken: account.encryptedRefreshToken,
+        connectedAt: account.connectedAt,
+      },
+      data: { status: isDefinitiveXAuthorizationError(error) ? 'expired' : 'connected' },
+    });
     throw error;
   }
+
+  const update = await client.platformAccount.updateMany({
+    where: {
+      id: account.id,
+      status: 'refreshing',
+      encryptedRefreshToken: account.encryptedRefreshToken,
+      connectedAt: account.connectedAt,
+    },
+    data: {
+      encryptedAccessToken: encryptSecret(tokens.access_token, ACCESS_TOKEN_PURPOSE),
+      encryptedRefreshToken: tokens.refresh_token
+        ? encryptSecret(tokens.refresh_token, REFRESH_TOKEN_PURPOSE)
+        : account.encryptedRefreshToken,
+      tokenType: tokens.token_type.toLowerCase(),
+      scopes: tokens.scope,
+      expiresAt: tokenExpiry(tokens),
+      refreshedAt: new Date(),
+      status: 'connected',
+    },
+  });
+  if (update.count !== 1) {
+    await revokeXToken(tokens.refresh_token ?? tokens.access_token);
+    throw new Error('X account changed while authorization was refreshing');
+  }
+  return tokens.access_token;
 }
 
 export async function disconnectXAccount(userId: string): Promise<boolean> {
@@ -178,7 +199,27 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
   const account = await client.platformAccount.findUnique({
     where: { userId_platform: { userId, platform: X_PLATFORM_ID } },
   });
-  if (!account || account.status !== 'connected') return false;
+  if (!account || account.status === 'revoked') return false;
+
+  if (account.status === 'expired') {
+    const update = await client.platformAccount.updateMany({
+      where: {
+        id: account.id,
+        status: 'expired',
+        encryptedAccessToken: account.encryptedAccessToken,
+        encryptedRefreshToken: account.encryptedRefreshToken,
+        updatedAt: account.updatedAt,
+      },
+      data: {
+        encryptedAccessToken: '',
+        encryptedRefreshToken: null,
+        status: 'revoked',
+        revokedAt: new Date(),
+      },
+    });
+    return update.count === 1;
+  }
+  if (account.status !== 'connected') return false;
 
   const claim = await client.platformAccount.updateMany({
     where: {

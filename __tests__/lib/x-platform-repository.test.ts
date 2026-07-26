@@ -178,12 +178,19 @@ describe('X platform account repository', () => {
       refresh_token: 'new-refresh',
       scope: 'tweet.read tweet.write users.read offline.access',
     });
-    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
 
     await expect(repository.getValidXAccessToken('user-1')).resolves.toBe('new-access');
     expect(mockRefreshAccessToken).toHaveBeenCalledWith('old-refresh');
 
-    const update = mockUpdateMany.mock.calls[0][0] as {
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ data: { status: 'refreshing' } })
+    );
+    expect(mockUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRefreshAccessToken.mock.invocationCallOrder[0]
+    );
+    const update = mockUpdateMany.mock.calls[1][0] as {
       data: { encryptedAccessToken: string; encryptedRefreshToken: string; status: string };
     };
     expect(decryptSecret(update.data.encryptedAccessToken, 'x-access-token')).toBe('new-access');
@@ -203,11 +210,15 @@ describe('X platform account repository', () => {
     mockRefreshAccessToken.mockRejectedValueOnce(
       new XOAuthTokenRequestError(429, 'temporarily_unavailable')
     );
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
 
     await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
       'X OAuth token request failed with status 429'
     );
-    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ data: { status: 'connected' } })
+    );
   });
 
   test('expires an account after a definitive refresh-token rejection', async () => {
@@ -220,13 +231,13 @@ describe('X platform account repository', () => {
       updatedAt: new Date('2026-07-25T12:00:00Z'),
     });
     mockRefreshAccessToken.mockRejectedValueOnce(new XOAuthTokenRequestError(400, 'invalid_grant'));
-    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
 
     await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
       'X OAuth token request failed with status 400'
     );
-    expect(mockUpdateMany).toHaveBeenCalledWith({
-      where: expect.objectContaining({ id: 'account-1', status: 'connected' }),
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(2, {
+      where: expect.objectContaining({ id: 'account-1', status: 'refreshing' }),
       data: { status: 'expired' },
     });
   });
@@ -247,7 +258,8 @@ describe('X platform account repository', () => {
       refresh_token: 'stale-refreshed-refresh',
       scope: 'tweet.read tweet.write users.read offline.access',
     });
-    mockUpdateMany.mockResolvedValueOnce({ count: 0 });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    mockRevokeXToken.mockResolvedValueOnce();
 
     await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
       'X account changed while authorization was refreshing'
@@ -261,6 +273,24 @@ describe('X platform account repository', () => {
         }),
       })
     );
+    expect(mockRevokeXToken).toHaveBeenCalledWith('stale-refreshed-refresh');
+  });
+
+  test('does not call X when the refresh lifecycle claim is lost', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 'account-1',
+      status: 'connected',
+      expiresAt: new Date(Date.now() - 1),
+      encryptedAccessToken: encryptSecret('old-access', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('old-refresh', 'x-refresh-token'),
+      updatedAt: new Date('2026-07-25T12:00:00Z'),
+    });
+    mockUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
+      'X account changed before authorization could be refreshed'
+    );
+    expect(mockRefreshAccessToken).not.toHaveBeenCalled();
   });
 
   test('revokes at the provider before erasing stored credentials', async () => {
@@ -367,6 +397,35 @@ describe('X platform account repository', () => {
     expect(mockUpdateMany).toHaveBeenNthCalledWith(1, {
       where: { id: 'account-1', status: 'connected', connectedAt },
       data: { status: 'revoking' },
+    });
+  });
+
+  test('removes expired local credentials without requiring provider revocation', async () => {
+    const encryptedAccessToken = encryptSecret('expired-access', 'x-access-token');
+    mockFindUnique.mockResolvedValueOnce({
+      id: 'account-1',
+      status: 'expired',
+      encryptedAccessToken,
+      encryptedRefreshToken: null,
+      updatedAt: new Date('2026-07-25T12:00:00Z'),
+    });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
+
+    await expect(repository.disconnectXAccount('user-1')).resolves.toBe(true);
+    expect(mockRevokeXToken).not.toHaveBeenCalled();
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'account-1',
+        status: 'expired',
+        encryptedAccessToken,
+        encryptedRefreshToken: null,
+        updatedAt: new Date('2026-07-25T12:00:00Z'),
+      },
+      data: expect.objectContaining({
+        encryptedAccessToken: '',
+        encryptedRefreshToken: null,
+        status: 'revoked',
+      }),
     });
   });
 });

@@ -231,13 +231,27 @@ export function PlatformSettingsPage() {
                     Disconnect
                   </button>
                 ) : (
-                  <button
-                    className={`${styles.connectButton} ${styles.connectButtonPrimary}`}
-                    onClick={() => void handleConnect(platform.slug)}
-                    disabled={isComingSoon || platform.slug !== 'twitter' || requiresConfiguration}
-                  >
-                    {isComingSoon ? 'Coming Soon' : requiresReconnect ? 'Reconnect' : 'Connect'}
-                  </button>
+                  <>
+                    <button
+                      className={`${styles.connectButton} ${styles.connectButtonPrimary}`}
+                      onClick={() => void handleConnect(platform.slug)}
+                      disabled={
+                        isComingSoon || platform.slug !== 'twitter' || requiresConfiguration
+                      }
+                    >
+                      {isComingSoon ? 'Coming Soon' : requiresReconnect ? 'Reconnect' : 'Connect'}
+                    </button>
+                    {requiresReconnect && (
+                      <button
+                        className={`${styles.connectButton} ${styles.connectButtonDanger}`}
+                        onClick={() =>
+                          setModal({ type: 'disconnect', platformSlug: platform.slug })
+                        }
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

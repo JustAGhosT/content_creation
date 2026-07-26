@@ -9,6 +9,8 @@ import {
   exchangeAuthorizationCode,
   fetchXIdentity,
   getXOAuthConfig,
+  revokeXToken,
+  type XTokenResponse,
   X_OAUTH_FLOW_COOKIE,
 } from '@/lib/platforms/x/oauth';
 import { saveXAccount } from '@/lib/platforms/x/repository';
@@ -66,12 +68,24 @@ export const GET = withRateLimit(
       return clearFlowCookie(settingsRedirect('invalid'));
     }
 
+    let issuedTokens: XTokenResponse | null = null;
     try {
-      const tokens = await exchangeAuthorizationCode(parsed.data.code, flow.verifier);
+      issuedTokens = await exchangeAuthorizationCode(parsed.data.code, flow.verifier);
+      const tokens = issuedTokens;
       const identity = await fetchXIdentity(tokens.access_token);
       await saveXAccount(flow.userId, identity, tokens);
+      issuedTokens = null;
       return clearFlowCookie(settingsRedirect('success'));
     } catch (error) {
+      if (issuedTokens) {
+        try {
+          await revokeXToken(issuedTokens.refresh_token ?? issuedTokens.access_token);
+        } catch (cleanupError) {
+          console.error('[X OAuth] Callback token cleanup failed', {
+            error: cleanupError instanceof Error ? cleanupError.message : 'Unknown error',
+          });
+        }
+      }
       console.error('[X OAuth] Callback failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
