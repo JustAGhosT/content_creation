@@ -131,6 +131,9 @@ async function handleRegister(request: Request): Promise<NextResponse> {
       findUnique: (args: {
         where: { username?: string; email?: string };
       }) => Promise<{ id: string; username: string; email: string; role: string } | null>;
+      findFirst: (args: {
+        where: { email: { equals: string; mode: 'insensitive' } };
+      }) => Promise<{ id: string; username: string; email: string; role: string } | null>;
       create: (args: {
         data: { username: string; email: string; passwordHash: string; role: string };
       }) => Promise<{ id: string; username: string; email: string; role: string }>;
@@ -145,8 +148,8 @@ async function handleRegister(request: Request): Promise<NextResponse> {
     }
 
     // Check if email already exists
-    const existingByEmail = await userModel.findUnique({
-      where: { email: normalizedEmail },
+    const existingByEmail = await userModel.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
     });
     if (existingByEmail) {
       return Errors.badRequest('Email already exists');

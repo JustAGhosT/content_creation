@@ -27,6 +27,8 @@ jest.mock('../../app/api/_utils/audit', () => ({
 
 // Mock scheduler module
 const mockSchedule = jest.fn<(input: CreateJobInput) => Promise<ScheduleJobResult>>();
+const mockFindIdempotentReplay =
+  jest.fn<(input: CreateJobInput) => Promise<ScheduleJobResult | null>>();
 const mockScheduleCampaign =
   jest.fn<
     (input: CreateJobInput, audit: CampaignPublishAuditInput) => Promise<ScheduleJobResult>
@@ -107,6 +109,7 @@ describe('Scheduler API Routes', () => {
 
     mockListJobs.mockResolvedValue({ jobs: [sampleJob], total: 1 });
     mockSchedule.mockResolvedValue({ job: sampleJob, created: true });
+    mockFindIdempotentReplay.mockResolvedValue(null);
     mockScheduleCampaign.mockResolvedValue({ job: sampleJob, created: true });
     mockAssertApprovedForQueue.mockResolvedValue({
       campaignRowId: 'campaign-row-1',
@@ -122,6 +125,7 @@ describe('Scheduler API Routes', () => {
     jest.doMock('../../lib/scheduler', () => ({
       getScheduler: () => ({
         scheduleWithResult: mockSchedule,
+        findIdempotentReplay: mockFindIdempotentReplay,
         scheduleCampaignWithAudit: mockScheduleCampaign,
         cancel: jest.fn(),
         listJobs: mockListJobs,
@@ -300,7 +304,7 @@ describe('Scheduler API Routes', () => {
     });
 
     test('replays an idempotent campaign request without duplicating its audit attempt', async () => {
-      mockScheduleCampaign.mockResolvedValueOnce({ job: sampleJob, created: false });
+      mockFindIdempotentReplay.mockResolvedValueOnce({ job: sampleJob, created: false });
       const contentHash = `sha256:${'a'.repeat(64)}`;
       const response = await POST(
         createRequest('POST', {
@@ -318,7 +322,33 @@ describe('Scheduler API Routes', () => {
       );
 
       expect(response.status).toBe(200);
-      expect(mockScheduleCampaign).toHaveBeenCalledTimes(1);
+      expect(mockFindIdempotentReplay).toHaveBeenCalledTimes(1);
+      expect(mockAssertApprovedForQueue).not.toHaveBeenCalled();
+      expect(mockScheduleCampaign).not.toHaveBeenCalled();
+    });
+
+    test('rejects a changed campaign replay before approval validation', async () => {
+      mockFindIdempotentReplay.mockRejectedValueOnce(
+        new SchedulerQueueError('IDEMPOTENCY_CONFLICT', 'Different request')
+      );
+      const response = await POST(
+        createRequest('POST', {
+          type: 'campaign_post',
+          campaignId: 'campaign-1',
+          campaignVersion: 2,
+          contentHash: `sha256:${'a'.repeat(64)}`,
+          variantId: 'variant-1',
+          contentId: 'content-1',
+          platformId: 'twitter',
+          content: { text: 'Changed campaign request' },
+          scheduledTime: '2026-04-01T12:00:00Z',
+          idempotencyKey: 'campaign-request-123',
+        })
+      );
+
+      expect(response.status).toBe(409);
+      expect(mockAssertApprovedForQueue).not.toHaveBeenCalled();
+      expect(mockScheduleCampaign).not.toHaveBeenCalled();
     });
 
     test('rejects a campaign post without immutable approval fields', async () => {

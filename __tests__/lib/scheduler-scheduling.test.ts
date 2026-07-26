@@ -1,5 +1,7 @@
 /** @jest-environment node */
 
+import type { PrismaClient } from '@prisma/client';
+import { PrismaJobQueue, SchedulerQueueError } from '@/lib/scheduler/prisma-queue';
 import type { JobQueue } from '@/lib/scheduler/types';
 
 jest.mock('@/lib/scheduler/queue', () => ({
@@ -61,5 +63,43 @@ describe('scheduler request idempotency', () => {
     });
 
     expect(result.job.idempotencyKey).toBe('client-request-key');
+  });
+
+  test('returns a matching durable replay before mutable campaign validation', async () => {
+    const durableQueue = new PrismaJobQueue({} as PrismaClient);
+    jest.mocked(getQueue).mockReturnValue(durableQueue);
+    jest.mocked(generateJobId).mockReturnValue('campaign-job');
+    jest.spyOn(durableQueue, 'add').mockImplementation(async job => ({ job, created: true }));
+    const scheduler = new Scheduler();
+    const campaignInput = {
+      ...input,
+      type: 'campaign_post' as const,
+      campaignId: 'campaign-1',
+      campaignVersion: 1,
+      campaignVersionId: 'version-row-1',
+      approvedContentHash: `sha256:${'a'.repeat(64)}`,
+      variantId: 'variant-1',
+      content: { text: 'Canonical approved content' },
+      idempotencyContent: { text: 'Original client content' },
+      idempotencyKey: 'campaign-request-key',
+    };
+    const created = await scheduler.scheduleWithResult(campaignInput);
+    jest.spyOn(durableQueue, 'getByIdempotencyKey').mockResolvedValue(created.job);
+
+    await expect(
+      scheduler.findIdempotentReplay({
+        ...campaignInput,
+        campaignVersionId: undefined,
+        content: campaignInput.idempotencyContent,
+      })
+    ).resolves.toEqual({ job: created.job, created: false });
+    await expect(
+      scheduler.findIdempotentReplay({
+        ...campaignInput,
+        campaignVersionId: undefined,
+        content: { text: 'Different request' },
+        idempotencyContent: { text: 'Different request' },
+      })
+    ).rejects.toBeInstanceOf(SchedulerQueueError);
   });
 });

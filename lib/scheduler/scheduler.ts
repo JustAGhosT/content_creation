@@ -23,7 +23,7 @@ import { getQueue, generateJobId } from './queue';
 import { getRateLimiter, RateLimiter } from './rate-limiter';
 import { getRetryHandler, RetryHandler } from './retry-handler';
 import { getPublisher, Publisher } from './publisher';
-import { CampaignPublishAuditInput, PrismaJobQueue } from './prisma-queue';
+import { CampaignPublishAuditInput, PrismaJobQueue, SchedulerQueueError } from './prisma-queue';
 
 function deriveRequestFingerprint(
   input: CreateJobInput,
@@ -39,7 +39,7 @@ function deriveRequestFingerprint(
     variantId: input.variantId ?? null,
     contentId: input.contentId,
     platformId: input.platformId,
-    content: input.content,
+    content: input.idempotencyContent ?? input.content,
     scheduledTime: new Date(input.scheduledTime).toISOString(),
     timezone,
     maxAttempts,
@@ -126,6 +126,28 @@ export class Scheduler {
   async scheduleWithResult(input: CreateJobInput): Promise<ScheduleJobResult> {
     const job = this.createValidatedJob(input);
     return this.emitCreated(await this.queue.add(job));
+  }
+
+  async findIdempotentReplay(input: CreateJobInput): Promise<ScheduleJobResult | null> {
+    if (!input.createdBy || !input.idempotencyKey || !(this.queue instanceof PrismaJobQueue)) {
+      return null;
+    }
+    const existing = await this.queue.getByIdempotencyKey(input.createdBy, input.idempotencyKey);
+    if (!existing) return null;
+
+    const candidate = this.createValidatedJob({
+      ...input,
+      campaignVersionId: input.campaignVersionId ?? existing.campaignVersionId,
+      timezone: input.timezone ?? existing.timezone,
+      maxAttempts: input.maxAttempts ?? existing.maxAttempts,
+    });
+    if (candidate.requestFingerprint !== existing.requestFingerprint) {
+      throw new SchedulerQueueError(
+        'IDEMPOTENCY_CONFLICT',
+        'The idempotency key already identifies a different scheduler request'
+      );
+    }
+    return { job: existing, created: false };
   }
 
   async scheduleCampaignWithAudit(

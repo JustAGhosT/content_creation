@@ -282,6 +282,13 @@ export class PrismaJobQueue implements JobQueue {
     return row ? parseStoredJob(row) : null;
   }
 
+  async getByIdempotencyKey(userId: string, idempotencyKey: string): Promise<ScheduledJob | null> {
+    const row = await this.client.schedulerJob.findUnique({
+      where: { userId_idempotencyKey: { userId, idempotencyKey } },
+    });
+    return row ? parseStoredJob(row) : null;
+  }
+
   async update(id: string, updates: Partial<ScheduledJob>): Promise<void> {
     await this.client.schedulerJob.updateMany({ where: { id }, data: updateData(updates) });
   }

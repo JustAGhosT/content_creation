@@ -172,6 +172,8 @@ export interface CreateJobInput {
   contentId: string;
   platformId: string;
   content: ScheduledJob['content'];
+  /** Original client content used only to fingerprint an idempotent request. */
+  idempotencyContent?: ScheduledJob['content'];
   scheduledTime: string;
   timezone?: string;
   maxAttempts?: number;

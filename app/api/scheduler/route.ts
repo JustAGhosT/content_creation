@@ -190,6 +190,38 @@ export const POST = withRateLimit(
       return Errors.badRequest(`${comingSoonPlatformName} publishing is coming soon`);
     }
 
+    const scheduler = getScheduler();
+    const requestScheduleInput = {
+      type: data.type,
+      campaignId: data.campaignId,
+      campaignVersion: data.campaignVersion,
+      approvedContentHash: data.contentHash,
+      variantId: data.variantId,
+      contentId: data.contentId,
+      platformId: data.platformId,
+      content: data.content,
+      idempotencyContent: data.content,
+      scheduledTime: data.scheduledTime,
+      timezone: data.timezone,
+      maxAttempts: data.maxAttempts,
+      createdBy: currentUserId,
+      idempotencyKey: data.idempotencyKey,
+    };
+
+    if (data.type === 'campaign_post' && data.idempotencyKey) {
+      try {
+        const replay = await scheduler.findIdempotentReplay(requestScheduleInput);
+        if (replay) {
+          return NextResponse.json({ job: replay.job }, { status: 200 });
+        }
+      } catch (error) {
+        if (isIdempotencyConflict(error)) {
+          return Errors.conflict('Idempotency key already identifies another scheduler request');
+        }
+        throw error;
+      }
+    }
+
     let approvalBinding: Awaited<ReturnType<typeof assertApprovedForQueue>> | undefined;
     if (
       data.type === 'campaign_post' &&
@@ -213,24 +245,13 @@ export const POST = withRateLimit(
       }
     }
 
-    const scheduler = getScheduler();
     let scheduled;
     try {
       const scheduleInput = {
-        type: data.type,
-        campaignId: data.campaignId,
-        campaignVersion: data.campaignVersion,
+        ...requestScheduleInput,
         campaignVersionId: approvalBinding?.versionId,
         approvedContentHash: approvalBinding?.contentHash,
-        variantId: data.variantId,
-        contentId: data.contentId,
-        platformId: data.platformId,
         content: approvalBinding?.content ?? data.content,
-        scheduledTime: data.scheduledTime,
-        timezone: data.timezone,
-        maxAttempts: data.maxAttempts,
-        createdBy: currentUserId,
-        idempotencyKey: data.idempotencyKey,
       };
       scheduled = approvalBinding
         ? await scheduler.scheduleCampaignWithAudit(scheduleInput, {
