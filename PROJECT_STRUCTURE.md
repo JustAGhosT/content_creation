@@ -88,7 +88,6 @@ omnipost/
 ├── hooks/                 # React custom hooks
 │   ├── useAnalytics.ts   # Analytics tracking hook
 │   ├── useAutomationTools.ts
-│   ├── useEngagementMetrics.ts
 │   ├── useReviewProcess.ts
 │   └── useSeries.ts
 │
@@ -105,7 +104,6 @@ omnipost/
 ├── data/                  # Application data and static content
 │   ├── feature-flags.json
 │   ├── workflowStages.ts
-│   ├── engagementMetrics.ts
 │   ├── siteConfig.json
 │   ├── reviewConfig.json
 │   ├── adaptationExamples.json

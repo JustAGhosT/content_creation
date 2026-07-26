@@ -139,8 +139,8 @@ If you're updating from the old structure:
 
 - **adaptation** (3): AdaptationExamples, WorkflowDiagram, ContentAdaptationStyles
 - **automation** (4): ToolCard, ToolGrid, ToolDetailModal, ConclusionSection
-- **content** (6): ContentAdaptation, ContentHeader, ContentManager, PlatformCard, WorkflowDiagram, AirtableIntegration
-- **dashboard** (3): Analytics, EngagementMetrics, MetricsCard
+- **content** (5): ContentAdaptation, ContentHeader, ContentManager, PlatformCard, WorkflowDiagram
+- **dashboard** (2): Analytics, MetricsCard
 - **feedback** (2): FeedbackForm, FeedbackMechanism
 - **feature-flags** (2): FeatureFlagToggle, FeatureFlagsManager
 - **image** (3): ImageGeneration, ImageGenerationForm, ImageGenerator
