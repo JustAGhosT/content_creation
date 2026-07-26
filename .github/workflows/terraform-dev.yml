@@ -66,12 +66,14 @@ jobs:
       - name: Configure scheduler Key Vault reference
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply' }}
         run: |
+          MANAGED_IDENTITY_CLIENT_ID="$(terraform -chdir=infra/terraform/env/dev output -raw web_key_vault_identity_client_id)"
           az webapp config appsettings set \
             --resource-group nl-dev-omnipost-rg \
             --name nl-dev-omnipost-web \
             --settings \
               'CRON_SECRET=@Microsoft.KeyVault(SecretUri=https://nl-dev-omnipost-kv.vault.azure.net/secrets/omnipost-scheduler-cron-secret)' \
               'SCHEDULER_CRON_SECRET_URI=https://nl-dev-omnipost-kv.vault.azure.net/secrets/omnipost-scheduler-cron-secret' \
+              "SCHEDULER_MANAGED_IDENTITY_CLIENT_ID=${MANAGED_IDENTITY_CLIENT_ID}" \
             --output none
           az webapp restart \
             --resource-group nl-dev-omnipost-rg \

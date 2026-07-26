@@ -36,6 +36,7 @@ function getSecretConfigurationKey(): string {
         process.env.IDENTITY_ENDPOINT ?? '',
         process.env.IDENTITY_HEADER ?? '',
         process.env.SCHEDULER_CRON_SECRET_URI ?? '',
+        process.env.SCHEDULER_MANAGED_IDENTITY_CLIENT_ID ?? '',
         process.env.CRON_SECRET ?? '',
         process.env.CUSTOMCONNSTR_CRON_SECRET ?? '',
       ])
@@ -47,6 +48,7 @@ async function getManagedIdentityCronSecret(): Promise<string | undefined> {
   const identityEndpoint = process.env.IDENTITY_ENDPOINT?.trim();
   const identityHeader = process.env.IDENTITY_HEADER?.trim();
   const secretUri = process.env.SCHEDULER_CRON_SECRET_URI?.trim();
+  const managedIdentityClientId = process.env.SCHEDULER_MANAGED_IDENTITY_CLIENT_ID?.trim();
 
   if (!identityEndpoint || !identityHeader || !secretUri) return undefined;
 
@@ -54,6 +56,7 @@ async function getManagedIdentityCronSecret(): Promise<string | undefined> {
     const tokenUrl = new URL(identityEndpoint);
     tokenUrl.searchParams.set('resource', KEY_VAULT_RESOURCE);
     tokenUrl.searchParams.set('api-version', MANAGED_IDENTITY_API_VERSION);
+    if (managedIdentityClientId) tokenUrl.searchParams.set('client_id', managedIdentityClientId);
 
     const tokenResponse = await fetchWithTimeout(tokenUrl, {
       headers: { 'X-IDENTITY-HEADER': identityHeader },
