@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { PrismaJobQueue } from '@/lib/scheduler/prisma-queue';
 import { DurableRateLimiter } from '@/lib/scheduler/rate-limiter';
+import { ExternalIdentityEmailConflictError, resolveExternalUser } from '@/lib/auth/external-user';
 import type { ScheduledJob } from '@/lib/scheduler/types';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -119,6 +120,62 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
       restartedQueue.add({ ...original, id: `${original.id}-duplicate` })
     ).resolves.toMatchObject({ created: false, job: { id: original.id } });
     await restartedClient.$disconnect();
+  });
+
+  test('persists an external identity before using it as scheduler owner', async () => {
+    if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
+    const externalId = `mystira-subject-${suffix}`;
+    const email = `mystira-${suffix}@example.test`;
+    const resolved = await resolveExternalUser(setupClient, {
+      provider: 'mystira',
+      externalId,
+      email,
+      name: 'Mystira Scheduler User',
+    });
+
+    try {
+      expect(resolved).toMatchObject({ isNew: true, role: 'user' });
+      await expect(
+        resolveExternalUser(setupClient, {
+          provider: 'mystira',
+          externalId,
+          email,
+          name: 'Changed Display Name',
+        })
+      ).resolves.toMatchObject({ id: resolved.id, isNew: false });
+      await expect(
+        setupClient.externalIdentity.findUnique({
+          where: { provider_externalId: { provider: 'mystira', externalId } },
+        })
+      ).resolves.toMatchObject({ userId: resolved.id });
+
+      const job = testJob(resolved.id, `${suffix}-external-owner`);
+      await expect(new PrismaJobQueue(setupClient).add(job)).resolves.toMatchObject({
+        created: true,
+        job: { createdBy: resolved.id },
+      });
+    } finally {
+      await setupClient.user.delete({ where: { id: resolved.id } });
+    }
+  });
+
+  test('does not implicitly link an external identity by email', async () => {
+    if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
+    const externalId = `email-collision-${suffix}`;
+
+    await expect(
+      resolveExternalUser(setupClient, {
+        provider: 'mystira',
+        externalId,
+        email: `scheduler-${suffix}@example.test`,
+        name: 'Conflicting User',
+      })
+    ).rejects.toBeInstanceOf(ExternalIdentityEmailConflictError);
+    await expect(
+      setupClient.externalIdentity.findUnique({
+        where: { provider_externalId: { provider: 'mystira', externalId } },
+      })
+    ).resolves.toBeNull();
   });
 
   test('allows only one database client to claim a due job', async () => {
