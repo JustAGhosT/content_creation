@@ -274,6 +274,28 @@ describe('X platform account repository', () => {
     });
   });
 
+  test('requires provider revocation while an unrefreshable access token is still live', async () => {
+    const expiresAt = new Date(Date.now() + 60_000);
+    const encryptedAccessToken = encryptSecret('live-access', 'x-access-token');
+    const updatedAt = new Date('2026-07-25T12:00:00Z');
+    mockFindUnique.mockResolvedValueOnce({
+      id: 'account-1',
+      status: 'connected',
+      expiresAt,
+      encryptedAccessToken,
+      encryptedRefreshToken: null,
+      updatedAt,
+    });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
+
+    await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
+      'X account authorization has expired; reconnect is required'
+    );
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'revocation_required' } })
+    );
+  });
+
   test('refreshes an expiring token and persists rotated credentials', async () => {
     mockFindUnique.mockResolvedValueOnce({
       id: 'account-1',
@@ -602,6 +624,25 @@ describe('X platform account repository', () => {
     });
   });
 
+  test('revokes a still-live unrefreshable access token before removal', async () => {
+    const account = {
+      id: 'account-1',
+      status: 'revocation_required',
+      encryptedAccessToken: encryptSecret('live-access', 'x-access-token'),
+      encryptedRefreshToken: null,
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
+      updatedAt: new Date(),
+    };
+    mockFindUnique
+      .mockResolvedValueOnce(account)
+      .mockResolvedValueOnce({ ...account, status: 'revoking' });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+    mockRevokeXToken.mockResolvedValueOnce();
+
+    await expect(repository.disconnectXAccount('user-1')).resolves.toBe(true);
+    expect(mockRevokeXToken).toHaveBeenCalledWith('live-access');
+  });
+
   test('keeps uncertain credentials recoverable when provider revocation fails', async () => {
     const account = {
       id: 'account-1',
@@ -623,32 +664,27 @@ describe('X platform account repository', () => {
     );
   });
 
-  test('removes expired local credentials without requiring provider revocation', async () => {
+  test('revokes a still-live access token before clearing an expired account', async () => {
     const encryptedAccessToken = encryptSecret('expired-access', 'x-access-token');
-    mockFindUnique.mockResolvedValueOnce({
+    const account = {
       id: 'account-1',
       status: 'expired',
       encryptedAccessToken,
       encryptedRefreshToken: null,
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
       updatedAt: new Date('2026-07-25T12:00:00Z'),
-    });
-    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
+    };
+    mockFindUnique
+      .mockResolvedValueOnce(account)
+      .mockResolvedValueOnce({ ...account, status: 'revoking' });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+    mockRevokeXToken.mockResolvedValueOnce();
 
     await expect(repository.disconnectXAccount('user-1')).resolves.toBe(true);
-    expect(mockRevokeXToken).not.toHaveBeenCalled();
-    expect(mockUpdateMany).toHaveBeenCalledWith({
-      where: {
-        id: 'account-1',
-        status: 'expired',
-        encryptedAccessToken,
-        encryptedRefreshToken: null,
-        updatedAt: new Date('2026-07-25T12:00:00Z'),
-      },
-      data: expect.objectContaining({
-        encryptedAccessToken: '',
-        encryptedRefreshToken: null,
-        status: 'revoked',
-      }),
+    expect(mockRevokeXToken).toHaveBeenCalledWith('expired-access');
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: 'account-1', status: 'expired', updatedAt: account.updatedAt },
+      data: { status: 'revoking' },
     });
   });
 });

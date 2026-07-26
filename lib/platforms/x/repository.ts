@@ -109,6 +109,7 @@ export async function saveXAccount(
 
   const activeClaim = ['refreshing', 'revoking', 'reconnecting'].includes(existing.status);
   const recoveryRequired = existing.status === 'recovery_required';
+  const revocationRequired = existing.status === 'revocation_required';
   if (activeClaim && !lifecycleClaimIsStale(existing.updatedAt)) {
     throw new Error('X account authorization is currently changing');
   }
@@ -130,7 +131,7 @@ export async function saveXAccount(
       ? decryptSecret(existing.encryptedAccessToken, ACCESS_TOKEN_PURPOSE)
       : null;
   const displacedAuthorizationMayBeLive =
-    existing.status === 'connected' || activeClaim || recoveryRequired;
+    existing.status === 'connected' || activeClaim || recoveryRequired || revocationRequired;
   if (displacedToken && displacedAuthorizationMayBeLive) {
     try {
       await revokeXToken(displacedToken);
@@ -228,6 +229,10 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
     return decryptSecret(account.encryptedAccessToken, ACCESS_TOKEN_PURPOSE);
   }
   if (!account.encryptedRefreshToken) {
+    const status =
+      account.expiresAt && account.expiresAt.getTime() > Date.now()
+        ? 'revocation_required'
+        : 'expired';
     const update = await client.platformAccount.updateMany({
       where: {
         id: account.id,
@@ -236,7 +241,7 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
         encryptedRefreshToken: null,
         updatedAt: account.updatedAt,
       },
-      data: { status: 'expired' },
+      data: { status },
     });
     if (update.count !== 1) {
       throw new Error('X account changed while authorization expiry was recorded');
@@ -309,28 +314,12 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
   });
   if (!account || account.status === 'revoked') return false;
 
-  if (account.status === 'expired') {
-    const update = await client.platformAccount.updateMany({
-      where: {
-        id: account.id,
-        status: 'expired',
-        encryptedAccessToken: account.encryptedAccessToken,
-        encryptedRefreshToken: account.encryptedRefreshToken,
-        updatedAt: account.updatedAt,
-      },
-      data: {
-        encryptedAccessToken: '',
-        encryptedRefreshToken: null,
-        status: 'revoked',
-        revokedAt: new Date(),
-      },
-    });
-    return update.count === 1;
-  }
   const activeClaim = ['refreshing', 'revoking', 'reconnecting'].includes(account.status);
-  const recoveryRequired = account.status === 'recovery_required';
+  const recoveryRequired = account.status === 'recovery_required' || account.status === 'expired';
+  const revocationRequired = account.status === 'revocation_required';
   if (activeClaim && !lifecycleClaimIsStale(account.updatedAt)) return false;
-  if (account.status !== 'connected' && !activeClaim && !recoveryRequired) return false;
+  if (account.status !== 'connected' && !activeClaim && !recoveryRequired && !revocationRequired)
+    return false;
 
   const claim = await client.platformAccount.updateMany({
     where:
@@ -358,7 +347,14 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
         encryptedAccessToken: claimedAccount.encryptedAccessToken,
         encryptedRefreshToken: claimedAccount.encryptedRefreshToken,
       },
-      data: { status: account.status === 'connected' ? 'connected' : 'recovery_required' },
+      data: {
+        status:
+          account.status === 'connected'
+            ? 'connected'
+            : account.status === 'expired'
+              ? 'expired'
+              : 'recovery_required',
+      },
     });
     throw error;
   }
