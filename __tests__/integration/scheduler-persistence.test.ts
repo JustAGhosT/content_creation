@@ -60,6 +60,14 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     });
   });
 
+  afterEach(async () => {
+    if (setupClient) {
+      await setupClient.schedulerJob.deleteMany({
+        where: { userId: { in: [ownerId, otherOwnerId] } },
+      });
+    }
+  });
+
   afterAll(async () => {
     if (setupClient) {
       await setupClient.user.deleteMany({ where: { id: { in: [ownerId, otherOwnerId] } } });
