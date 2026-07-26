@@ -134,6 +134,12 @@ az webapp config appsettings set \
 # X_CLIENT_SECRET. It also sets the public X_OAUTH_REDIRECT_URI. The workflow
 # discards the Azure CLI settings response so existing app settings are not
 # printed to Actions logs.
+#
+# If direct Key Vault entry is unavailable, temporarily create repository
+# secrets X_CLIENT_ID_BOOTSTRAP and X_CLIENT_SECRET_BOOTSTRAP, run the manual
+# Bootstrap X OAuth Secrets workflow with confirmation IMPORT, verify the run,
+# and delete both repository secrets immediately afterward. The workflow uses
+# OIDC and file-based Azure CLI input so values do not appear in command lines.
 ```
 
 Register the callback URI as an exact match in the X Developer Console. OmniPost
