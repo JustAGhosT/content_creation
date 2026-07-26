@@ -127,11 +127,11 @@ function confidentialClientHeaders(clientId: string, clientSecret?: string): Hea
   };
 }
 
-async function fetchWithOAuthTimeout(url: string, init: RequestInit): Promise<Response> {
+async function withOAuthTimeout<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), X_OAUTH_REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await operation(controller.signal);
   } finally {
     clearTimeout(timeout);
   }
@@ -162,16 +162,19 @@ export async function exchangeAuthorizationCode(
   });
   if (!config.clientSecret) body.set('client_id', config.clientId);
 
-  const response = await fetchWithOAuthTimeout(config.tokenUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      ...confidentialClientHeaders(config.clientId, config.clientSecret),
-    },
-    body,
-    cache: 'no-store',
+  return withOAuthTimeout(async signal => {
+    const response = await fetch(config.tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...confidentialClientHeaders(config.clientId, config.clientSecret),
+      },
+      body,
+      cache: 'no-store',
+      signal,
+    });
+    return parseTokenResponse(response);
   });
-  return parseTokenResponse(response);
 }
 
 export async function refreshAccessToken(refreshToken: string): Promise<XTokenResponse> {
@@ -182,30 +185,36 @@ export async function refreshAccessToken(refreshToken: string): Promise<XTokenRe
   });
   if (!config.clientSecret) body.set('client_id', config.clientId);
 
-  const response = await fetchWithOAuthTimeout(config.tokenUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      ...confidentialClientHeaders(config.clientId, config.clientSecret),
-    },
-    body,
-    cache: 'no-store',
+  return withOAuthTimeout(async signal => {
+    const response = await fetch(config.tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...confidentialClientHeaders(config.clientId, config.clientSecret),
+      },
+      body,
+      cache: 'no-store',
+      signal,
+    });
+    return parseTokenResponse(response);
   });
-  return parseTokenResponse(response);
 }
 
 export async function fetchXIdentity(accessToken: string): Promise<{
   id: string;
   username: string;
 }> {
-  const response = await fetchWithOAuthTimeout(getXOAuthConfig().meUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    cache: 'no-store',
+  return withOAuthTimeout(async signal => {
+    const response = await fetch(getXOAuthConfig().meUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: 'no-store',
+      signal,
+    });
+    if (!response.ok) {
+      throw new Error(`X identity request failed with status ${response.status}`);
+    }
+    return userResponseSchema.parse(await response.json()).data;
   });
-  if (!response.ok) {
-    throw new Error(`X identity request failed with status ${response.status}`);
-  }
-  return userResponseSchema.parse(await response.json()).data;
 }
 
 export async function revokeXToken(token: string): Promise<void> {
@@ -213,16 +222,19 @@ export async function revokeXToken(token: string): Promise<void> {
   const body = new URLSearchParams({ token });
   if (!config.clientSecret) body.set('client_id', config.clientId);
 
-  const response = await fetchWithOAuthTimeout(config.revokeUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      ...confidentialClientHeaders(config.clientId, config.clientSecret),
-    },
-    body,
-    cache: 'no-store',
+  await withOAuthTimeout(async signal => {
+    const response = await fetch(config.revokeUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...confidentialClientHeaders(config.clientId, config.clientSecret),
+      },
+      body,
+      cache: 'no-store',
+      signal,
+    });
+    if (!response.ok) {
+      throw new Error(`X OAuth revoke request failed with status ${response.status}`);
+    }
   });
-  if (!response.ok) {
-    throw new Error(`X OAuth revoke request failed with status ${response.status}`);
-  }
 }

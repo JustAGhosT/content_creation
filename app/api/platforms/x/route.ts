@@ -15,5 +15,5 @@ export const DELETE = withRateLimit(
   }),
   '/api/platforms/x',
   RateLimitPresets.AUTH,
-  'X_OAUTH_DISCONNECT'
+  'AUTH'
 );

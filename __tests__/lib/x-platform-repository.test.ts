@@ -109,7 +109,9 @@ describe('X platform account repository', () => {
     expect(mockRevokeXToken).toHaveBeenCalledWith('old-refresh');
     expect(mockUpdateMany).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ data: { status: 'reconnecting' } })
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'reconnecting' }),
+      })
     );
     const replacement = mockUpdateMany.mock.calls[1][0] as {
       data: { encryptedAccessToken: string; encryptedRefreshToken: string; status: string };
@@ -149,6 +151,45 @@ describe('X platform account repository', () => {
     );
 
     expect(mockRevokeXToken).toHaveBeenCalledWith('uncertain-refresh');
+  });
+
+  test('reserves the provider identity before revoking a displaced grant', async () => {
+    const existing = {
+      id: 'account-1',
+      status: 'connected',
+      providerAccountId: 'old-x-account',
+      providerUsername: 'old-user',
+      encryptedAccessToken: encryptSecret('old-access', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('old-refresh', 'x-refresh-token'),
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
+      updatedAt: new Date('2026-07-25T12:00:00Z'),
+    };
+    mockFindUnique.mockResolvedValueOnce(existing);
+    mockUpdateMany.mockRejectedValueOnce(new Error('provider identity is already connected'));
+
+    await expect(
+      repository.saveXAccount(
+        'user-1',
+        { id: 'conflicting-x-account', username: 'conflicting-user' },
+        {
+          token_type: 'bearer',
+          expires_in: 7200,
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          scope: 'tweet.read tweet.write users.read offline.access',
+        }
+      )
+    ).rejects.toThrow('provider identity is already connected');
+
+    expect(mockRevokeXToken).not.toHaveBeenCalled();
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'reconnecting',
+          providerAccountId: 'conflicting-x-account',
+        }),
+      })
+    );
   });
 
   test('uses a forward-only tenant-owned platform account migration', () => {

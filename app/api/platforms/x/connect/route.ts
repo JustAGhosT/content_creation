@@ -37,5 +37,5 @@ export const POST = withRateLimit(
   }),
   '/api/platforms/x/connect',
   RateLimitPresets.AUTH,
-  'X_OAUTH_CONNECT'
+  'AUTH'
 );

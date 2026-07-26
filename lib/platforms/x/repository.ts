@@ -114,7 +114,11 @@ export async function saveXAccount(
   }
   const claim = await client.platformAccount.updateMany({
     where: { id: existing.id, status: existing.status, updatedAt: existing.updatedAt },
-    data: { status: 'reconnecting' },
+    data: {
+      status: 'reconnecting',
+      providerAccountId: identity.id,
+      providerUsername: identity.username,
+    },
   });
   if (claim.count !== 1) {
     throw new Error('X account authorization changed during reconnect');
@@ -135,11 +139,16 @@ export async function saveXAccount(
         where: {
           id: existing.id,
           status: 'reconnecting',
+          providerAccountId: identity.id,
           connectedAt: existing.connectedAt,
           encryptedAccessToken: existing.encryptedAccessToken,
           encryptedRefreshToken: existing.encryptedRefreshToken,
         },
-        data: { status: existing.status },
+        data: {
+          status: existing.status === 'connected' ? 'connected' : 'recovery_required',
+          providerAccountId: existing.providerAccountId,
+          providerUsername: existing.providerUsername,
+        },
       });
       throw error;
     }
@@ -149,6 +158,7 @@ export async function saveXAccount(
     where: {
       id: existing.id,
       status: 'reconnecting',
+      providerAccountId: identity.id,
       connectedAt: existing.connectedAt,
       encryptedAccessToken: existing.encryptedAccessToken,
       encryptedRefreshToken: existing.encryptedRefreshToken,

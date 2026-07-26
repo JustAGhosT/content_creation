@@ -94,5 +94,5 @@ export const GET = withRateLimit(
   }),
   '/api/platforms/x/callback',
   RateLimitPresets.OAUTH_CALLBACK,
-  'X_OAUTH_CALLBACK'
+  'OAUTH_CALLBACK'
 );

@@ -391,7 +391,7 @@ const DEFAULT_WINDOW_MS = 15 * 60 * 1000;
  * Predefined rate limit configurations
  * Moved before checkRateLimitUpstash to be available for preset lookup
  */
-export const RateLimitPresets: Record<string, RateLimitConfig> = {
+export const RateLimitPresets = {
   /**
    * For authentication endpoints - prevent brute force
    * 5 requests per 15 minutes
@@ -452,14 +452,16 @@ export const RateLimitPresets: Record<string, RateLimitConfig> = {
     windowMs: 60 * 1000, // 1 minute
     message: 'Too many requests. Please try again in a minute.',
   },
-};
+} satisfies Record<string, RateLimitConfig>;
+
+type RateLimitPresetName = keyof typeof RateLimitPresets;
 
 /**
  * Check if request should be rate limited (Upstash version)
  */
 async function checkRateLimitUpstash(
   request: NextRequest,
-  presetName: string
+  presetName: RateLimitPresetName
 ): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
   // Lazy-initialize Upstash
   const limiters = await initUpstash();
@@ -496,7 +498,7 @@ export async function checkRateLimit(
   request: NextRequest,
   endpoint: string,
   config: RateLimitConfig,
-  presetName?: string
+  presetName?: RateLimitPresetName
 ): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
   // Use Upstash if configured and preset name provided
   if (isUpstashConfigured && presetName) {
@@ -523,7 +525,7 @@ export function checkRateLimitSync(
  */
 export function withRateLimit<
   T extends (request: NextRequest, ...args: unknown[]) => Promise<Response>,
->(handler: T, endpoint: string, config: RateLimitConfig, presetName?: string): T {
+>(handler: T, endpoint: string, config: RateLimitConfig, presetName?: RateLimitPresetName): T {
   // Resolve the effective config: use preset if provided, otherwise use passed config
   // This ensures headers and messages are consistent with the preset being enforced
   const effectiveConfig =
