@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { getAdapter } from '../../lib/scheduler/adapters';
+import { getAdapter, TwitterAdapter } from '../../lib/scheduler/adapters';
 import { platformConfigurations, platforms } from '../../lib/config/platforms';
 
 const originalNodeEnv = process.env.NODE_ENV;
 const originalTikTokApiKey = platformConfigurations.tiktok.apiKey;
-const originalTwitterApiKey = platformConfigurations.twitter.apiKey;
 const originalTwitterApiUrl = platformConfigurations.twitter.apiUrl;
 const originalTikTokPrivacyLevel = process.env.TIKTOK_PRIVACY_LEVEL;
 const originalFetch = global.fetch;
@@ -21,7 +20,6 @@ describe('Scheduler platform adapters', () => {
   afterEach(() => {
     setNodeEnv(originalNodeEnv);
     platformConfigurations.tiktok.apiKey = originalTikTokApiKey;
-    platformConfigurations.twitter.apiKey = originalTwitterApiKey;
     platformConfigurations.twitter.apiUrl = originalTwitterApiUrl;
     if (originalTikTokPrivacyLevel === undefined) {
       delete process.env.TIKTOK_PRIVACY_LEVEL;
@@ -81,8 +79,8 @@ describe('Scheduler platform adapters', () => {
 
   test('X publishes through the v2 create-post contract and returns an X URL', async () => {
     setNodeEnv('production');
-    platformConfigurations.twitter.apiKey = 'x-user-access-token';
     platformConfigurations.twitter.apiUrl = 'https://api.x.com/2/tweets';
+    const resolveAccessToken = jest.fn(async () => 'x-user-access-token');
     const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -94,9 +92,12 @@ describe('Scheduler platform adapters', () => {
     } as Response);
     global.fetch = fetchMock;
 
-    const result = await getAdapter('twitter')?.publish({
-      text: 'Controlled live post',
-    });
+    const result = await new TwitterAdapter(resolveAccessToken).publish(
+      {
+        text: 'Controlled live post',
+      },
+      { userId: 'user-1' }
+    );
 
     expect(result).toEqual(
       expect.objectContaining({
@@ -117,6 +118,17 @@ describe('Scheduler platform adapters', () => {
         }),
       })
     );
+    expect(resolveAccessToken).toHaveBeenCalledWith('user-1');
+  });
+
+  test('X fails closed without a tenant owner in production', async () => {
+    setNodeEnv('production');
+    const resolveAccessToken = jest.fn(async () => 'unused-token');
+
+    await expect(
+      new TwitterAdapter(resolveAccessToken).publish({ text: 'Do not publish without an owner' })
+    ).rejects.toThrow('X account owner is required');
+    expect(resolveAccessToken).not.toHaveBeenCalled();
   });
 
   test('TikTok is excluded from the default text-only content flow', () => {

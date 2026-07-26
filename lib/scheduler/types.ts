@@ -240,9 +240,16 @@ export interface JobQueue {
  */
 export interface PlatformAdapter {
   platformId: string;
-  publish(content: ScheduledJob['content']): Promise<PlatformPublishResult>;
+  publish(
+    content: ScheduledJob['content'],
+    context?: PlatformPublishContext
+  ): Promise<PlatformPublishResult>;
   validateContent(content: ScheduledJob['content']): ValidationResult;
   getMaxLength(): number;
+}
+
+export interface PlatformPublishContext {
+  userId?: string;
 }
 
 /**

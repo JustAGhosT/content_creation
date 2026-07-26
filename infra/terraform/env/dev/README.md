@@ -24,8 +24,14 @@ DNS records for `omnipost.neuralliquid.ai` are owned by
 - `nl-dev-omnipost-kv`
 - `nl-dev-omnipost-cae`
 - `nl-dev-omnipost-sluice`
+- `nl-dev-omnipost-scheduler` recurring Container Apps Job
 - `nl-dev-omnipost-psql-swc` in `swedencentral`
 - PostgreSQL database `omnipost`
+
+The scheduler job runs once every two minutes with no platform-level retry. It reads a
+versionless processor secret through managed identity and invokes the protected
+OmniPost processor. Durable leases and reconciliation state remain the authority
+for retries and unknown provider outcomes.
 
 The existing App Service managed certificate remains live in Azure but is not
 managed by this first Terraform pass because importing it as

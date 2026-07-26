@@ -81,8 +81,8 @@ export const platformConfigurations: Record<string, PlatformConfig> = {
   },
   twitter: {
     apiUrl: process.env.TWITTER_API_URL || 'https://api.x.com/2/tweets',
-    apiKey: process.env.TWITTER_ACCESS_TOKEN || '',
-    required: true,
+    apiKey: '',
+    required: false,
     capabilities: ['text', 'image', 'video'],
   },
   tiktok: {
