@@ -311,7 +311,7 @@ export class PrismaJobQueue implements JobQueue {
           { status: 'failed', nextRetryAt: { lte: before } },
         ],
       },
-      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
       take: limit,
     });
     return rows.map(parseStoredJob);
@@ -375,7 +375,7 @@ export class PrismaJobQueue implements JobQueue {
           { status: 'failed', nextRetryAt: { lte: before } },
         ],
       },
-      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
       take: Math.max(limit * 4, limit),
     });
 
@@ -453,7 +453,7 @@ export class PrismaJobQueue implements JobQueue {
   async getByStatus(status: JobStatus, limit?: number, userId?: string): Promise<ScheduledJob[]> {
     const rows = await this.client.schedulerJob.findMany({
       where: { status, userId },
-      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
       take: limit,
     });
     return rows.map(parseStoredJob);
@@ -462,7 +462,7 @@ export class PrismaJobQueue implements JobQueue {
   async getByCampaign(campaignId: string, userId?: string): Promise<ScheduledJob[]> {
     const rows = await this.client.schedulerJob.findMany({
       where: { campaignId, userId },
-      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
     return rows.map(parseStoredJob);
   }
@@ -470,7 +470,7 @@ export class PrismaJobQueue implements JobQueue {
   async getAll(userId?: string): Promise<ScheduledJob[]> {
     const rows = await this.client.schedulerJob.findMany({
       where: { userId },
-      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
     return rows.map(parseStoredJob);
   }
@@ -484,7 +484,7 @@ export class PrismaJobQueue implements JobQueue {
     const [rows, total] = await this.client.$transaction([
       this.client.schedulerJob.findMany({
         where,
-        orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
+        orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
         skip: options.offset,
         take: options.limit,
       }),

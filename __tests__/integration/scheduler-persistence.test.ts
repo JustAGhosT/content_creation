@@ -307,7 +307,6 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     const queue = new PrismaJobQueue(setupClient);
     const first = testJob(ownerId, `${suffix}-page-a`);
     const second = testJob(ownerId, `${suffix}-page-b`);
-    second.scheduledTime = '2026-07-26T08:01:00.000Z';
     await queue.add(first);
     await queue.add(second);
 
