@@ -137,6 +137,31 @@ describe('X platform account repository', () => {
     );
   });
 
+  test('does not expire a newly reconnected account from a stale no-refresh read', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      id: 'account-1',
+      status: 'connected',
+      expiresAt: new Date(Date.now() - 1),
+      encryptedAccessToken: encryptSecret('old-access', 'x-access-token'),
+      encryptedRefreshToken: null,
+      updatedAt: new Date('2026-07-25T12:00:00Z'),
+    });
+    mockUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
+      'X account changed while authorization expiry was recorded'
+    );
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: 'account-1',
+        status: 'connected',
+        encryptedRefreshToken: null,
+        updatedAt: new Date('2026-07-25T12:00:00Z'),
+      }),
+      data: { status: 'expired' },
+    });
+  });
+
   test('refreshes an expiring token and persists rotated credentials', async () => {
     mockFindUnique.mockResolvedValueOnce({
       id: 'account-1',
@@ -239,72 +264,109 @@ describe('X platform account repository', () => {
   });
 
   test('revokes at the provider before erasing stored credentials', async () => {
-    mockFindUnique.mockResolvedValueOnce({
+    const account = {
       id: 'account-1',
       status: 'connected',
       encryptedAccessToken: encryptSecret('access-token', 'x-access-token'),
       encryptedRefreshToken: encryptSecret('refresh-token', 'x-refresh-token'),
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
       updatedAt: new Date('2026-07-25T12:00:00Z'),
-    });
+    };
+    mockFindUnique
+      .mockResolvedValueOnce(account)
+      .mockResolvedValueOnce({ ...account, status: 'revoking' });
     mockRevokeXToken.mockResolvedValueOnce();
-    mockUpdateMany.mockResolvedValueOnce({ count: 1 });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
 
     await expect(repository.disconnectXAccount('user-1')).resolves.toBe(true);
     expect(mockRevokeXToken).toHaveBeenCalledWith('refresh-token');
-    expect(mockUpdateMany).toHaveBeenCalledWith(
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: 'account-1',
+        status: 'connected',
+        connectedAt: new Date('2026-07-25T11:00:00Z'),
+      },
+      data: { status: 'revoking' },
+    });
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining({
-        where: expect.objectContaining({
-          id: 'account-1',
-          status: 'connected',
-          updatedAt: new Date('2026-07-25T12:00:00Z'),
-        }),
-        data: expect.objectContaining({
-          encryptedAccessToken: '',
-          encryptedRefreshToken: null,
-          status: 'revoked',
-        }),
+        where: expect.objectContaining({ status: 'revoking' }),
+        data: expect.objectContaining({ status: 'revoked' }),
       })
     );
   });
 
   test('keeps credentials when provider revocation fails', async () => {
-    mockFindUnique.mockResolvedValueOnce({
+    const account = {
       id: 'account-1',
       status: 'connected',
       encryptedAccessToken: encryptSecret('access-token', 'x-access-token'),
       encryptedRefreshToken: null,
-    });
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
+    };
+    mockFindUnique
+      .mockResolvedValueOnce(account)
+      .mockResolvedValueOnce({ ...account, status: 'revoking' });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
     mockRevokeXToken.mockRejectedValueOnce(new Error('provider unavailable'));
 
     await expect(repository.disconnectXAccount('user-1')).rejects.toThrow('provider unavailable');
     expect(mockUpdate).not.toHaveBeenCalled();
-    expect(mockUpdateMany).not.toHaveBeenCalled();
+    expect(mockUpdateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { status: 'connected' } })
+    );
   });
 
   test('does not erase credentials from a concurrent reconnect after provider revocation', async () => {
     const encryptedAccessToken = encryptSecret('old-access', 'x-access-token');
     const encryptedRefreshToken = encryptSecret('old-refresh', 'x-refresh-token');
-    mockFindUnique.mockResolvedValueOnce({
+    const account = {
       id: 'account-1',
       status: 'connected',
       encryptedAccessToken,
       encryptedRefreshToken,
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
       updatedAt: new Date('2026-07-25T12:00:00Z'),
-    });
+    };
+    mockFindUnique
+      .mockResolvedValueOnce(account)
+      .mockResolvedValueOnce({ ...account, status: 'revoking' });
     mockRevokeXToken.mockResolvedValueOnce();
-    mockUpdateMany.mockResolvedValueOnce({ count: 0 });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
 
     await expect(repository.disconnectXAccount('user-1')).resolves.toBe(false);
-    expect(mockUpdateMany).toHaveBeenCalledWith(
+    expect(mockUpdateMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        where: {
-          id: 'account-1',
-          status: 'connected',
-          encryptedAccessToken,
-          encryptedRefreshToken,
-          updatedAt: new Date('2026-07-25T12:00:00Z'),
-        },
+        where: expect.objectContaining({ status: 'revoking', connectedAt: account.connectedAt }),
       })
     );
+  });
+
+  test('disconnect revokes credentials rotated by an in-flight refresh before the claim', async () => {
+    const connectedAt = new Date('2026-07-25T11:00:00Z');
+    const initialAccount = {
+      id: 'account-1',
+      status: 'connected',
+      encryptedAccessToken: encryptSecret('old-access', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('old-refresh', 'x-refresh-token'),
+      connectedAt,
+    };
+    const claimedAccount = {
+      ...initialAccount,
+      status: 'revoking',
+      encryptedAccessToken: encryptSecret('rotated-access', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('rotated-refresh', 'x-refresh-token'),
+    };
+    mockFindUnique.mockResolvedValueOnce(initialAccount).mockResolvedValueOnce(claimedAccount);
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+    mockRevokeXToken.mockResolvedValueOnce();
+
+    await expect(repository.disconnectXAccount('user-1')).resolves.toBe(true);
+    expect(mockRevokeXToken).toHaveBeenCalledWith('rotated-refresh');
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: 'account-1', status: 'connected', connectedAt },
+      data: { status: 'revoking' },
+    });
   });
 });

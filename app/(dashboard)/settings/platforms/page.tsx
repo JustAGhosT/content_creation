@@ -117,9 +117,15 @@ export function PlatformSettingsPage() {
   const handleDisconnect = useCallback(async () => {
     setOperationError('');
     try {
-      await apiClient.delete<{ disconnected: boolean }>('/api/platforms/x');
+      const response = await apiClient.delete<{ disconnected: boolean }>('/api/platforms/x');
       setModal(null);
       await loadConnections();
+      if (!response.disconnected) {
+        setOperationError(
+          'The X connection changed before it could be disconnected. Review it and try again.'
+        );
+        return;
+      }
       track('platform_disconnected', { platformName: 'X', totalPlatforms: 0 });
     } catch {
       setOperationError('X could not be disconnected. Please try again.');

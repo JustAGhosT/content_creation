@@ -119,10 +119,19 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
     return decryptSecret(account.encryptedAccessToken, ACCESS_TOKEN_PURPOSE);
   }
   if (!account.encryptedRefreshToken) {
-    await client.platformAccount.update({
-      where: { id: account.id },
+    const update = await client.platformAccount.updateMany({
+      where: {
+        id: account.id,
+        status: 'connected',
+        encryptedAccessToken: account.encryptedAccessToken,
+        encryptedRefreshToken: null,
+        updatedAt: account.updatedAt,
+      },
       data: { status: 'expired' },
     });
+    if (update.count !== 1) {
+      throw new Error('X account changed while authorization expiry was recorded');
+    }
     throw new Error('X account authorization has expired; reconnect is required');
   }
 
@@ -169,20 +178,47 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
   const account = await client.platformAccount.findUnique({
     where: { userId_platform: { userId, platform: X_PLATFORM_ID } },
   });
-  if (!account || account.status === 'revoked') return false;
+  if (!account || account.status !== 'connected') return false;
 
-  const token = account.encryptedRefreshToken
-    ? decryptSecret(account.encryptedRefreshToken, REFRESH_TOKEN_PURPOSE)
-    : decryptSecret(account.encryptedAccessToken, ACCESS_TOKEN_PURPOSE);
-  await revokeXToken(token);
+  const claim = await client.platformAccount.updateMany({
+    where: {
+      id: account.id,
+      status: 'connected',
+      connectedAt: account.connectedAt,
+    },
+    data: { status: 'revoking' },
+  });
+  if (claim.count !== 1) return false;
+
+  const claimedAccount = await client.platformAccount.findUnique({ where: { id: account.id } });
+  if (!claimedAccount || claimedAccount.status !== 'revoking') return false;
+
+  const token = claimedAccount.encryptedRefreshToken
+    ? decryptSecret(claimedAccount.encryptedRefreshToken, REFRESH_TOKEN_PURPOSE)
+    : decryptSecret(claimedAccount.encryptedAccessToken, ACCESS_TOKEN_PURPOSE);
+  try {
+    await revokeXToken(token);
+  } catch (error) {
+    await client.platformAccount.updateMany({
+      where: {
+        id: claimedAccount.id,
+        status: 'revoking',
+        connectedAt: account.connectedAt,
+        encryptedAccessToken: claimedAccount.encryptedAccessToken,
+        encryptedRefreshToken: claimedAccount.encryptedRefreshToken,
+      },
+      data: { status: 'connected' },
+    });
+    throw error;
+  }
 
   const update = await client.platformAccount.updateMany({
     where: {
-      id: account.id,
-      status: account.status,
-      encryptedAccessToken: account.encryptedAccessToken,
-      encryptedRefreshToken: account.encryptedRefreshToken,
-      updatedAt: account.updatedAt,
+      id: claimedAccount.id,
+      status: 'revoking',
+      connectedAt: account.connectedAt,
+      encryptedAccessToken: claimedAccount.encryptedAccessToken,
+      encryptedRefreshToken: claimedAccount.encryptedRefreshToken,
     },
     data: {
       encryptedAccessToken: '',
