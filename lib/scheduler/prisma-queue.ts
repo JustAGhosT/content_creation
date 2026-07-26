@@ -48,6 +48,7 @@ function parseStoredJob(row: StoredSchedulerJob): ScheduledJob {
     return {
       id: row.id,
       idempotencyKey: row.idempotencyKey,
+      requestFingerprint: row.requestFingerprint,
       type: jobTypeSchema.parse(row.type),
       campaignId: row.campaignId ?? undefined,
       campaignVersion: row.campaignVersion ?? undefined,
@@ -90,6 +91,7 @@ function createData(job: ScheduledJob): Prisma.SchedulerJobUncheckedCreateInput 
     id: job.id,
     userId: job.createdBy,
     idempotencyKey: job.idempotencyKey,
+    requestFingerprint: job.requestFingerprint,
     type: job.type,
     campaignId: job.campaignId,
     campaignVersion: job.campaignVersion,
@@ -118,20 +120,7 @@ function createData(job: ScheduledJob): Prisma.SchedulerJobUncheckedCreateInput 
 }
 
 function sameIdempotentRequest(row: StoredSchedulerJob, job: ScheduledJob): boolean {
-  return (
-    row.type === job.type &&
-    row.contentId === job.contentId &&
-    row.platformId === job.platformId &&
-    row.campaignId === (job.campaignId ?? null) &&
-    row.campaignVersion === (job.campaignVersion ?? null) &&
-    row.campaignVersionId === (job.campaignVersionId ?? null) &&
-    row.approvedContentHash === (job.approvedContentHash ?? null) &&
-    row.variantId === (job.variantId ?? null) &&
-    row.scheduledAt.toISOString() === new Date(job.scheduledTime).toISOString() &&
-    row.content === JSON.stringify(job.content) &&
-    row.timezone === job.timezone &&
-    row.maxAttempts === job.maxAttempts
-  );
+  return row.requestFingerprint === job.requestFingerprint;
 }
 
 function hasOwn<T extends object>(value: T, key: keyof T): boolean {
@@ -224,6 +213,19 @@ export class PrismaJobQueue implements JobQueue {
     await this.client.schedulerJob.updateMany({ where: { id }, data: updateData(updates) });
   }
 
+  async updateIfStatus(
+    id: string,
+    statuses: JobStatus[],
+    updates: Partial<ScheduledJob>,
+    userId?: string
+  ): Promise<boolean> {
+    const result = await this.client.schedulerJob.updateMany({
+      where: { id, userId, status: { in: statuses } },
+      data: updateData(updates),
+    });
+    return result.count === 1;
+  }
+
   async remove(id: string): Promise<void> {
     await this.client.schedulerJob.deleteMany({ where: { id } });
   }
@@ -281,8 +283,6 @@ export class PrismaJobQueue implements JobQueue {
         where: dueGuard,
         data: {
           status: 'processing',
-          attempts: { increment: 1 },
-          lastAttemptAt: before,
           leaseToken,
           leaseExpiresAt,
           errorCode: null,
@@ -294,6 +294,22 @@ export class PrismaJobQueue implements JobQueue {
       if (row) claimed.push(parseStoredJob(row));
     }
     return claimed;
+  }
+
+  async markClaimAttempt(
+    id: string,
+    leaseToken: string,
+    attemptedAt: Date
+  ): Promise<ScheduledJob | null> {
+    const result = await this.client.schedulerJob.updateMany({
+      where: { id, status: 'processing', leaseToken },
+      data: { attempts: { increment: 1 }, lastAttemptAt: attemptedAt },
+    });
+    if (result.count !== 1) return null;
+    const row = await this.client.schedulerJob.findFirst({
+      where: { id, status: 'processing', leaseToken },
+    });
+    return row ? parseStoredJob(row) : null;
   }
 
   async updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean> {

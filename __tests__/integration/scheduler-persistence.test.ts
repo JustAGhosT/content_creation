@@ -16,6 +16,7 @@ function testJob(userId: string, suffix: string): ScheduledJob {
   return {
     id: `scheduler-job-${suffix}`,
     idempotencyKey: `scheduler-idempotency-${suffix}`,
+    requestFingerprint: `scheduler-request-${suffix}`,
     type: 'standalone',
     contentId: `content-${suffix}`,
     platformId: 'twitter',
@@ -129,7 +130,15 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     ]);
 
     expect([...first, ...second]).toHaveLength(1);
-    expect([...first, ...second][0]).toMatchObject({ status: 'processing', attempts: 1 });
+    const claimed = [...first, ...second][0];
+    expect(claimed).toMatchObject({ status: 'processing', attempts: 0 });
+    const claimingQueue =
+      claimed.leaseToken === 'database-lease-a'
+        ? new PrismaJobQueue(firstClient)
+        : new PrismaJobQueue(secondClient);
+    await expect(
+      claimingQueue.markClaimAttempt(claimed.id, claimed.leaseToken!, dueAt)
+    ).resolves.toMatchObject({ attempts: 1, lastAttemptAt: dueAt.toISOString() });
     await firstClient.$disconnect();
     await secondClient.$disconnect();
   });

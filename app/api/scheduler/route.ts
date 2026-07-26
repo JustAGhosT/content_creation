@@ -212,24 +212,15 @@ export const POST = withRateLimit(
           platformId: data.platformId,
           contentHash: data.contentHash,
         });
-        await recordPublishAttempt({
-          userId: currentUserId,
-          campaignId: data.campaignId,
-          version: data.campaignVersion,
-          contentId: data.contentId,
-          variantId: data.variantId,
-          platformId: data.platformId,
-          contentHash: data.contentHash,
-        });
       } catch (error) {
         return campaignErrorResponse(error) ?? Errors.internalServerError();
       }
     }
 
     const scheduler = getScheduler();
-    let job;
+    let scheduled;
     try {
-      job = await scheduler.schedule({
+      scheduled = await scheduler.scheduleWithResult({
         type: data.type,
         campaignId: data.campaignId,
         campaignVersion: data.campaignVersion,
@@ -252,7 +243,33 @@ export const POST = withRateLimit(
       throw error;
     }
 
-    return NextResponse.json({ job }, { status: 201 });
+    if (
+      data.type === 'campaign_post' &&
+      data.campaignId &&
+      data.campaignVersion &&
+      data.contentHash &&
+      data.variantId
+    ) {
+      try {
+        await recordPublishAttempt({
+          userId: currentUserId,
+          campaignId: data.campaignId,
+          version: data.campaignVersion,
+          contentId: data.contentId,
+          variantId: data.variantId,
+          platformId: data.platformId,
+          contentHash: data.contentHash,
+          schedulerJobId: scheduled.job.id,
+        });
+      } catch (error) {
+        if (scheduled.created) {
+          await scheduler.cancel(scheduled.job.id, currentUserId);
+        }
+        return campaignErrorResponse(error) ?? Errors.internalServerError();
+      }
+    }
+
+    return NextResponse.json({ job: scheduled.job }, { status: scheduled.created ? 201 : 200 });
   }),
   '/api/scheduler',
   RateLimitPresets.GENERAL

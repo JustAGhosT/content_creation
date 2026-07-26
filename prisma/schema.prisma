@@ -192,11 +192,13 @@ model PublishAttempt {
   auditEventId      String?
   errorCode         String?
   requestedBy       String
+  schedulerJobId    String?   @unique
   requestedAt       DateTime  @default(now())
   completedAt       DateTime?
 
   campaign        Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   campaignVersion CampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
+  schedulerJob    SchedulerJob?   @relation(fields: [schedulerJobId], references: [id], onDelete: SetNull)
 
   @@index([campaignId, requestedAt])
   @@index([campaignVersionId, variantId])
@@ -287,6 +289,7 @@ model SchedulerJob {
   id                  String    @id @default(cuid())
   userId              String
   idempotencyKey      String
+  requestFingerprint  String
   type                String
   campaignId          String?
   campaignVersion     Int?
@@ -315,6 +318,7 @@ model SchedulerJob {
 
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   campaignVersionRow CampaignVersion? @relation(fields: [campaignVersionId], references: [id], onDelete: Restrict)
+  publishAttempt     PublishAttempt?
 
   @@unique([userId, idempotencyKey])
   @@index([userId, status])

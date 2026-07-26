@@ -11,21 +11,7 @@ import type { ClaimedJobUpdate, JobQueue, ScheduledJob, JobStatus } from './type
 const STORAGE_KEY = 'scheduler-jobs';
 
 function sameIdempotentRequest(existing: ScheduledJob, candidate: ScheduledJob): boolean {
-  return (
-    existing.type === candidate.type &&
-    existing.contentId === candidate.contentId &&
-    existing.platformId === candidate.platformId &&
-    existing.campaignId === candidate.campaignId &&
-    existing.campaignVersion === candidate.campaignVersion &&
-    existing.campaignVersionId === candidate.campaignVersionId &&
-    existing.approvedContentHash === candidate.approvedContentHash &&
-    existing.variantId === candidate.variantId &&
-    new Date(existing.scheduledTime).toISOString() ===
-      new Date(candidate.scheduledTime).toISOString() &&
-    JSON.stringify(existing.content) === JSON.stringify(candidate.content) &&
-    existing.timezone === candidate.timezone &&
-    existing.maxAttempts === candidate.maxAttempts
-  );
+  return existing.requestFingerprint === candidate.requestFingerprint;
 }
 
 function findIdempotentJob(
@@ -138,6 +124,22 @@ export class InMemoryQueue implements JobQueue {
     }
   }
 
+  async updateIfStatus(
+    id: string,
+    statuses: JobStatus[],
+    updates: Partial<ScheduledJob>,
+    userId?: string
+  ): Promise<boolean> {
+    this.ensureInitialized();
+    const job = this.jobs.get(id);
+    if (!job || (userId && job.createdBy !== userId) || !statuses.includes(job.status)) {
+      return false;
+    }
+    this.jobs.set(id, { ...job, ...updates, updatedAt: new Date().toISOString() });
+    this.persist();
+    return true;
+  }
+
   async remove(id: string): Promise<void> {
     this.ensureInitialized();
     this.jobs.delete(id);
@@ -202,8 +204,6 @@ export class InMemoryQueue implements JobQueue {
       const updated: ScheduledJob = {
         ...current,
         status: 'processing',
-        attempts: current.attempts + 1,
-        lastAttemptAt: before.toISOString(),
         leaseToken,
         leaseExpiresAt: leaseExpiresAt.toISOString(),
         error: undefined,
@@ -214,6 +214,27 @@ export class InMemoryQueue implements JobQueue {
     }
     this.persist();
     return claimed;
+  }
+
+  async markClaimAttempt(
+    id: string,
+    leaseToken: string,
+    attemptedAt: Date
+  ): Promise<ScheduledJob | null> {
+    this.ensureInitialized();
+    const current = this.jobs.get(id);
+    if (!current || current.status !== 'processing' || current.leaseToken !== leaseToken) {
+      return null;
+    }
+    const updated = {
+      ...current,
+      attempts: current.attempts + 1,
+      lastAttemptAt: attemptedAt.toISOString(),
+      updatedAt: attemptedAt.toISOString(),
+    };
+    this.jobs.set(id, updated);
+    this.persist();
+    return updated;
   }
 
   async updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean> {
@@ -312,6 +333,20 @@ export class ServerMemoryQueue implements JobQueue {
     }
   }
 
+  async updateIfStatus(
+    id: string,
+    statuses: JobStatus[],
+    updates: Partial<ScheduledJob>,
+    userId?: string
+  ): Promise<boolean> {
+    const job = this.jobs.get(id);
+    if (!job || (userId && job.createdBy !== userId) || !statuses.includes(job.status)) {
+      return false;
+    }
+    this.jobs.set(id, { ...job, ...updates, updatedAt: new Date().toISOString() });
+    return true;
+  }
+
   async remove(id: string): Promise<void> {
     this.jobs.delete(id);
   }
@@ -370,8 +405,6 @@ export class ServerMemoryQueue implements JobQueue {
       const updated: ScheduledJob = {
         ...current,
         status: 'processing',
-        attempts: current.attempts + 1,
-        lastAttemptAt: before.toISOString(),
         leaseToken,
         leaseExpiresAt: leaseExpiresAt.toISOString(),
         error: undefined,
@@ -381,6 +414,25 @@ export class ServerMemoryQueue implements JobQueue {
       claimed.push(updated);
     }
     return claimed;
+  }
+
+  async markClaimAttempt(
+    id: string,
+    leaseToken: string,
+    attemptedAt: Date
+  ): Promise<ScheduledJob | null> {
+    const current = this.jobs.get(id);
+    if (!current || current.status !== 'processing' || current.leaseToken !== leaseToken) {
+      return null;
+    }
+    const updated = {
+      ...current,
+      attempts: current.attempts + 1,
+      lastAttemptAt: attemptedAt.toISOString(),
+      updatedAt: attemptedAt.toISOString(),
+    };
+    this.jobs.set(id, updated);
+    return updated;
   }
 
   async updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean> {

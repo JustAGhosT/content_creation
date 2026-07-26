@@ -73,6 +73,7 @@ function toPublishJob(item: QueueItem): ScheduledJob {
   return {
     id: `queue-${platformId}-${contentId}`,
     idempotencyKey: `queue-approve:${platformId}:${contentId}`,
+    requestFingerprint: `queue-approve:${platformId}:${contentId}`,
     type: 'standalone',
     contentId,
     platformId,

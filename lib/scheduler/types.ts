@@ -27,6 +27,7 @@ export type JobType = 'campaign_post' | 'series_promotion' | 'standalone';
 export interface ScheduledJob {
   id: string;
   idempotencyKey: string;
+  requestFingerprint: string;
   type: JobType;
 
   // Reference to content
@@ -181,6 +182,11 @@ export interface ClaimedJobUpdate extends Partial<ScheduledJob> {
   status: Exclude<JobStatus, 'processing'>;
 }
 
+export interface ScheduleJobResult {
+  job: ScheduledJob;
+  created: boolean;
+}
+
 /**
  * Job queue interface
  */
@@ -188,6 +194,12 @@ export interface JobQueue {
   add(job: ScheduledJob): Promise<{ job: ScheduledJob; created: boolean }>;
   get(id: string, userId?: string): Promise<ScheduledJob | null>;
   update(id: string, updates: Partial<ScheduledJob>): Promise<void>;
+  updateIfStatus(
+    id: string,
+    statuses: JobStatus[],
+    updates: Partial<ScheduledJob>,
+    userId?: string
+  ): Promise<boolean>;
   remove(id: string): Promise<void>;
   getDueJobs(before: Date, limit: number): Promise<ScheduledJob[]>;
   claimDueJobs(
@@ -196,6 +208,7 @@ export interface JobQueue {
     leaseToken: string,
     leaseExpiresAt: Date
   ): Promise<ScheduledJob[]>;
+  markClaimAttempt(id: string, leaseToken: string, attemptedAt: Date): Promise<ScheduledJob | null>;
   updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean>;
   getByStatus(status: JobStatus, limit?: number, userId?: string): Promise<ScheduledJob[]>;
   getByCampaign(campaignId: string, userId?: string): Promise<ScheduledJob[]>;

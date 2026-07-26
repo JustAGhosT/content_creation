@@ -159,6 +159,30 @@ export class RateLimiter {
     return true;
   }
 
+  /** Earliest time all active local quota/backoff constraints have reset. */
+  async getNextAvailableAt(platformId: string): Promise<Date | null> {
+    const limit = this.getOrCreateLimit(platformId);
+    this.checkWindowReset(limit);
+    const resetTimes: number[] = [];
+
+    if (limit.isBackingOff && limit.backoffUntil) {
+      resetTimes.push(new Date(limit.backoffUntil).getTime());
+    }
+    if (limit.requestCount >= limit.requestLimit) {
+      resetTimes.push(new Date(limit.windowStart).getTime() + limit.windowDuration * 1000);
+    }
+    if (
+      limit.dailyLimit &&
+      limit.dailyCount !== undefined &&
+      limit.dailyCount >= limit.dailyLimit &&
+      limit.dailyResetAt
+    ) {
+      resetTimes.push(new Date(limit.dailyResetAt).getTime());
+    }
+
+    return resetTimes.length > 0 ? new Date(Math.max(...resetTimes)) : null;
+  }
+
   /**
    * Record a request for rate limiting
    */

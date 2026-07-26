@@ -14,6 +14,7 @@ import {
   WebhookEvent,
   WebhookEventType,
   JobQueue,
+  ScheduleJobResult,
 } from './types';
 import { createHash } from 'node:crypto';
 import { getQueue, generateJobId } from './queue';
@@ -21,7 +22,11 @@ import { getRateLimiter, RateLimiter } from './rate-limiter';
 import { getRetryHandler, RetryHandler } from './retry-handler';
 import { getPublisher, Publisher } from './publisher';
 
-function deriveIdempotencyKey(input: CreateJobInput): string {
+function deriveRequestFingerprint(
+  input: CreateJobInput,
+  timezone: string,
+  maxAttempts: number
+): string {
   const identity = JSON.stringify({
     type: input.type,
     campaignId: input.campaignId ?? null,
@@ -33,10 +38,10 @@ function deriveIdempotencyKey(input: CreateJobInput): string {
     platformId: input.platformId,
     content: input.content,
     scheduledTime: new Date(input.scheduledTime).toISOString(),
-    timezone: input.timezone ?? null,
-    maxAttempts: input.maxAttempts ?? null,
+    timezone,
+    maxAttempts,
   });
-  return `scheduler:v1:${createHash('sha256').update(identity).digest('hex')}`;
+  return createHash('sha256').update(identity).digest('hex');
 }
 
 /**
@@ -63,11 +68,19 @@ export class Scheduler {
    * Schedule a new job
    */
   async schedule(input: CreateJobInput): Promise<ScheduledJob> {
+    return (await this.scheduleWithResult(input)).job;
+  }
+
+  async scheduleWithResult(input: CreateJobInput): Promise<ScheduleJobResult> {
     const now = new Date().toISOString();
+    const timezone = input.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const maxAttempts = input.maxAttempts || this.config.maxRetries;
+    const requestFingerprint = deriveRequestFingerprint(input, timezone, maxAttempts);
 
     const job: ScheduledJob = {
       id: generateJobId(),
-      idempotencyKey: input.idempotencyKey ?? deriveIdempotencyKey(input),
+      idempotencyKey: input.idempotencyKey ?? `scheduler:v1:${requestFingerprint}`,
+      requestFingerprint,
       type: input.type,
       campaignId: input.campaignId,
       campaignVersion: input.campaignVersion,
@@ -78,10 +91,10 @@ export class Scheduler {
       platformId: input.platformId,
       content: input.content,
       scheduledTime: input.scheduledTime,
-      timezone: input.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezone,
       status: 'scheduled',
       attempts: 0,
-      maxAttempts: input.maxAttempts || this.config.maxRetries,
+      maxAttempts,
       createdAt: now,
       updatedAt: now,
       createdBy: input.createdBy,
@@ -101,7 +114,7 @@ export class Scheduler {
       });
     }
 
-    return persisted.job;
+    return persisted;
   }
 
   /**
@@ -136,12 +149,12 @@ export class Scheduler {
       throw new Error(`Cannot cancel job in status: ${job.status}`);
     }
 
-    await this.queue.update(jobId, {
-      status: 'cancelled',
-      updatedAt: new Date().toISOString(),
-    });
-
-    return true;
+    return this.queue.updateIfStatus(
+      jobId,
+      ['scheduled', 'failed'],
+      { status: 'cancelled', updatedAt: new Date().toISOString() },
+      userId
+    );
   }
 
   /**
@@ -162,12 +175,18 @@ export class Scheduler {
       throw new Error(`Cannot reschedule job in status: ${job.status}`);
     }
 
-    await this.queue.update(jobId, {
-      scheduledTime: newScheduledTime,
-      status: 'scheduled',
-      nextRetryAt: undefined,
-      updatedAt: new Date().toISOString(),
-    });
+    const updated = await this.queue.updateIfStatus(
+      jobId,
+      ['scheduled', 'failed', 'cancelled'],
+      {
+        scheduledTime: newScheduledTime,
+        status: 'scheduled',
+        nextRetryAt: undefined,
+        updatedAt: new Date().toISOString(),
+      },
+      userId
+    );
+    if (!updated) return null;
 
     return this.queue.get(jobId, userId);
   }
@@ -191,7 +210,47 @@ export class Scheduler {
       );
       if (!job) break;
 
-      const result = await this.processJob(job, leaseToken);
+      if (!(await this.rateLimiter.canProcess(job.platformId))) {
+        const nextAvailableAt =
+          (await this.rateLimiter.getNextAvailableAt(job.platformId)) ??
+          new Date(now.getTime() + this.config.checkInterval);
+        const deferred = await this.queue.updateClaimed(job.id, leaseToken, {
+          status: 'failed',
+          error: 'Platform rate limit is active; no provider request was attempted',
+          nextRetryAt: nextAvailableAt.toISOString(),
+          updatedAt: now.toISOString(),
+        });
+        results.push({
+          jobId: job.id,
+          status: 'failure',
+          error: {
+            code: deferred ? 'RATE_LIMITED' : 'LEASE_LOST',
+            message: deferred
+              ? 'Platform rate limit is active; job deferred without consuming an attempt'
+              : 'The scheduler processing lease changed before rate-limit deferral was recorded',
+            retryable: deferred,
+          },
+          executedAt: now.toISOString(),
+        });
+        continue;
+      }
+
+      const attemptedJob = await this.queue.markClaimAttempt(job.id, leaseToken, now);
+      if (!attemptedJob) {
+        results.push({
+          jobId: job.id,
+          status: 'failure',
+          error: {
+            code: 'LEASE_LOST',
+            message: 'The scheduler processing lease changed before the attempt was recorded',
+            retryable: false,
+          },
+          executedAt: now.toISOString(),
+        });
+        continue;
+      }
+
+      const result = await this.processJob(attemptedJob, leaseToken);
       results.push(result);
     }
 
@@ -353,14 +412,20 @@ export class Scheduler {
     }
 
     // Reset for retry
-    await this.queue.update(jobId, {
-      status: 'scheduled',
-      scheduledTime: new Date().toISOString(),
-      nextRetryAt: undefined,
-      error: undefined,
-      attempts: 0,
-      updatedAt: new Date().toISOString(),
-    });
+    const updated = await this.queue.updateIfStatus(
+      jobId,
+      ['failed', 'dead'],
+      {
+        status: 'scheduled',
+        scheduledTime: new Date().toISOString(),
+        nextRetryAt: undefined,
+        error: undefined,
+        attempts: 0,
+        updatedAt: new Date().toISOString(),
+      },
+      userId
+    );
+    if (!updated) return null;
 
     return this.queue.get(jobId, userId);
   }

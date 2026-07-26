@@ -6,6 +6,7 @@ function job(overrides: Partial<ScheduledJob> = {}): ScheduledJob {
   return {
     id: 'job-1',
     idempotencyKey: 'publish:user-1:content-1:twitter',
+    requestFingerprint: 'request-fingerprint-1',
     type: 'standalone',
     contentId: 'content-1',
     platformId: 'twitter',
@@ -30,11 +31,28 @@ describe('durable scheduler queue contract', () => {
 
     expect(first.created).toBe(true);
     expect(duplicate).toEqual({ job: first.job, created: false });
+    await queue.update('job-1', { scheduledTime: '2026-07-27T08:00:00.000Z' });
+    await expect(queue.add(job({ id: 'job-replay' }))).resolves.toMatchObject({
+      created: false,
+      job: { id: 'job-1' },
+    });
     await expect(
-      queue.add(job({ id: 'job-3', content: { text: 'Different content' } }))
+      queue.add(
+        job({
+          id: 'job-3',
+          requestFingerprint: 'request-fingerprint-different-content',
+          content: { text: 'Different content' },
+        })
+      )
     ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
     await expect(
-      queue.add(job({ id: 'job-4', approvedContentHash: `sha256:${'a'.repeat(64)}` }))
+      queue.add(
+        job({
+          id: 'job-4',
+          requestFingerprint: 'request-fingerprint-different-approval',
+          approvedContentHash: `sha256:${'a'.repeat(64)}`,
+        })
+      )
     ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
     await expect(queue.count()).resolves.toBe(1);
   });
@@ -50,7 +68,7 @@ describe('durable scheduler queue contract', () => {
     ]);
 
     expect([...first, ...second]).toHaveLength(1);
-    expect([...first, ...second][0]).toMatchObject({ status: 'processing', attempts: 1 });
+    expect([...first, ...second][0]).toMatchObject({ status: 'processing', attempts: 0 });
   });
 
   test('requires the active lease token to complete a claim', async () => {
@@ -58,6 +76,10 @@ describe('durable scheduler queue contract', () => {
     const dueAt = new Date('2026-07-26T08:00:00Z');
     await queue.add(job());
     await queue.claimDueJobs(dueAt, 1, 'lease-a', new Date('2026-07-26T08:02:00Z'));
+    await expect(queue.markClaimAttempt('job-1', 'lease-a', dueAt)).resolves.toMatchObject({
+      attempts: 1,
+      lastAttemptAt: dueAt.toISOString(),
+    });
 
     await expect(
       queue.updateClaimed('job-1', 'lease-b', {
@@ -122,5 +144,20 @@ describe('durable scheduler queue contract', () => {
     ]);
     await expect(queue.getByStatus('scheduled', 10, 'user-1')).resolves.toHaveLength(1);
     await expect(queue.getByCampaign('campaign-1', 'user-1')).resolves.toHaveLength(1);
+  });
+
+  test('does not let a lifecycle mutation overwrite a processing claim', async () => {
+    const queue = new ServerMemoryQueue();
+    const dueAt = new Date('2026-07-26T08:00:00Z');
+    await queue.add(job());
+    await queue.claimDueJobs(dueAt, 1, 'lease-a', new Date('2026-07-26T08:02:00Z'));
+
+    await expect(
+      queue.updateIfStatus('job-1', ['scheduled', 'failed'], { status: 'cancelled' }, 'user-1')
+    ).resolves.toBe(false);
+    await expect(queue.get('job-1', 'user-1')).resolves.toMatchObject({
+      status: 'processing',
+      leaseToken: 'lease-a',
+    });
   });
 });

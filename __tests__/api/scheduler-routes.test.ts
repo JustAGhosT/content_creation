@@ -96,7 +96,7 @@ describe('Scheduler API Routes', () => {
     mockGetAllJobs.mockResolvedValue([sampleJob]);
     mockGetJobsByStatus.mockResolvedValue([sampleJob]);
     mockGetJobsByCampaign.mockResolvedValue([sampleJob]);
-    mockSchedule.mockResolvedValue(sampleJob);
+    mockSchedule.mockResolvedValue({ job: sampleJob, created: true });
     mockAssertApprovedForQueue.mockResolvedValue({
       versionId: 'version-1',
       contentHash: `sha256:${'a'.repeat(64)}`,
@@ -110,7 +110,8 @@ describe('Scheduler API Routes', () => {
     // Mock the scheduler before importing the route
     jest.doMock('../../lib/scheduler', () => ({
       getScheduler: () => ({
-        schedule: mockSchedule,
+        scheduleWithResult: mockSchedule,
+        cancel: jest.fn(),
         getAllJobs: mockGetAllJobs,
         getJobsByStatus: mockGetJobsByStatus,
         getJobsByCampaign: mockGetJobsByCampaign,
@@ -244,7 +245,11 @@ describe('Scheduler API Routes', () => {
         })
       );
       expect(mockRecordPublishAttempt).toHaveBeenCalledWith(
-        expect.objectContaining({ campaignId: 'campaign-1', variantId: 'variant-1' })
+        expect.objectContaining({
+          campaignId: 'campaign-1',
+          variantId: 'variant-1',
+          schedulerJobId: sampleJob.id,
+        })
       );
       expect(mockSchedule).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -255,6 +260,31 @@ describe('Scheduler API Routes', () => {
             hashtags: ['approved'],
           },
         })
+      );
+    });
+
+    test('replays an idempotent campaign request without duplicating its audit attempt', async () => {
+      mockSchedule.mockResolvedValueOnce({ job: sampleJob, created: false });
+      const contentHash = `sha256:${'a'.repeat(64)}`;
+      const response = await POST(
+        createRequest('POST', {
+          type: 'campaign_post',
+          campaignId: 'campaign-1',
+          campaignVersion: 2,
+          contentHash,
+          variantId: 'variant-1',
+          contentId: 'content-1',
+          platformId: 'twitter',
+          content: { text: 'Approved campaign post' },
+          scheduledTime: '2026-04-01T12:00:00Z',
+          idempotencyKey: 'campaign-request-123',
+        })
+      );
+
+      expect(response.status).toBe(200);
+      expect(mockRecordPublishAttempt).toHaveBeenCalledTimes(1);
+      expect(mockRecordPublishAttempt).toHaveBeenCalledWith(
+        expect.objectContaining({ schedulerJobId: sampleJob.id })
       );
     });
 

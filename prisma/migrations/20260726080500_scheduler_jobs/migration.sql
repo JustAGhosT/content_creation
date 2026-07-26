@@ -3,6 +3,7 @@ CREATE TABLE "SchedulerJob" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "idempotencyKey" TEXT NOT NULL,
+    "requestFingerprint" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "campaignId" TEXT,
     "campaignVersion" INTEGER,
@@ -55,3 +56,11 @@ ALTER TABLE "SchedulerJob"
     ADD CONSTRAINT "SchedulerJob_campaignVersionId_fkey"
     FOREIGN KEY ("campaignVersionId") REFERENCES "CampaignVersion"("id")
     ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "PublishAttempt" ADD COLUMN "schedulerJobId" TEXT;
+CREATE UNIQUE INDEX "PublishAttempt_schedulerJobId_key"
+    ON "PublishAttempt"("schedulerJobId");
+ALTER TABLE "PublishAttempt"
+    ADD CONSTRAINT "PublishAttempt_schedulerJobId_fkey"
+    FOREIGN KEY ("schedulerJobId") REFERENCES "SchedulerJob"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE;

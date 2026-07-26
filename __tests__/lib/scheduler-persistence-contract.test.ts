@@ -16,9 +16,11 @@ describe('scheduler persistence migration', () => {
 
     expect(migration).toContain('CREATE TABLE "SchedulerJob"');
     expect(migration).toContain('SchedulerJob_userId_idempotencyKey_key');
+    expect(migration).toContain('"requestFingerprint" TEXT NOT NULL');
     expect(migration).toContain('SchedulerJob_status_scheduledAt_idx');
     expect(migration).toContain('SchedulerJob_leaseExpiresAt_idx');
     expect(migration).toContain('REFERENCES "User"("id")');
+    expect(migration).toContain('PublishAttempt_schedulerJobId_key');
     expect(migration).not.toContain('DROP TABLE');
   });
 });
