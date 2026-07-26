@@ -9,6 +9,7 @@ import { getScheduler } from '@/lib/scheduler';
 import {
   getSchedulerCronAuthDiagnostics,
   getSchedulerCronSecret,
+  hasSchedulerCronCredential,
   isSchedulerCronRequestAuthorized,
 } from '@/lib/scheduler/cron-auth';
 import { Errors, withErrorHandling } from '@/app/api/_utils/errors';
@@ -28,7 +29,11 @@ import { withRateLimit, RateLimitPresets } from '@/app/api/_utils/rateLimit';
 export const POST = withRateLimit(
   withErrorHandling(async (request: Request) => {
     // Verify cron secret - mandatory in production
-    const cronSecret = getSchedulerCronSecret();
+    if (!hasSchedulerCronCredential(request)) {
+      return Errors.unauthorized('Unauthorized');
+    }
+
+    const cronSecret = await getSchedulerCronSecret();
 
     // In production, CRON_SECRET must be configured
     if (process.env.NODE_ENV === 'production' && !cronSecret) {
