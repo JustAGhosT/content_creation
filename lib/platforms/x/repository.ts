@@ -269,10 +269,11 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
   try {
     tokens = await refreshAccessToken(currentRefreshToken);
   } catch (error) {
+    const definitiveAuthorizationError = isDefinitiveXAuthorizationError(error);
     const accessTokenMayStillBeLive = Boolean(
       account.expiresAt && account.expiresAt.getTime() > Date.now()
     );
-    const failureStatus = isDefinitiveXAuthorizationError(error)
+    const failureStatus = definitiveAuthorizationError
       ? accessTokenMayStillBeLive
         ? 'revocation_required'
         : 'expired'
@@ -284,7 +285,9 @@ export async function getValidXAccessToken(userId: string): Promise<string> {
         encryptedRefreshToken: account.encryptedRefreshToken,
         connectedAt: account.connectedAt,
       },
-      data: { status: failureStatus },
+      data: definitiveAuthorizationError
+        ? { status: failureStatus, encryptedRefreshToken: null }
+        : { status: failureStatus },
     });
     throw error;
   }

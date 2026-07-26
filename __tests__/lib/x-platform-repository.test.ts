@@ -370,10 +370,13 @@ describe('X platform account repository', () => {
     await expect(repository.getValidXAccessToken('user-1')).rejects.toThrow(
       'X OAuth token request failed with status 400'
     );
-    expect(mockUpdateMany).toHaveBeenNthCalledWith(2, {
-      where: expect.objectContaining({ id: 'account-1', status: 'refreshing' }),
-      data: { status: 'expired' },
-    });
+    expect(mockUpdateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'account-1', status: 'refreshing' }),
+        data: { status: 'expired', encryptedRefreshToken: null },
+      })
+    );
   });
 
   test('requires revocation when refresh is rejected before the access token expires', async () => {
@@ -393,7 +396,9 @@ describe('X platform account repository', () => {
     );
     expect(mockUpdateMany).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ data: { status: 'revocation_required' } })
+      expect.objectContaining({
+        data: { status: 'revocation_required', encryptedRefreshToken: null },
+      })
     );
   });
 
