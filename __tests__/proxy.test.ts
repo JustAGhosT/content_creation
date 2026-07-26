@@ -355,6 +355,31 @@ describe('proxy (root middleware on /api/:path*)', () => {
       expect(response.status).toBe(200);
       expect(response._requestHeaders).toBeUndefined();
     });
+
+    test('allows the exact scheduler processor to validate its cron secret', () => {
+      const proxy = loadProxy();
+      const request = createMockNextRequest({
+        pathname: '/api/scheduler/process',
+      });
+      const response = proxy(request) as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(response._requestHeaders).toBeUndefined();
+    });
+
+    test('does not exempt scheduler processor subpaths from JWT authentication', async () => {
+      const proxy = loadProxy();
+      const request = createMockNextRequest({
+        pathname: '/api/scheduler/process/admin',
+      });
+      const response = proxy(request) as {
+        status: number;
+        json: () => Promise<{ message: string }>;
+      };
+
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toEqual({ message: 'Authentication required' });
+    });
   });
 
   // ------------------------------------------------------------------

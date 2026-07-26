@@ -20,9 +20,9 @@ const authenticatedPaths = [
   '/api/scheduler',
 ];
 
-// Provider callbacks cannot carry the browser's Authorization header. These
-// exact routes enforce their own sealed, expiring OAuth state boundary.
-const authenticationExemptPaths = ['/api/platforms/x/callback'];
+// These exact machine/provider routes enforce their own dedicated
+// authentication boundary and cannot carry the browser's JWT.
+const authenticationExemptPaths = ['/api/platforms/x/callback', '/api/scheduler/process'];
 
 // Define paths that require admin authentication
 const adminPaths = ['/api/feature-flags', '/api/audit'];
