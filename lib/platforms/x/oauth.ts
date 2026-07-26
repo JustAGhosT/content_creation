@@ -198,7 +198,7 @@ export async function fetchXIdentity(accessToken: string): Promise<{
   id: string;
   username: string;
 }> {
-  const response = await fetch(getXOAuthConfig().meUrl, {
+  const response = await fetchWithOAuthTimeout(getXOAuthConfig().meUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: 'no-store',
   });
@@ -213,7 +213,7 @@ export async function revokeXToken(token: string): Promise<void> {
   const body = new URLSearchParams({ token });
   if (!config.clientSecret) body.set('client_id', config.clientId);
 
-  const response = await fetch(config.revokeUrl, {
+  const response = await fetchWithOAuthTimeout(config.revokeUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',

@@ -348,7 +348,7 @@ export async function disconnectXAccount(userId: string): Promise<boolean> {
         encryptedAccessToken: claimedAccount.encryptedAccessToken,
         encryptedRefreshToken: claimedAccount.encryptedRefreshToken,
       },
-      data: { status: account.status === 'connected' ? 'connected' : 'expired' },
+      data: { status: account.status === 'connected' ? 'connected' : 'recovery_required' },
     });
     throw error;
   }

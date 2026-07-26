@@ -561,6 +561,27 @@ describe('X platform account repository', () => {
     });
   });
 
+  test('keeps uncertain credentials recoverable when provider revocation fails', async () => {
+    const account = {
+      id: 'account-1',
+      status: 'recovery_required',
+      encryptedAccessToken: encryptSecret('access-token', 'x-access-token'),
+      encryptedRefreshToken: encryptSecret('refresh-token', 'x-refresh-token'),
+      connectedAt: new Date('2026-07-25T11:00:00Z'),
+      updatedAt: new Date(),
+    };
+    mockFindUnique
+      .mockResolvedValueOnce(account)
+      .mockResolvedValueOnce({ ...account, status: 'revoking' });
+    mockUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+    mockRevokeXToken.mockRejectedValueOnce(new Error('provider unavailable'));
+
+    await expect(repository.disconnectXAccount('user-1')).rejects.toThrow('provider unavailable');
+    expect(mockUpdateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { status: 'recovery_required' } })
+    );
+  });
+
   test('removes expired local credentials without requiring provider revocation', async () => {
     const encryptedAccessToken = encryptSecret('expired-access', 'x-access-token');
     mockFindUnique.mockResolvedValueOnce({
