@@ -188,6 +188,19 @@ export interface ScheduleJobResult {
   created: boolean;
 }
 
+export interface ListJobsOptions {
+  userId: string;
+  status?: JobStatus;
+  campaignId?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface ListJobsResult {
+  jobs: ScheduledJob[];
+  total: number;
+}
+
 /**
  * Job queue interface
  */
@@ -215,6 +228,7 @@ export interface JobQueue {
   getByStatus(status: JobStatus, limit?: number, userId?: string): Promise<ScheduledJob[]>;
   getByCampaign(campaignId: string, userId?: string): Promise<ScheduledJob[]>;
   getAll(userId?: string): Promise<ScheduledJob[]>;
+  list(options: ListJobsOptions): Promise<ListJobsResult>;
   count(): Promise<number>;
   clear(userId?: string): Promise<void>;
 }

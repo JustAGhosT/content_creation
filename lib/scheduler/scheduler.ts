@@ -15,6 +15,8 @@ import {
   WebhookEventType,
   JobQueue,
   ScheduleJobResult,
+  ListJobsOptions,
+  ListJobsResult,
 } from './types';
 import { createHash } from 'node:crypto';
 import { getQueue, generateJobId } from './queue';
@@ -503,6 +505,10 @@ export class Scheduler {
    */
   async getAllJobs(userId?: string): Promise<ScheduledJob[]> {
     return this.queue.getAll(userId);
+  }
+
+  async listJobs(options: ListJobsOptions): Promise<ListJobsResult> {
+    return this.queue.list(options);
   }
 
   /**

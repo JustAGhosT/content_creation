@@ -144,22 +144,18 @@ export const GET = withRateLimit(
     const { status, campaignId, limit, offset } = validation.data;
     const scheduler = getScheduler();
 
-    let jobs;
-    if (campaignId) {
-      jobs = await scheduler.getJobsByCampaign(campaignId, currentUserId);
-    } else if (status) {
-      jobs = await scheduler.getJobsByStatus(status as JobStatus, limit + offset, currentUserId);
-    } else {
-      jobs = await scheduler.getAllJobs(currentUserId);
-    }
-
-    // Apply pagination
-    const paginated = jobs.slice(offset, offset + limit);
+    const result = await scheduler.listJobs({
+      userId: currentUserId,
+      status: status as JobStatus | undefined,
+      campaignId,
+      limit,
+      offset,
+    });
 
     return NextResponse.json({
-      jobs: paginated,
-      count: paginated.length,
-      total: jobs.length,
+      jobs: result.jobs,
+      count: result.jobs.length,
+      total: result.total,
     });
   }),
   '/api/scheduler',

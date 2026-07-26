@@ -6,7 +6,14 @@
 import prisma from '@/lib/db/prisma';
 import { generateJobId as generateSecureJobId } from '@/lib/utils/id';
 import { PrismaJobQueue, SchedulerQueueError } from './prisma-queue';
-import type { ClaimedJobUpdate, JobQueue, ScheduledJob, JobStatus } from './types';
+import type {
+  ClaimedJobUpdate,
+  JobQueue,
+  ScheduledJob,
+  JobStatus,
+  ListJobsOptions,
+  ListJobsResult,
+} from './types';
 
 const STORAGE_KEY = 'scheduler-jobs';
 
@@ -322,6 +329,15 @@ export class InMemoryQueue implements JobQueue {
       .sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime());
   }
 
+  async list(options: ListJobsOptions): Promise<ListJobsResult> {
+    const jobs = (await this.getAll(options.userId)).filter(
+      job =>
+        (!options.status || job.status === options.status) &&
+        (!options.campaignId || job.campaignId === options.campaignId)
+    );
+    return { jobs: jobs.slice(options.offset, options.offset + options.limit), total: jobs.length };
+  }
+
   async count(): Promise<number> {
     this.ensureInitialized();
     return this.jobs.size;
@@ -539,6 +555,17 @@ export class ServerMemoryQueue implements JobQueue {
 
   async getAll(userId?: string): Promise<ScheduledJob[]> {
     return Array.from(this.jobs.values()).filter(job => !userId || job.createdBy === userId);
+  }
+
+  async list(options: ListJobsOptions): Promise<ListJobsResult> {
+    const jobs = (await this.getAll(options.userId))
+      .filter(
+        job =>
+          (!options.status || job.status === options.status) &&
+          (!options.campaignId || job.campaignId === options.campaignId)
+      )
+      .sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime());
+    return { jobs: jobs.slice(options.offset, options.offset + options.limit), total: jobs.length };
   }
 
   async count(): Promise<number> {

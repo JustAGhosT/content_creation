@@ -1,6 +1,13 @@
 import type { Prisma, PrismaClient, SchedulerJob as StoredSchedulerJob } from '@prisma/client';
 import { z } from 'zod';
-import type { ClaimedJobUpdate, JobQueue, JobStatus, ScheduledJob } from './types';
+import type {
+  ClaimedJobUpdate,
+  JobQueue,
+  JobStatus,
+  ScheduledJob,
+  ListJobsOptions,
+  ListJobsResult,
+} from './types';
 
 export interface CampaignPublishAuditInput {
   campaignId: string;
@@ -457,6 +464,24 @@ export class PrismaJobQueue implements JobQueue {
       orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
     });
     return rows.map(parseStoredJob);
+  }
+
+  async list(options: ListJobsOptions): Promise<ListJobsResult> {
+    const where = {
+      userId: options.userId,
+      status: options.status,
+      campaignId: options.campaignId,
+    };
+    const [rows, total] = await this.client.$transaction([
+      this.client.schedulerJob.findMany({
+        where,
+        orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'asc' }],
+        skip: options.offset,
+        take: options.limit,
+      }),
+      this.client.schedulerJob.count({ where }),
+    ]);
+    return { jobs: rows.map(parseStoredJob), total };
   }
 
   async count(): Promise<number> {

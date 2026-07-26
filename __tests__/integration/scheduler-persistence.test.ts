@@ -245,6 +245,23 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     ]);
   });
 
+  test('paginates tenant job history in PostgreSQL with an independent total', async () => {
+    if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
+    const queue = new PrismaJobQueue(setupClient);
+    const first = testJob(ownerId, `${suffix}-page-a`);
+    const second = testJob(ownerId, `${suffix}-page-b`);
+    second.scheduledTime = '2026-07-26T08:01:00.000Z';
+    await queue.add(first);
+    await queue.add(second);
+
+    await expect(
+      queue.list({ userId: ownerId, status: 'scheduled', limit: 1, offset: 1 })
+    ).resolves.toEqual({
+      jobs: [expect.objectContaining({ id: second.id })],
+      total: 2,
+    });
+  });
+
   test('creates a campaign job and its audit attempt atomically and idempotently', async () => {
     if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
     const queue = new PrismaJobQueue(setupClient);

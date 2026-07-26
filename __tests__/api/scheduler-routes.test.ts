@@ -21,11 +21,7 @@ const mockSchedule = jest.fn<any>();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockScheduleCampaign = jest.fn<any>();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockGetAllJobs = jest.fn<any>();
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockGetJobsByStatus = jest.fn<any>();
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockGetJobsByCampaign = jest.fn<any>();
+const mockListJobs = jest.fn<any>();
 const mockAssertApprovedForQueue = jest.fn<
   () => Promise<{
     versionId: string;
@@ -92,9 +88,7 @@ describe('Scheduler API Routes', () => {
     jest.clearAllMocks();
     jest.resetModules();
 
-    mockGetAllJobs.mockResolvedValue([sampleJob]);
-    mockGetJobsByStatus.mockResolvedValue([sampleJob]);
-    mockGetJobsByCampaign.mockResolvedValue([sampleJob]);
+    mockListJobs.mockResolvedValue({ jobs: [sampleJob], total: 1 });
     mockSchedule.mockResolvedValue({ job: sampleJob, created: true });
     mockScheduleCampaign.mockResolvedValue({ job: sampleJob, created: true });
     mockAssertApprovedForQueue.mockResolvedValue({
@@ -112,9 +106,7 @@ describe('Scheduler API Routes', () => {
         scheduleWithResult: mockSchedule,
         scheduleCampaignWithAudit: mockScheduleCampaign,
         cancel: jest.fn(),
-        getAllJobs: mockGetAllJobs,
-        getJobsByStatus: mockGetJobsByStatus,
-        getJobsByCampaign: mockGetJobsByCampaign,
+        listJobs: mockListJobs,
       }),
     }));
 
@@ -149,6 +141,13 @@ describe('Scheduler API Routes', () => {
       expect(Array.isArray(data.jobs)).toBe(true);
       expect(data.count).toBeDefined();
       expect(data.total).toBeDefined();
+      expect(mockListJobs).toHaveBeenCalledWith({
+        userId: '1',
+        status: undefined,
+        campaignId: undefined,
+        limit: 100,
+        offset: 0,
+      });
     });
   });
 
