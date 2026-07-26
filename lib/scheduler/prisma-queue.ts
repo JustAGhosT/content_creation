@@ -235,7 +235,6 @@ export class PrismaJobQueue implements JobQueue {
   ): Promise<{ job: ScheduledJob; created: boolean }> {
     if (
       job.createdBy !== audit.requestedBy ||
-      job.campaignId !== audit.campaignId ||
       job.campaignVersionId !== audit.campaignVersionId ||
       job.contentId !== audit.contentId ||
       job.variantId !== audit.variantId ||
@@ -249,6 +248,16 @@ export class PrismaJobQueue implements JobQueue {
     }
 
     return this.client.$transaction(async transaction => {
+      const approvedVersion = await transaction.campaignVersion.findFirst({
+        where: { id: audit.campaignVersionId, campaignId: audit.campaignId },
+        select: { id: true },
+      });
+      if (!approvedVersion) {
+        throw new SchedulerQueueError(
+          'IDEMPOTENCY_CONFLICT',
+          'Campaign audit binding does not match the approved campaign version'
+        );
+      }
       const persisted = await this.addUsing(transaction, job);
       await transaction.publishAttempt.upsert({
         where: { schedulerJobId: persisted.job.id },

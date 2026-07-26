@@ -268,7 +268,7 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     const campaignJob = testJob(ownerId, `${suffix}-campaign`);
     Object.assign(campaignJob, {
       type: 'campaign_post',
-      campaignId,
+      campaignId: `external-${campaignId}`,
       campaignVersion: 1,
       campaignVersionId,
       approvedContentHash: `sha256:${'c'.repeat(64)}`,

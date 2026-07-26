@@ -232,6 +232,28 @@ export class Scheduler {
       );
       if (!job) break;
 
+      const validation = this.publisher.validate(job);
+      if (!validation.valid) {
+        const rejected = await this.queue.updateClaimed(job.id, leaseToken, {
+          status: 'dead',
+          error: `Content validation failed: ${validation.errors.join(', ')}`,
+          updatedAt: now.toISOString(),
+        });
+        results.push({
+          jobId: job.id,
+          status: 'failure',
+          error: {
+            code: rejected ? 'VALIDATION_FAILED' : 'LEASE_LOST',
+            message: rejected
+              ? `Content validation failed: ${validation.errors.join(', ')}`
+              : 'The scheduler processing lease changed before validation was recorded',
+            retryable: false,
+          },
+          executedAt: now.toISOString(),
+        });
+        continue;
+      }
+
       const quota = await this.rateLimiter.reserveRequest(job.platformId);
       if (!quota.allowed) {
         const nextAvailableAt =
@@ -257,22 +279,7 @@ export class Scheduler {
         continue;
       }
 
-      const attemptedJob = await this.queue.markClaimAttempt(job.id, leaseToken, now);
-      if (!attemptedJob) {
-        results.push({
-          jobId: job.id,
-          status: 'failure',
-          error: {
-            code: 'LEASE_LOST',
-            message: 'The scheduler processing lease changed before the attempt was recorded',
-            retryable: false,
-          },
-          executedAt: now.toISOString(),
-        });
-        continue;
-      }
-
-      const result = await this.processJob(attemptedJob, leaseToken);
+      const result = await this.processJob(job, leaseToken);
       results.push(result);
     }
 
@@ -284,9 +291,15 @@ export class Scheduler {
    */
   private async processJob(job: ScheduledJob, leaseToken: string): Promise<JobResult> {
     const now = new Date().toISOString();
+    let attemptedJob = job;
 
     // Attempt to publish
-    const publishResult = await this.publishWithLeaseHeartbeat(job, leaseToken);
+    const publishResult = await this.publishWithLeaseHeartbeat(job, leaseToken, async () => {
+      const marked = await this.queue.markClaimAttempt(job.id, leaseToken, new Date());
+      if (!marked) return false;
+      attemptedJob = marked;
+      return true;
+    });
 
     if (publishResult.success && publishResult.result) {
       const completed = await this.queue.updateClaimed(job.id, leaseToken, {
@@ -326,16 +339,17 @@ export class Scheduler {
     }
 
     // Failure - handle retry
-    return this.handleFailure(job, leaseToken, publishResult.error!);
+    return this.handleFailure(attemptedJob, leaseToken, publishResult.error!);
   }
 
   private async publishWithLeaseHeartbeat(
     job: ScheduledJob,
-    leaseToken: string
+    leaseToken: string,
+    beforeProviderCall: () => Promise<boolean>
   ): Promise<Awaited<ReturnType<Publisher['publish']>>> {
     const stopHeartbeat = this.startLeaseHeartbeat(job.id, leaseToken);
     try {
-      return await this.publisher.publish(job, { quotaReserved: true });
+      return await this.publisher.publish(job, { quotaReserved: true, beforeProviderCall });
     } finally {
       await stopHeartbeat();
     }
