@@ -52,6 +52,13 @@ async function findIdentity(client: PrismaClient, provider: string, externalId: 
   });
 }
 
+async function findEmailOwner(client: PrismaClient, email: string) {
+  return client.user.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+    select: { id: true },
+  });
+}
+
 /** Resolve one provider subject to a durable local owner before signing a session. */
 export async function resolveExternalUser(
   client: PrismaClient,
@@ -72,7 +79,7 @@ export async function resolveExternalUser(
   // Linking solely by an email claim could attach an attacker-controlled
   // provider identity to a local password account. Require an explicit linking
   // flow instead.
-  if (await client.user.findUnique({ where: { email }, select: { id: true } })) {
+  if (await findEmailOwner(client, email)) {
     throw new ExternalIdentityEmailConflictError();
   }
 
@@ -99,7 +106,7 @@ export async function resolveExternalUser(
       if (winner) {
         return { ...winner.user, isNew: false };
       }
-      if (await client.user.findUnique({ where: { email }, select: { id: true } })) {
+      if (await findEmailOwner(client, email)) {
         throw new ExternalIdentityEmailConflictError();
       }
     }

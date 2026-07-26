@@ -109,6 +109,7 @@ async function handleRegister(request: Request): Promise<NextResponse> {
     if (emailError) {
       return Errors.badRequest(emailError);
     }
+    const normalizedEmail = (email as string).trim().toLowerCase();
 
     const passwordError = validateString(password, 'Password');
     if (passwordError) {
@@ -145,7 +146,7 @@ async function handleRegister(request: Request): Promise<NextResponse> {
 
     // Check if email already exists
     const existingByEmail = await userModel.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
     if (existingByEmail) {
       return Errors.badRequest('Email already exists');
@@ -169,7 +170,7 @@ async function handleRegister(request: Request): Promise<NextResponse> {
     const dbUser = await userModel.create({
       data: {
         username,
-        email,
+        email: normalizedEmail,
         passwordHash,
         role: 'user',
       },

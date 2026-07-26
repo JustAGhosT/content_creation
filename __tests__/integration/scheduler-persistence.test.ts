@@ -52,7 +52,7 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
         {
           id: ownerId,
           username: `scheduler-owner-${suffix}`,
-          email: `scheduler-${suffix}@example.test`,
+          email: `Scheduler-${suffix}@Example.Test`,
           passwordHash: 'not-a-real-password-hash',
         },
         {
