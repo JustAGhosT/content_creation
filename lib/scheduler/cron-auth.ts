@@ -28,3 +28,16 @@ export function isSchedulerCronRequestAuthorized(request: Request, cronSecret: s
     crypto.timingSafeEqual(expectedBuffer, candidateBuffer)
   );
 }
+
+export function getSchedulerCronAuthDiagnostics(request: Request, cronSecret: string) {
+  const directSecret = request.headers.get('x-omnipost-cron-secret');
+  const authorization = request.headers.get('authorization');
+
+  return {
+    expectedBytes: Buffer.byteLength(cronSecret),
+    directHeaderPresent: directSecret !== null,
+    directHeaderBytes: Buffer.byteLength(directSecret ?? ''),
+    authorizationHeaderPresent: authorization !== null,
+    authorizationHeaderBytes: Buffer.byteLength(authorization ?? ''),
+  };
+}
