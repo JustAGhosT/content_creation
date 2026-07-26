@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from '@jest/globals';
 import {
+  getSchedulerCronAuthDiagnostics,
   getSchedulerCronSecret,
   isSchedulerCronRequestAuthorized,
 } from '../../lib/scheduler/cron-auth';
@@ -73,5 +74,19 @@ describe('scheduler cron request authentication', () => {
     const request = new Request('https://example.test', { headers });
 
     expect(isSchedulerCronRequestAuthorized(request, 'scheduler-secret')).toBe(false);
+  });
+
+  it('reports only presence and byte lengths for rejected requests', () => {
+    const request = new Request('https://example.test', {
+      headers: { 'X-OmniPost-Cron-Secret': 'wrong-secret' },
+    });
+
+    expect(getSchedulerCronAuthDiagnostics(request, 'scheduler-secret')).toEqual({
+      expectedBytes: 16,
+      directHeaderPresent: true,
+      directHeaderBytes: 12,
+      authorizationHeaderPresent: false,
+      authorizationHeaderBytes: 0,
+    });
   });
 });

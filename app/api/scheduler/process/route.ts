@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server';
 import { getScheduler } from '@/lib/scheduler';
 import {
+  getSchedulerCronAuthDiagnostics,
   getSchedulerCronSecret,
   isSchedulerCronRequestAuthorized,
 } from '@/lib/scheduler/cron-auth';
@@ -38,6 +39,10 @@ export const POST = withRateLimit(
     // Validate authorization with constant-time comparison
     if (cronSecret) {
       if (!isSchedulerCronRequestAuthorized(request, cronSecret)) {
+        console.warn(
+          '[Scheduler] Cron authentication rejected:',
+          getSchedulerCronAuthDiagnostics(request, cronSecret)
+        );
         return Errors.unauthorized('Unauthorized');
       }
     }
