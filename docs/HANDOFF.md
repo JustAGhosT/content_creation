@@ -1,5 +1,97 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-07-27 Gate 3 Production Handoff
+
+### Current State
+
+- **Production commit:** `a279a4bc4f804c9a78ef75914a96c16459800b70`
+  on `main`.
+- **Open pull requests:** none at handoff.
+- **Production health:** HTTP 200 with `status=healthy`.
+- **Recurring processor:** Azure Container Apps Job
+  `nl-dev-omnipost-scheduler`, scheduled every two minutes.
+- **Baton Gate 3 task:** `8b2fe3e9-1765-464d-9e88-6f8aed147769`,
+  intentionally `inprogress` and waiting on authentic X evidence.
+- Use the isolated clean worktree at `C:\tmp\omnipost-gate3-c2` for
+  continuation. The primary checkout remains on
+  `agent/gate3-x-oauth-lifecycle` and should not be repurposed without first
+  reconciling its owner and state.
+
+### Delivered
+
+- [PR #181](https://github.com/neuralliquid/omnipost/pull/181), merge
+  `34bc8514c47bf2a7268f55bbaacb916a9cc74b8e`: encrypted tenant-owned X
+  OAuth account lifecycle, PKCE connect, refresh, reconnect, and provider
+  revocation.
+- [PR #182](https://github.com/neuralliquid/omnipost/pull/182), merge
+  `f77f89b41a7fdbfc29e57751b0b93138da886d5b`: durable leased and
+  idempotent scheduler queue, classified retries, dead-letter state,
+  rate-limit coordination, and reconciliation boundaries.
+- PRs
+  [#185](https://github.com/neuralliquid/omnipost/pull/185) through
+  [#190](https://github.com/neuralliquid/omnipost/pull/190): recurring Azure
+  processing, per-owner X grant resolution, dedicated cron authentication,
+  managed-identity Key Vault lookup, and the exact proxy exemption required
+  for the machine endpoint to reach its cron-secret boundary.
+- The scheduler no longer depends on a legacy static X access token for
+  publishing. Per-account user-context grants remain encrypted in PostgreSQL
+  and are resolved server-side.
+
+### Production Evidence
+
+- PR #190 CI passed all eight checks.
+- [Post-merge main CI run 30220709462](https://github.com/neuralliquid/omnipost/actions/runs/30220709462)
+  completed successfully for `a279a4b`.
+- [Azure deployment run 30220709460](https://github.com/neuralliquid/omnipost/actions/runs/30220709460)
+  passed build, Terraform plan, database migrations, Web App deployment, and
+  health verification for the same commit.
+- [Terraform apply run 30217028946](https://github.com/neuralliquid/omnipost/actions/runs/30217028946)
+  completed successfully for the scheduler infrastructure and runtime
+  settings.
+- Five consecutive live executions at 21:52, 21:54, 21:56, 21:58, and 22:00
+  UTC on 2026-07-26 reported `Succeeded`.
+- App Service HTTP telemetry recorded HTTP 200 from
+  `omnipost-azure-scheduler/1.0` on consecutive scheduled calls.
+- The controlled production processor smoke returned HTTP 200 with
+  `processed=0`, `successful=0`, and `failed=0`.
+- Temporary diagnostics were removed. Filesystem application logging was
+  restored to `Off`; the original HTTP-log retention remains enabled.
+- No provider credential, OAuth token, scheduler secret, or secret hash was
+  printed or persisted in evidence.
+
+### Remaining Gate And Exact Continuation
+
+Gate 3C recurring processing is complete. Do not reopen scheduler
+infrastructure work unless live evidence regresses. Overall Gate 3 remains open
+only for an authentic, staffed X acceptance:
+
+1. Name the account owner and technical operator, confirm the dedicated
+   OmniPost X handle, and approve exactly one text-only smoke post.
+2. Confirm the approved X developer app uses the exact callback
+   `https://omnipost.neuralliquid.ai/api/platforms/x/callback`, the scopes
+   `tweet.read tweet.write users.read offline.access`, and sufficient API
+   credits.
+3. Confirm the X client ID and secret Key Vault references are `Resolved`
+   without reading or printing their values.
+4. Follow [the X campaign go-live runbook](runbooks/X_CAMPAIGN_GO_LIVE.md).
+   Connect through **Settings > Platform Connections** and verify the intended
+   handle.
+5. During a staffed window, queue exactly one approved X-only job and let one
+   scheduled execution process it. Require `processed=1`,
+   `successful=1`, `failed=0`, one provider post ID, one public X URL, and
+   no duplicate after ten minutes.
+6. Disconnect through OmniPost and prove provider revocation plus local
+   credential removal. Record only nonsecret evidence in Baton tasks
+   `8b2fe3e9-1765-464d-9e88-6f8aed147769` and
+   `7e1feab6-a668-4c18-b54d-691eddcd243f`.
+
+Stop on a 401/403, wrong account, duplicate, altered copy, unresolved Key Vault
+reference, unknown provider outcome, or missing audit evidence. Never fabricate
+credentials, copy user tokens into Key Vault or shell history, or retry an
+unknown publish outcome blindly.
+
+---
+
 ## 2026-07-25 X OAuth Account Lifecycle — Gate 3 C1
 
 ### Current State
