@@ -20,6 +20,11 @@ export interface SchedulerJobSnapshot {
     | 'cancelled';
 }
 
+interface SchedulerJobsResponse {
+  jobs?: SchedulerJobSnapshot[];
+  total?: number;
+}
+
 export interface StoredPlatform {
   slug: string;
   name: string;
@@ -111,6 +116,24 @@ export function synchronizeContentStatuses(
 
     return status === item.status ? item : { ...item, status };
   });
+}
+
+export async function fetchAllSchedulerJobs(signal?: AbortSignal): Promise<SchedulerJobSnapshot[]> {
+  const jobs: SchedulerJobSnapshot[] = [];
+  const limit = 500;
+  let offset = 0;
+
+  while (true) {
+    const response = await fetch(`/api/scheduler?limit=${limit}&offset=${offset}`, { signal });
+    if (!response.ok) throw new Error('Unable to load scheduler status');
+
+    const payload = (await response.json()) as SchedulerJobsResponse;
+    const page = payload.jobs ?? [];
+    jobs.push(...page);
+
+    if (page.length === 0 || jobs.length >= (payload.total ?? 0)) return jobs;
+    offset += page.length;
+  }
 }
 
 export function formatContentDate(iso: string, includeTime = false): string {

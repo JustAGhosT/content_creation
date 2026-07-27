@@ -7,10 +7,10 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
   formatContentDate,
+  fetchAllSchedulerJobs,
   getContentStatusLabel,
   loadStoredContent,
   synchronizeContentStatuses,
-  type SchedulerJobSnapshot,
   type StoredContent,
 } from '@/lib/content/local-content';
 import styles from '@/styles/ContentDetail.module.css';
@@ -49,18 +49,16 @@ export default function ContentDetail({ contentId }: ContentDetailProps) {
 
     if (!stored || !isAuthenticated) return;
 
-    let active = true;
-    void fetch('/api/scheduler?limit=100')
-      .then(async response => {
-        if (!response.ok) return;
-        const payload = (await response.json()) as { jobs?: SchedulerJobSnapshot[] };
-        const synchronized = synchronizeContentStatuses([stored], payload.jobs ?? [])[0];
-        if (active) setContent(synchronized);
+    const controller = new AbortController();
+    void fetchAllSchedulerJobs(controller.signal)
+      .then(jobs => {
+        const synchronized = synchronizeContentStatuses([stored], jobs)[0];
+        if (!controller.signal.aborted) setContent(synchronized);
       })
       .catch(() => undefined);
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [contentId, isAuthenticated]);
 
@@ -89,10 +87,7 @@ export default function ContentDetail({ contentId }: ContentDetailProps) {
   }
 
   const platforms = content.platforms.filter(platform => platform.enabled);
-  const hasSchedule =
-    content.status === 'scheduled' ||
-    content.status === 'queued' ||
-    content.status === 'processing';
+  const hasSchedule = Boolean(content.scheduledTime);
 
   return (
     <div className={styles.page}>

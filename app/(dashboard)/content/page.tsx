@@ -13,11 +13,11 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import {
   formatContentDate,
+  fetchAllSchedulerJobs,
   getContentStatusLabel,
   loadStoredContent,
   synchronizeContentStatuses,
   type ContentStatus,
-  type SchedulerJobSnapshot,
   type StoredContent,
 } from '@/lib/content/local-content';
 import styles from '@/styles/ContentList.module.css';
@@ -60,18 +60,16 @@ export function ContentListPage() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    let active = true;
-    void fetch('/api/scheduler?limit=100')
-      .then(async response => {
-        if (!response.ok) return;
-        const payload = (await response.json()) as { jobs?: SchedulerJobSnapshot[] };
-        const jobs = payload.jobs ?? [];
-        if (active) setItems(previous => synchronizeContentStatuses(previous, jobs));
+    const controller = new AbortController();
+    void fetchAllSchedulerJobs(controller.signal)
+      .then(jobs => {
+        if (!controller.signal.aborted)
+          setItems(previous => synchronizeContentStatuses(previous, jobs));
       })
       .catch(() => undefined);
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [isAuthenticated]);
 
