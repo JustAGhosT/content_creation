@@ -1,5 +1,71 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-07-27 Product Trust And X Readiness Handoff
+
+### Current State
+
+- **Production commit:** `b35744dc3abe62dde44be03d0cc8be5b14d89aea` on `main`.
+- **Open pull requests:** none from this closeout.
+- **Production health:** `GET /api/health` returned HTTP 200 with
+  `status=healthy`, `environment=production`, and version `0.1.0` after the
+  final deployment.
+- **X connection:** the production Settings page confirmed the dedicated
+  OmniPost X account is connected. No post was published and no credential or
+  token was recorded in this handoff.
+- **Baton tasks:** Gate 3 task `8b2fe3e9-1765-464d-9e88-6f8aed147769` and the
+  controlled-live-post task `7e1feab6-a668-4c18-b54d-691eddcd243f` remain
+  `inprogress` only for the explicitly approved, staffed publish and
+  disconnect/revocation acceptance.
+
+### Delivered
+
+- [PR #192](https://github.com/neuralliquid/omnipost/pull/192), merge
+  `7b360d571ded4b985634c846871ce0020371b237`: removed fabricated dashboard
+  engagement data and browser-side Airtable connection state. The dashboard
+  now presents an explicit verified-empty state until real data exists.
+- [PR #193](https://github.com/neuralliquid/omnipost/pull/193), merge
+  `3ad6458914bf577b096b866e8b537b77ae7cd4c8`: made platform readiness
+  server-authoritative. Only configured, connected X is publishable;
+  Facebook, Instagram, LinkedIn, TikTok, and Custom Channel are Coming Soon.
+  Campaign idempotent replays are returned before current readiness is checked.
+- [PR #194](https://github.com/neuralliquid/omnipost/pull/194), merge
+  `b35744dc3abe62dde44be03d0cc8be5b14d89aea`: made the authenticated
+  dashboard shell the sole owner of its header and main landmark, removed
+  nested marketing chrome, and gave the dashboard skip link a unique target.
+
+### Verification
+
+- All three PRs were CI-green, mergeable, and free of current actionable
+  review feedback immediately before merge.
+- Two P2 automated findings discovered during ready-for-review were fixed:
+  idempotent campaign replay ordering (#193) and the duplicate dashboard skip
+  target (#194). Their threads are now outdated; no thread was manually
+  resolved or replied to.
+- [Final main CI run 30239729628](https://github.com/neuralliquid/omnipost/actions/runs/30239729628)
+  passed.
+- [Final Azure Web App CI/CD run 30239729631](https://github.com/neuralliquid/omnipost/actions/runs/30239729631)
+  passed for `b35744d`.
+- Targeted validation included TypeScript, ESLint, Prettier, dashboard-shell
+  regression coverage, and scheduler-route coverage. CI ran the complete
+  repository gate on Linux.
+
+### Exact Continuation
+
+1. Do not represent any non-X platform as connected or publishable until its
+   server-owned connection lifecycle exists and equivalent readiness checks are
+   implemented.
+2. For the remaining X acceptance, obtain explicit approval for exactly one
+   text-only post and follow `docs/runbooks/X_CAMPAIGN_GO_LIVE.md`. Require the
+   provider post ID, public URL, scheduler success, and ten-minute
+   no-duplicate evidence.
+3. Then disconnect in OmniPost and capture provider revocation and local
+   credential-removal evidence. Record only nonsecret evidence in the two
+   Baton tasks above.
+4. Never expose OAuth state, authorization codes, client credentials, tokens,
+   or browser session material in chat, GitHub, Baton, source, or logs.
+
+---
+
 ## 2026-07-27 Gate 3 Production Handoff
 
 ### Current State
