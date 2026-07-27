@@ -324,6 +324,12 @@ describe('Scheduler API Routes', () => {
 
     test('replays an idempotent campaign request without duplicating its audit attempt', async () => {
       mockFindIdempotentReplay.mockResolvedValueOnce({ job: sampleJob, created: false });
+      mockGetPublishReadiness.mockResolvedValue({
+        canPublish: false,
+        platform: 'twitter',
+        reason: 'disconnected',
+        message: 'Connect X before publishing',
+      });
       const contentHash = `sha256:${'a'.repeat(64)}`;
       const response = await POST(
         createRequest('POST', {
@@ -342,6 +348,7 @@ describe('Scheduler API Routes', () => {
 
       expect(response.status).toBe(200);
       expect(mockFindIdempotentReplay).toHaveBeenCalledTimes(1);
+      expect(mockGetPublishReadiness).not.toHaveBeenCalled();
       expect(mockAssertApprovedForQueue).not.toHaveBeenCalled();
       expect(mockScheduleCampaign).not.toHaveBeenCalled();
     });

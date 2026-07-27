@@ -178,11 +178,6 @@ export const POST = withRateLimit(
     }
 
     const data = validation.data;
-    const readiness = await getPublishReadiness(currentUserId, data.platformId);
-    if (!readiness.canPublish) {
-      return Errors.badRequest(readiness.message);
-    }
-
     const scheduler = getScheduler();
     const requestScheduleInput = {
       type: data.type,
@@ -213,6 +208,11 @@ export const POST = withRateLimit(
         }
         throw error;
       }
+    }
+
+    const readiness = await getPublishReadiness(currentUserId, data.platformId);
+    if (!readiness.canPublish) {
+      return Errors.badRequest(readiness.message);
     }
 
     let approvalBinding: Awaited<ReturnType<typeof assertApprovedForQueue>> | undefined;
