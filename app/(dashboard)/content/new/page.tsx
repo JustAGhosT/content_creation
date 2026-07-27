@@ -15,13 +15,12 @@ import { platforms } from '@/lib/config/platforms';
 import { DEFAULT_PLATFORM_CONFIGS } from '@/types/campaign';
 import type { PostStatus } from '@/types/campaign';
 import type { JobType } from '@/lib/scheduler/types';
+import { CONTENT_STORAGE_KEY, type StoredContent } from '@/lib/content/local-content';
 import styles from '@/styles/ContentCreate.module.css';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const STEPS = ['Write Content', 'Platform Adaptation', 'Schedule'] as const;
-const STORAGE_KEY = 'omnipost_content_drafts';
-
 /** Character limits per platform slug */
 const PLATFORM_CHAR_LIMITS: Record<string, number> = {
   twitter: 280,
@@ -43,18 +42,6 @@ interface PlatformState {
   comingSoon?: boolean;
 }
 
-interface ContentDraft {
-  id: string;
-  title: string;
-  body: string;
-  summary: string;
-  platforms: PlatformState[];
-  status: PostStatus;
-  scheduledTime: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function generateId(): string {
@@ -73,19 +60,19 @@ function getCharColor(current: number, limit: number): 'green' | 'yellow' | 'red
   return 'red';
 }
 
-function loadDrafts(): ContentDraft[] {
+function loadDrafts(): StoredContent[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as ContentDraft[]) : [];
+    const raw = sessionStorage.getItem(CONTENT_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as StoredContent[]) : [];
   } catch {
     return [];
   }
 }
 
-function saveDrafts(drafts: ContentDraft[]): void {
+function saveDrafts(drafts: StoredContent[]): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
+  sessionStorage.setItem(CONTENT_STORAGE_KEY, JSON.stringify(drafts));
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -208,7 +195,7 @@ export function ContentCreatePage() {
 
   const saveDraft = useCallback(() => {
     const drafts = loadDrafts();
-    const draft: ContentDraft = {
+    const draft: StoredContent = {
       id: generateId(),
       title,
       body,
@@ -234,6 +221,7 @@ export function ContentCreatePage() {
     const time =
       scheduleMode === 'now' ? new Date().toISOString() : new Date(scheduledTime).toISOString();
     const status: PostStatus = scheduleMode === 'now' ? 'queued' : 'scheduled';
+    const contentId = generateId();
 
     try {
       // Create a scheduler job for each enabled platform
@@ -247,7 +235,7 @@ export function ContentCreatePage() {
 
         const jobPayload = {
           type: 'standalone' as JobType,
-          contentId: generateId(),
+          contentId,
           platformId: platform.slug,
           content: {
             text: adaptedText,
@@ -257,32 +245,35 @@ export function ContentCreatePage() {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         };
 
-        return fetch('/api/scheduler', {
+        const response = await fetch('/api/scheduler', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(jobPayload),
         });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => ({}))) as {
+            error?: string;
+            message?: string;
+          };
+          throw new Error(
+            errorBody.error ||
+              errorBody.message ||
+              `Scheduler rejected the request (${response.status})`
+          );
+        }
+
+        const payload = (await response.json()) as { job?: { id?: string } };
+        if (!payload.job?.id) throw new Error('Scheduler did not return a job ID');
+        return payload.job.id;
       });
 
-      const responses = await Promise.all(jobPromises);
-      const failedResponse = responses.find(response => !response.ok);
-
-      if (failedResponse) {
-        const errorBody = (await failedResponse.json().catch(() => ({}))) as {
-          error?: string;
-          message?: string;
-        };
-        throw new Error(
-          errorBody.error ||
-            errorBody.message ||
-            `Scheduler rejected the request (${failedResponse.status})`
-        );
-      }
+      const schedulerJobIds = await Promise.all(jobPromises);
 
       // Save to sessionStorage as well
       const drafts = loadDrafts();
-      const draft: ContentDraft = {
-        id: generateId(),
+      const draft: StoredContent = {
+        id: contentId,
         title,
         body,
         summary,
@@ -291,6 +282,7 @@ export function ContentCreatePage() {
         scheduledTime: time,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        schedulerJobIds,
       };
       saveDrafts([draft, ...drafts]);
 

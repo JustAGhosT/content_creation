@@ -113,6 +113,12 @@
   flex-shrink: 0;
 }
 
+.viewDetails {
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
 .platformCount {
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
@@ -197,6 +203,7 @@
   }
 
   .contentItemRight {
+    flex-wrap: wrap;
     width: 100%;
     justify-content: space-between;
   }
