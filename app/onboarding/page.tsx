@@ -11,6 +11,8 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import Header from '@/components/ui/Header';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { apiClient } from '@/lib/api-client';
+import { platforms as platformCatalog } from '@/lib/config/platforms';
 import styles from '@/styles/Onboarding.module.css';
 
 interface Platform {
@@ -18,14 +20,25 @@ interface Platform {
   name: string;
   icon: string;
   connected: boolean;
+  comingSoon: boolean;
 }
 
-const INITIAL_PLATFORMS: Platform[] = [
-  { id: 'facebook', name: 'Facebook', icon: 'f', connected: false },
-  { id: 'instagram', name: 'Instagram', icon: 'ig', connected: false },
-  { id: 'linkedin', name: 'LinkedIn', icon: 'in', connected: false },
-  { id: 'twitter', name: 'Twitter', icon: 'X', connected: false },
-];
+const PLATFORM_ICONS: Record<string, string> = {
+  facebook: 'f',
+  instagram: 'ig',
+  linkedin: 'in',
+  twitter: 'X',
+};
+
+const INITIAL_PLATFORMS: Platform[] = platformCatalog
+  .filter(platform => ['facebook', 'instagram', 'linkedin', 'twitter'].includes(platform.slug))
+  .map(platform => ({
+    id: platform.slug,
+    name: platform.name,
+    icon: PLATFORM_ICONS[platform.slug] ?? platform.name.charAt(0),
+    connected: false,
+    comingSoon: Boolean(platform.comingSoon),
+  }));
 
 const TOTAL_STEPS = 3;
 
@@ -51,10 +64,13 @@ function StepConnectPlatforms({
             onClick={() => onToggleConnect(platform.id)}
             aria-label={`Connect ${platform.name}`}
             aria-pressed={platform.connected}
+            disabled={platform.comingSoon}
           >
             <span className={styles.platformIcon}>{platform.icon}</span>
             <span className={styles.platformName}>{platform.name}</span>
-            {platform.connected ? (
+            {platform.comingSoon ? (
+              <span className={styles.platformStatus}>Coming Soon</span>
+            ) : platform.connected ? (
               <span className={styles.platformStatus}>Connected</span>
             ) : (
               <span className={styles.connectButton}>Connect</span>
@@ -81,9 +97,10 @@ function StepCreatePost({
 }) {
   return (
     <>
-      <h2 className={styles.stepTitle}>Create Your First Post</h2>
+      <h2 className={styles.stepTitle}>Prepare Your First Draft</h2>
       <p className={styles.stepDescription}>
-        Write something to publish across your connected platforms.
+        Sketch content for a platform that is actually connected to this account. Nothing is
+        published or saved as a post from onboarding.
       </p>
       <textarea
         className={styles.postTextarea}
@@ -94,16 +111,23 @@ function StepCreatePost({
       />
       <fieldset className={styles.platformCheckboxes}>
         <legend>Select platforms</legend>
-        {platforms.map(platform => (
-          <label key={platform.id} className={styles.checkboxLabel}>
-            <input
-              type="checkbox"
-              checked={selectedPlatforms.has(platform.id)}
-              onChange={() => onTogglePlatform(platform.id)}
-            />
-            {platform.name}
-          </label>
-        ))}
+        {!platforms.some(platform => platform.connected) && (
+          <p className={styles.stepDescription}>
+            No supported platform is connected. Return to Platform Connections to connect X.
+          </p>
+        )}
+        {platforms
+          .filter(platform => platform.connected)
+          .map(platform => (
+            <label key={platform.id} className={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={selectedPlatforms.has(platform.id)}
+                onChange={() => onTogglePlatform(platform.id)}
+              />
+              {platform.name}
+            </label>
+          ))}
       </fieldset>
     </>
   );
@@ -152,13 +176,43 @@ function ProgressIndicator({ currentStep }: { readonly currentStep: number }) {
 export default function OnboardingPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const { trackOnboardingStep, trackPlatformConnected, trackPostPublished } = useAnalytics({
+  const { trackOnboardingStep } = useAnalytics({
     trackPageView: true,
   });
   const [step, setStep] = useState(1);
   const [platforms, setPlatforms] = useState<Platform[]>(INITIAL_PLATFORMS);
   const [postContent, setPostContent] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void apiClient
+      .get<{
+        connections: {
+          twitter: { connected: boolean; configured: boolean; status: string };
+        };
+      }>('/api/platforms/connections')
+      .then(response => {
+        const xReady =
+          response.connections.twitter.connected &&
+          response.connections.twitter.configured &&
+          response.connections.twitter.status === 'connected';
+        setPlatforms(current =>
+          current.map(platform =>
+            platform.id === 'twitter'
+              ? { ...platform, connected: xReady }
+              : { ...platform, connected: false }
+          )
+        );
+        setSelectedPlatforms(current =>
+          xReady && current.has('twitter') ? new Set(['twitter']) : new Set()
+        );
+      })
+      .catch(() => {
+        setPlatforms(current => current.map(platform => ({ ...platform, connected: false })));
+        setSelectedPlatforms(new Set());
+      });
+  }, [isAuthenticated]);
 
   // Restore progress from sessionStorage on mount
   useEffect(() => {
@@ -167,12 +221,10 @@ export default function OnboardingPage() {
       if (saved) {
         const data = JSON.parse(saved) as {
           step: number;
-          platforms: Platform[];
           postContent: string;
           selectedPlatforms: string[];
         };
         if (data.step) setStep(data.step);
-        if (data.platforms) setPlatforms(data.platforms);
         if (data.postContent) setPostContent(data.postContent);
         if (data.selectedPlatforms) setSelectedPlatforms(new Set(data.selectedPlatforms));
       }
@@ -189,9 +241,9 @@ export default function OnboardingPage() {
   }, [isAuthenticated, isLoading, router]);
 
   const handleToggleConnect = (platformId: string) => {
-    setPlatforms(prev =>
-      prev.map(p => (p.id === platformId ? { ...p, connected: !p.connected } : p))
-    );
+    const platform = platforms.find(item => item.id === platformId);
+    if (!platform || platform.comingSoon || platform.connected) return;
+    router.push('/settings/platforms');
   };
 
   const handleTogglePlatform = (platformId: string) => {
@@ -212,7 +264,6 @@ export default function OnboardingPage() {
         'onboarding-progress',
         JSON.stringify({
           step: nextStep,
-          platforms,
           postContent,
           selectedPlatforms: Array.from(selectedPlatforms),
         })
@@ -225,22 +276,6 @@ export default function OnboardingPage() {
   const handleNext = () => {
     const stepNames = ['connect-platforms', 'create-post', 'complete'];
     trackOnboardingStep(step, stepNames[step - 1] || 'unknown', false);
-
-    if (step === 1) {
-      const connectedCount = platforms.filter(p => p.connected).length;
-      if (connectedCount > 0) {
-        platforms
-          .filter(p => p.connected)
-          .forEach(p => {
-            trackPlatformConnected(p.name, connectedCount);
-          });
-      }
-    }
-
-    if (step === 2 && postContent.trim()) {
-      const platformNames = Array.from(selectedPlatforms);
-      trackPostPublished(platformNames, true);
-    }
 
     if (step < TOTAL_STEPS) {
       const nextStep = step + 1;

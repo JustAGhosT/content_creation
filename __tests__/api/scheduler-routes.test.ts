@@ -46,6 +46,24 @@ jest.mock('../../lib/campaigns/repository', () => ({
   assertApprovedForQueue: mockAssertApprovedForQueue,
 }));
 
+const mockGetPublishReadiness = jest.fn<
+  (
+    userId: string,
+    platformSlug: string
+  ) => Promise<
+    | { canPublish: true; platform: 'twitter' }
+    | {
+        canPublish: false;
+        platform: string;
+        reason: 'coming_soon' | 'disconnected';
+        message: string;
+      }
+  >
+>();
+jest.mock('../../lib/platforms/readiness', () => ({
+  getPublishReadiness: mockGetPublishReadiness,
+}));
+
 // Mock the sanitize module
 jest.mock('../../app/api/_utils/sanitize', () => ({
   sanitizeText: jest.fn((val: string) => val),
@@ -111,6 +129,7 @@ describe('Scheduler API Routes', () => {
     mockSchedule.mockResolvedValue({ job: sampleJob, created: true });
     mockFindIdempotentReplay.mockResolvedValue(null);
     mockScheduleCampaign.mockResolvedValue({ job: sampleJob, created: true });
+    mockGetPublishReadiness.mockResolvedValue({ canPublish: true, platform: 'twitter' });
     mockAssertApprovedForQueue.mockResolvedValue({
       campaignRowId: 'campaign-row-1',
       versionId: 'version-1',
@@ -305,6 +324,12 @@ describe('Scheduler API Routes', () => {
 
     test('replays an idempotent campaign request without duplicating its audit attempt', async () => {
       mockFindIdempotentReplay.mockResolvedValueOnce({ job: sampleJob, created: false });
+      mockGetPublishReadiness.mockResolvedValue({
+        canPublish: false,
+        platform: 'twitter',
+        reason: 'disconnected',
+        message: 'Connect X before publishing',
+      });
       const contentHash = `sha256:${'a'.repeat(64)}`;
       const response = await POST(
         createRequest('POST', {
@@ -323,6 +348,7 @@ describe('Scheduler API Routes', () => {
 
       expect(response.status).toBe(200);
       expect(mockFindIdempotentReplay).toHaveBeenCalledTimes(1);
+      expect(mockGetPublishReadiness).not.toHaveBeenCalled();
       expect(mockAssertApprovedForQueue).not.toHaveBeenCalled();
       expect(mockScheduleCampaign).not.toHaveBeenCalled();
     });
@@ -369,6 +395,12 @@ describe('Scheduler API Routes', () => {
     });
 
     test('rejects coming-soon platforms before scheduling', async () => {
+      mockGetPublishReadiness.mockResolvedValueOnce({
+        canPublish: false,
+        platform: 'facebook',
+        reason: 'coming_soon',
+        message: 'Facebook publishing is coming soon',
+      });
       const comingSoonJob = {
         type: 'standalone',
         contentId: 'content-1',
@@ -383,6 +415,30 @@ describe('Scheduler API Routes', () => {
 
       expect(response.status).toBe(400);
       expect(data.message).toContain('Facebook publishing is coming soon');
+      expect(mockSchedule).not.toHaveBeenCalled();
+    });
+
+    test('rejects a disconnected supported platform before scheduling', async () => {
+      mockGetPublishReadiness.mockResolvedValueOnce({
+        canPublish: false,
+        platform: 'twitter',
+        reason: 'disconnected',
+        message: 'Connect X before publishing',
+      });
+
+      const response = await POST(
+        createRequest('POST', {
+          type: 'standalone',
+          contentId: 'content-1',
+          platformId: 'twitter',
+          content: { text: 'Hello world' },
+          scheduledTime: '2026-04-01T12:00:00Z',
+        })
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.message).toContain('Connect X before publishing');
       expect(mockSchedule).not.toHaveBeenCalled();
     });
 

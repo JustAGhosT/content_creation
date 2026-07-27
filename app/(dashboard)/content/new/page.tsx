@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { apiClient } from '@/lib/api-client';
 import { platforms } from '@/lib/config/platforms';
 import { DEFAULT_PLATFORM_CONFIGS } from '@/types/campaign';
 import type { PostStatus } from '@/types/campaign';
@@ -37,6 +38,7 @@ interface PlatformState {
   slug: string;
   name: string;
   enabled: boolean;
+  connected: boolean;
   hashtags: string;
   comingSoon?: boolean;
 }
@@ -116,11 +118,41 @@ export function ContentCreatePage() {
       .map(p => ({
         slug: p.slug,
         name: p.name,
-        enabled: p.defaultContentFlow !== false && !p.comingSoon,
+        enabled: false,
+        connected: false,
         hashtags: (DEFAULT_PLATFORM_CONFIGS[p.slug]?.defaultHashtags ?? []).join(', '),
         comingSoon: p.comingSoon,
       }))
   );
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    void apiClient
+      .get<{
+        connections: {
+          twitter: { connected: boolean; configured: boolean; status: string };
+        };
+      }>('/api/platforms/connections')
+      .then(response => {
+        const xReady =
+          response.connections.twitter.connected &&
+          response.connections.twitter.configured &&
+          response.connections.twitter.status === 'connected';
+        setPlatformStates(previous =>
+          previous.map(platform => ({
+            ...platform,
+            connected: platform.slug === 'twitter' && xReady,
+            enabled: platform.slug === 'twitter' && xReady,
+          }))
+        );
+      })
+      .catch(() => {
+        setPlatformStates(previous =>
+          previous.map(platform => ({ ...platform, connected: false, enabled: false }))
+        );
+      });
+  }, [isAuthenticated]);
 
   // Step 3: Schedule
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule'>('now');
@@ -164,7 +196,9 @@ export function ContentCreatePage() {
 
   const togglePlatform = useCallback((slug: string) => {
     setPlatformStates(prev =>
-      prev.map(p => (p.slug === slug && !p.comingSoon ? { ...p, enabled: !p.enabled } : p))
+      prev.map(p =>
+        p.slug === slug && !p.comingSoon && p.connected ? { ...p, enabled: !p.enabled } : p
+      )
     );
   }, []);
 
@@ -389,6 +423,7 @@ export function ContentCreatePage() {
             const color = getCharColor(body.length, charLimit);
             const fillPercent = Math.min((body.length / charLimit) * 100, 100);
             const isComingSoon = platform.comingSoon;
+            const isDisconnected = !isComingSoon && !platform.connected;
 
             return (
               <div
@@ -404,7 +439,13 @@ export function ContentCreatePage() {
                   </div>
                   <div className={styles.platformToggle}>
                     <span className={styles.toggleLabel}>
-                      {isComingSoon ? 'Unavailable' : platform.enabled ? 'Included' : 'Excluded'}
+                      {isComingSoon
+                        ? 'Unavailable'
+                        : isDisconnected
+                          ? 'Not connected'
+                          : platform.enabled
+                            ? 'Included'
+                            : 'Excluded'}
                     </span>
                     <button
                       type="button"
@@ -413,11 +454,13 @@ export function ContentCreatePage() {
                       aria-label={
                         isComingSoon
                           ? `${platform.name} is coming soon`
-                          : `${platform.enabled ? 'Exclude' : 'Include'} ${platform.name}`
+                          : isDisconnected
+                            ? `${platform.name} is not connected`
+                            : `${platform.enabled ? 'Exclude' : 'Include'} ${platform.name}`
                       }
                       role="switch"
                       aria-checked={platform.enabled}
-                      disabled={isComingSoon}
+                      disabled={isComingSoon || isDisconnected}
                     >
                       <span className={styles.toggleKnob} />
                     </button>
