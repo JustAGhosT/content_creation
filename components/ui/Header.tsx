@@ -10,12 +10,9 @@ import { useAuth } from '../providers/AuthProvider';
 type ThemeMode = 'light' | 'dark';
 
 const THEME_STORAGE_KEY = 'omnipost.theme';
-const AIRTABLE_STORAGE_KEY = 'omnipost.airtableEnabled';
-
 const Header: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
-  const [airtableEnabled, setAirtableEnabled] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
   const menuRef = useRef<HTMLElement>(null);
@@ -48,15 +45,6 @@ const Header: React.FC = () => {
     localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
   };
 
-  const toggleAirtable = () => {
-    const nextValue = !airtableEnabled;
-    setAirtableEnabled(nextValue);
-    localStorage.setItem(AIRTABLE_STORAGE_KEY, String(nextValue));
-    window.dispatchEvent(
-      new CustomEvent('omnipost:airtable-toggle', { detail: { enabled: nextValue } })
-    );
-  };
-
   useEffect(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     const preferredTheme =
@@ -68,11 +56,6 @@ const Header: React.FC = () => {
 
     setThemeMode(preferredTheme);
     document.documentElement.dataset.theme = preferredTheme;
-
-    const storedAirtable = localStorage.getItem(AIRTABLE_STORAGE_KEY);
-    if (storedAirtable !== null) {
-      setAirtableEnabled(storedAirtable === 'true');
-    }
   }, []);
 
   // Handle escape key to close menu
@@ -173,17 +156,6 @@ const Header: React.FC = () => {
               </li>
             ))}
             <li className={`${styles.navItem} ${styles.utilityGroup}`} aria-label="Header controls">
-              <button
-                type="button"
-                className={`${styles.toggleButton} ${airtableEnabled ? styles.toggleActive : ''}`}
-                onClick={toggleAirtable}
-                aria-pressed={airtableEnabled}
-              >
-                <span className={styles.toggleTrack} aria-hidden="true">
-                  <span className={styles.toggleThumb}></span>
-                </span>
-                Airtable
-              </button>
               <button
                 type="button"
                 className={styles.iconToggleButton}
