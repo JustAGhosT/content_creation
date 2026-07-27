@@ -7,7 +7,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Layout from '@/components/layouts/Layout';
 import { CampaignCard, CampaignForm, EmptyState } from '@/components/campaigns';
 import { Button, LoadingSpinner } from '@/components/ui';
 import { useCampaign } from '@/hooks/useCampaign';
@@ -99,10 +98,7 @@ export default function CampaignList() {
     statusFilter === 'all' ? campaigns : campaigns.filter(c => c.status === statusFilter);
 
   return (
-    <Layout
-      title="Campaign Management"
-      description="Create and manage multi-platform content campaigns"
-    >
+    <>
       <div className={styles.container}>
         <h1 className={styles.pageTitle}>Campaigns</h1>
         <p className={styles.pageDescription}>
@@ -171,6 +167,6 @@ export default function CampaignList() {
           </Link>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

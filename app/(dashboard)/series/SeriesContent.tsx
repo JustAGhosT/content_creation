@@ -7,7 +7,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Layout from '@/components/layouts/Layout';
 import SeriesForm from '@/components/series/SeriesForm';
 import SeriesCard from '@/components/series/SeriesCard';
 import EmptyState from '@/components/series/EmptyState';
@@ -41,10 +40,7 @@ export default function SeriesContent() {
   };
 
   return (
-    <Layout
-      title="Manage Content Series"
-      description="Create and manage your technical content series"
-    >
+    <>
       <div className={styles.container}>
         {/* Page Header */}
         <header className={styles.pageHeader}>
@@ -162,6 +158,6 @@ export default function SeriesContent() {
           </Link>
         </nav>
       </div>
-    </Layout>
+    </>
   );
 }

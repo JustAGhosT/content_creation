@@ -4,7 +4,6 @@
  */
 
 import { Metadata } from 'next';
-import Layout from '@/components/layouts/Layout';
 import WorkflowDiagram from '@/components/adaptation/WorkflowDiagram';
 import AdaptationExamples from '@/components/adaptation/AdaptationExamples';
 import NavigationLinks from '@/components/ui/NavigationLinks';
@@ -50,10 +49,7 @@ export default async function ContentAdaptationPage() {
   ];
 
   return (
-    <Layout
-      title="Content Adaptation Strategies"
-      description="Strategic approaches for adapting your technical content to different platforms."
-    >
+    <>
       <div className={styles.container}>
         <div className={styles.section}>
           {error ? (
@@ -77,6 +73,6 @@ export default async function ContentAdaptationPage() {
           />
         </div>
       </div>
-    </Layout>
+    </>
   );
 }
