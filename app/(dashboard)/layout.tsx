@@ -26,11 +26,11 @@ export default function DashboardLayout({ children }: { readonly children: React
   if (isLoading) {
     return (
       <>
-        <a href="#main-content" className={layoutStyles.skipLink}>
+        <a href="#dashboard-main-content" className={layoutStyles.skipLink}>
           Skip to main content
         </a>
         <Header />
-        <main id="main-content" className={styles.container} tabIndex={-1}>
+        <main id="dashboard-main-content" className={styles.container} tabIndex={-1}>
           <div>Loading...</div>
         </main>
       </>
@@ -43,11 +43,11 @@ export default function DashboardLayout({ children }: { readonly children: React
 
   return (
     <>
-      <a href="#main-content" className={layoutStyles.skipLink}>
+      <a href="#dashboard-main-content" className={layoutStyles.skipLink}>
         Skip to main content
       </a>
       <Header />
-      <main id="main-content" className={styles.container} tabIndex={-1}>
+      <main id="dashboard-main-content" className={styles.container} tabIndex={-1}>
         <ErrorBoundary>{children}</ErrorBoundary>
       </main>
     </>

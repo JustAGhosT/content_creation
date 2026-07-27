@@ -32,9 +32,9 @@ describe('DashboardLayout', () => {
     expect(screen.getAllByTestId('dashboard-header')).toHaveLength(1);
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Skip to main content' }).getAttribute('href')).toBe(
-      '#main-content'
+      '#dashboard-main-content'
     );
-    expect(screen.getByRole('main').getAttribute('id')).toBe('main-content');
+    expect(screen.getByRole('main').getAttribute('id')).toBe('dashboard-main-content');
     expect(screen.queryByText('Dashboard content')).not.toBeNull();
   });
 });
