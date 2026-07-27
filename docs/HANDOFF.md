@@ -1,5 +1,67 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-07-27 Content Delivery Status And X Acceptance Handoff
+
+### Current State
+
+- **Production commit:** `55671d5abd39159eacb52fa5a21374b1e7d41297` on `main`.
+- **Delivery-status UX:** content cards open a dedicated detail view rather
+  than the composer. Newly created posts retain stable content and scheduler
+  job IDs, so their list and detail states are refreshed from the authenticated
+  scheduler response.
+- **Legacy content boundary:** older browser-session cards without retained
+  scheduler job IDs show **Tracking unavailable**. Do not infer provider state
+  from matching copy, time, or platform.
+- **X acceptance:** Gate 3 task `8b2fe3e9-1765-464d-9e88-6f8aed147769` and
+  controlled-live-post task `7e1feab6-a668-4c18-b54d-691eddcd243f` remain
+  `inprogress` only for the explicitly approved, staffed X post and the
+  subsequent disconnect/revocation proof.
+
+### Delivered
+
+- [PR #196](https://github.com/neuralliquid/omnipost/pull/196), merge
+  `b4d42d168cf1c8a0de36892211196ca952510219`: added content detail navigation,
+  explicit post/review information, stable scheduler-job linkage, and truthful
+  status labels.
+- [PR #197](https://github.com/neuralliquid/omnipost/pull/197), merge
+  `55671d5abd39159eacb52fa5a21374b1e7d41297`: addressed the two late automated
+  findings from #196 by paginating scheduler status reads through the API's
+  returned total and retaining scheduled time after completion or failure.
+
+### Verification
+
+- Both PRs were clean, CI-green, and had no actionable review threads before
+  merge. A late automated review on #196 produced two valid findings; both were
+  covered by focused tests and merged in #197.
+- PR #196 main CI run
+  [30257732303](https://github.com/neuralliquid/omnipost/actions/runs/30257732303)
+  and Azure deployment run
+  [30257732310](https://github.com/neuralliquid/omnipost/actions/runs/30257732310)
+  succeeded.
+- PR #197 main CI run
+  [30264735513](https://github.com/neuralliquid/omnipost/actions/runs/30264735513)
+  and Azure deployment run
+  [30264735490](https://github.com/neuralliquid/omnipost/actions/runs/30264735490)
+  succeeded, including deployment health verification.
+- Local validation for the status work included TypeScript, ESLint, Prettier,
+  a six-case scheduler-status test suite, and a production build.
+
+### Exact Continuation
+
+1. For a new post, use the retained scheduler job IDs as the only client-side
+   join to live scheduler state; do not revive legacy cards by heuristic.
+2. For remaining X acceptance, obtain explicit approval naming the account
+   owner and technical operator, the exact text-only copy, and a staffed window.
+   Follow `docs/runbooks/X_CAMPAIGN_GO_LIVE.md` and require scheduler success,
+   provider ID, public URL, and ten-minute no-duplicate evidence.
+3. Disconnect through OmniPost after successful acceptance and capture only
+   nonsecret provider revocation and local credential-removal evidence in Baton.
+4. Never record OAuth state, authorization codes, client credentials, tokens,
+   browser session material, or secret URIs in GitHub, Baton, source, logs, or
+   this handoff.
+
+---
+
 ## 2026-07-27 Product Trust And X Readiness Handoff
 
 ### Current State
