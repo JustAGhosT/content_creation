@@ -88,6 +88,7 @@ function parseStoredJob(row: StoredSchedulerJob): ScheduledJob {
       publishedAt: row.publishedAt?.toISOString(),
       publishedUrl: row.publishedUrl ?? undefined,
       platformPostId: row.platformPostId ?? undefined,
+      errorCode: row.errorCode ?? undefined,
       error: row.error ?? undefined,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
@@ -132,6 +133,7 @@ function createData(job: ScheduledJob): Prisma.SchedulerJobUncheckedCreateInput 
     publishedAt: job.publishedAt ? new Date(job.publishedAt) : undefined,
     publishedUrl: job.publishedUrl,
     platformPostId: job.platformPostId,
+    errorCode: job.errorCode,
     error: job.error,
     createdAt: new Date(job.createdAt),
     updatedAt: new Date(job.updatedAt),
@@ -171,6 +173,7 @@ function updateData(updates: Partial<ScheduledJob>): Prisma.SchedulerJobUnchecke
   }
   if (hasOwn(updates, 'publishedUrl')) data.publishedUrl = updates.publishedUrl ?? null;
   if (hasOwn(updates, 'platformPostId')) data.platformPostId = updates.platformPostId ?? null;
+  if (hasOwn(updates, 'errorCode')) data.errorCode = updates.errorCode ?? null;
   if (hasOwn(updates, 'error')) data.error = updates.error ?? null;
   if (hasOwn(updates, 'content')) data.content = JSON.stringify(updates.content);
   if (hasOwn(updates, 'timezone')) data.timezone = updates.timezone;

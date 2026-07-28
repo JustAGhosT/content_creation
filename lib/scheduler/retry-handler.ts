@@ -76,6 +76,16 @@ export class RetryHandler {
     const status = error.response?.status;
     const message = error.response?.data?.message || error.message || 'Unknown error';
 
+    // Provider billing and credit failures require an operator action. Retrying
+    // cannot change the outcome and can consume the job's entire retry budget.
+    if (status === 402) {
+      return {
+        retryable: false,
+        code: 'PAYMENT_REQUIRED',
+        message: `Provider credits or billing required (402): ${message}`,
+      };
+    }
+
     // Rate limit errors - retryable with longer backoff
     if (status === 429) {
       return {
@@ -147,9 +157,7 @@ export class RetryHandler {
     message?: string;
     code?: string;
   } {
-    return (
-      typeof error === 'object' && error !== null && ('response' in error || 'message' in error)
-    );
+    return typeof error === 'object' && error !== null && 'response' in error;
   }
 
   /**

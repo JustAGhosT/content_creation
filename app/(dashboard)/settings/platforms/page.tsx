@@ -12,6 +12,8 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { platforms, platformConfigurations } from '@/lib/config/platforms';
 import { apiClient } from '@/lib/api-client';
+import type { PlatformCapacitySignals } from '@/lib/platforms/capacity';
+import { platformOperationalProfiles } from '@/lib/platforms/operational-profiles';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import styles from '@/styles/PlatformSettings.module.css';
 
@@ -30,6 +32,7 @@ interface PlatformConnectionsResponse {
   connections: {
     twitter: PlatformConnection;
   };
+  capacity: PlatformCapacitySignals;
 }
 
 type ModalState = { type: 'disconnect'; platformSlug: string } | null;
@@ -61,6 +64,7 @@ export function PlatformSettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [connections, setConnections] = useState<PlatformConnectionsResponse['connections']>();
+  const [capacity, setCapacity] = useState<PlatformCapacitySignals>();
   const [connectionsLoading, setConnectionsLoading] = useState(true);
   const [operationError, setOperationError] = useState('');
   const [modal, setModal] = useState<ModalState>(null);
@@ -72,6 +76,7 @@ export function PlatformSettingsPage() {
         '/api/platforms/connections'
       );
       setConnections(response.connections);
+      setCapacity(response.capacity);
     } catch {
       setOperationError('Platform connection status could not be loaded.');
     } finally {
@@ -154,6 +159,8 @@ export function PlatformSettingsPage() {
           const requiresConfiguration =
             platform.slug === 'twitter' && connection?.configured === false;
           const config = platformConfigurations[platform.slug];
+          const operationalProfile = platformOperationalProfiles[platform.slug];
+          const capacitySignal = platform.slug === 'twitter' ? capacity?.twitter : undefined;
           const isComingSoon = platform.comingSoon;
 
           return (
@@ -213,12 +220,60 @@ export function PlatformSettingsPage() {
               )}
 
               {config?.capabilities && (
-                <div className={styles.capabilities}>
-                  {config.capabilities.map(capability => (
-                    <span key={capability} className={styles.capabilityTag}>
-                      {capability}
-                    </span>
-                  ))}
+                <div>
+                  <div className={styles.detailLabel}>
+                    {isComingSoon ? 'Planned message types' : 'Available message types'}
+                  </div>
+                  <div className={styles.capabilities}>
+                    {config.capabilities.map(capability => (
+                      <span key={capability} className={styles.capabilityTag}>
+                        {capability}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {operationalProfile && (
+                <div className={styles.operationalDetails}>
+                  <dl>
+                    <div>
+                      <dt>Content limit</dt>
+                      <dd>{operationalProfile.contentLimit}</dd>
+                    </div>
+                    <div>
+                      <dt>Access</dt>
+                      <dd>{operationalProfile.accessModel}</dd>
+                    </div>
+                    <div>
+                      <dt>Test surface</dt>
+                      <dd>{operationalProfile.testSurface}</dd>
+                    </div>
+                    <div>
+                      <dt>Cost</dt>
+                      <dd>{operationalProfile.costSummary.join(' · ')}</dd>
+                    </div>
+                    <div>
+                      <dt>Quota</dt>
+                      <dd>{operationalProfile.quotaSummary}</dd>
+                    </div>
+                    <div>
+                      <dt>Credits</dt>
+                      <dd>{operationalProfile.balanceSummary}</dd>
+                    </div>
+                  </dl>
+                  {capacitySignal?.billingState === 'blocked' && (
+                    <div className={styles.capacityBlocked} role="status">
+                      <strong>Publishing blocked</strong>
+                      <span>{capacitySignal.message}</span>
+                    </div>
+                  )}
+                  <div className={styles.providerReference}>
+                    <a href={operationalProfile.referenceUrl} target="_blank" rel="noreferrer">
+                      {operationalProfile.referenceLabel}
+                    </a>
+                    <span>Verified {operationalProfile.verifiedAt}</span>
+                  </div>
                 </div>
               )}
 

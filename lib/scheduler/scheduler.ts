@@ -227,6 +227,8 @@ export class Scheduler {
         scheduledTime: newScheduledTime,
         status: 'scheduled',
         nextRetryAt: undefined,
+        errorCode: undefined,
+        error: undefined,
         updatedAt: new Date().toISOString(),
       },
       userId
@@ -330,6 +332,8 @@ export class Scheduler {
         publishedAt: now,
         publishedUrl: publishResult.result.url,
         platformPostId: publishResult.result.id,
+        errorCode: undefined,
+        error: undefined,
         updatedAt: now,
       });
       if (!completed) {
@@ -432,6 +436,7 @@ export class Scheduler {
       // Schedule retry
       const updated = await this.queue.updateClaimed(job.id, leaseToken, {
         status: 'failed',
+        errorCode: shouldRetry.classification.code,
         error: shouldRetry.classification.message,
         nextRetryAt: shouldRetry.nextRetryAt.toISOString(),
         updatedAt: now,
@@ -471,6 +476,7 @@ export class Scheduler {
     // Move to dead letter queue (no more retries)
     const updated = await this.queue.updateClaimed(job.id, leaseToken, {
       status: 'dead',
+      errorCode: shouldRetry.classification.code,
       error: shouldRetry.classification.message,
       updatedAt: now,
     });
@@ -528,6 +534,7 @@ export class Scheduler {
         status: 'scheduled',
         scheduledTime: new Date().toISOString(),
         nextRetryAt: undefined,
+        errorCode: undefined,
         error: undefined,
         attempts: 0,
         updatedAt: new Date().toISOString(),

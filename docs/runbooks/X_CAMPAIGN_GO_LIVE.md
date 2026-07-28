@@ -52,6 +52,17 @@ before the smoke window.
 
 ## 4. Preflight production
 
+### No-credit contract preflight
+
+X documents an API Playground that runs as a local mock server for X API v2
+without consuming credits. Use it to verify OmniPost's create-post request,
+response parsing, and HTTP error classification before a staffed window.
+
+This is contract evidence only. It does not prove production OAuth consent,
+provider credits, a real post ID, public visibility, or revocation. Record it as
+`mock_contract`, never as a live publish. See the official
+[X tools and libraries](https://docs.x.com/tools-and-libraries) reference.
+
 1. Confirm the deployment workflow for the intended commit succeeded.
 2. Confirm both endpoints return HTTP 200:
 

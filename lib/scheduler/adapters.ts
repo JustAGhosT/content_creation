@@ -36,6 +36,28 @@ interface FetchWithTimeoutOptions {
 }
 
 /**
+ * Provider HTTP failure with structured status metadata for retry policy.
+ * The response shape intentionally matches the subset consumed by RetryHandler.
+ */
+export class PlatformHttpError extends Error {
+  readonly response: { status: number; data?: { message?: string } };
+
+  constructor(platformName: string, status: number, message?: string) {
+    const providerMessage = message?.trim();
+    super(
+      providerMessage
+        ? `${platformName} API error: ${status} - ${providerMessage}`
+        : `${platformName} API error: ${status}`
+    );
+    this.name = 'PlatformHttpError';
+    this.response = {
+      status,
+      data: providerMessage ? { message: providerMessage } : undefined,
+    };
+  }
+}
+
+/**
  * Execute a fetch request with timeout handling
  * Centralizes AbortController logic to reduce code duplication
  */
@@ -55,7 +77,7 @@ async function fetchWithTimeout<T>(options: FetchWithTimeoutOptions): Promise<T>
     });
 
     if (!response.ok) {
-      throw new Error(`${platformName} API error: ${response.status}`);
+      throw new PlatformHttpError(platformName, response.status, response.statusText);
     }
 
     return await response.json();
@@ -214,7 +236,7 @@ export class TwitterAdapter extends BasePlatformAdapter {
     });
 
     if (!response.ok) {
-      throw new Error(`X API error: ${response.status}`);
+      throw new PlatformHttpError('X', response.status, response.statusText);
     }
 
     const data = await response.json();
@@ -248,7 +270,7 @@ export class TwitterAdapter extends BasePlatformAdapter {
         });
 
         if (!response.ok) {
-          const error = new Error(`X API error: ${response.status}`);
+          const error = new PlatformHttpError('X', response.status, response.statusText);
           // If we have already posted some tweets, throw a partial publish error
           if (tweetIds.length > 0) {
             throw new PartialPublishError(

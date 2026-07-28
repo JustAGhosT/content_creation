@@ -158,12 +158,77 @@
   gap: 0.4rem;
 }
 
+.detailLabel {
+  margin-bottom: 0.4rem;
+  color: #4a5568;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .capabilityTag {
   background-color: #edf2f7;
   color: #4a5568;
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
   font-size: 0.75rem;
+}
+
+.operationalDetails {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.85rem;
+}
+
+.operationalDetails dl {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.operationalDetails dl > div {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.operationalDetails dt {
+  color: #4a5568;
+  font-weight: 600;
+}
+
+.operationalDetails dd {
+  margin: 0;
+  color: #2d3748;
+  line-height: 1.4;
+}
+
+.capacityBlocked {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.85rem;
+  border: 1px solid #f6ad55;
+  border-radius: 8px;
+  background: #fffaf0;
+  padding: 0.75rem;
+  color: #9c4221;
+  font-size: 0.78rem;
+}
+
+.providerReference {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.72rem;
+}
+
+.providerReference a {
+  color: #2b6cb0;
+}
+
+.providerReference span {
+  color: #718096;
 }
 
 .cardActions {

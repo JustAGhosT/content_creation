@@ -5,6 +5,7 @@ import { RateLimitPresets, withRateLimit } from '@/app/api/_utils/rateLimit';
 import { isPlatformTokenEncryptionConfigured } from '@/lib/platforms/x/crypto';
 import { isXOAuthClientConfigured } from '@/lib/platforms/x/oauth';
 import { getXConnectionStatus } from '@/lib/platforms/x/repository';
+import { getPlatformCapacitySignals } from '@/lib/platforms/capacity';
 
 export const GET = withRateLimit(
   withErrorHandling(async () => {
@@ -16,8 +17,9 @@ export const GET = withRateLimit(
       ...(await getXConnectionStatus(userId)),
       configured: isXOAuthClientConfigured() && isPlatformTokenEncryptionConfigured(),
     };
+    const capacity = await getPlatformCapacitySignals(userId);
     return NextResponse.json(
-      { connections: { twitter: x } },
+      { connections: { twitter: x }, capacity },
       { headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   }),

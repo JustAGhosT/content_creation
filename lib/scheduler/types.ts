@@ -68,6 +68,7 @@ export interface ScheduledJob {
   publishedAt?: string;
   publishedUrl?: string;
   platformPostId?: string;
+  errorCode?: string;
   error?: string;
 
   // Metadata
