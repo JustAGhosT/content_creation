@@ -134,6 +134,7 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   linkedin: { requests: 100, window: 86400 }, // 100/day
   facebook: { requests: 200, window: 3600 }, // 200/hour
   instagram: { requests: 200, window: 3600 }, // 200/hour
+  pinterest: { requests: 50, window: 3600 }, // Conservative local guard; provider headers remain authoritative
   'custom-channel': { requests: 1000, window: 3600 }, // 1000/hour
 };
 

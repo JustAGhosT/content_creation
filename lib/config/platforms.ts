@@ -57,6 +57,15 @@ export const platforms: Platform[] = [
   },
   {
     id: 6,
+    name: 'Pinterest Sandbox',
+    slug: 'pinterest',
+    description: 'Pinterest provider-operated sandbox',
+    defaultContentFlow: false,
+    requiresMedia: true,
+    comingSoon: true,
+  },
+  {
+    id: 7,
     name: 'Custom Channel',
     slug: 'custom-channel',
     description: 'Custom publishing channel',
@@ -97,6 +106,12 @@ export const platformConfigurations: Record<string, PlatformConfig> = {
     apiKey: process.env.TIKTOK_API_KEY || '',
     required: true,
     capabilities: ['video'],
+  },
+  pinterest: {
+    apiUrl: 'https://api-sandbox.pinterest.com/v5/pins',
+    apiKey: '',
+    required: false,
+    capabilities: ['image'],
   },
   'custom-channel': {
     apiUrl: 'https://api.customchannel.com/publish',

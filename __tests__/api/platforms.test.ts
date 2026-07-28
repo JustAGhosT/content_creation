@@ -111,10 +111,18 @@ describe('Platforms API', () => {
       // Assertions
       expect(response.status).toBe(200);
       expect(Array.isArray(data)).toBe(true);
-      expect(data).toHaveLength(6); // Includes TikTok plus custom channel
+      expect(data).toHaveLength(7); // Includes TikTok, Pinterest Sandbox, and custom channel
       expect(data[0]).toHaveProperty('id', 1);
       expect(data[0]).toHaveProperty('name', 'Facebook');
       expect(data[1]).toHaveProperty('name', 'Instagram'); // Updated order
+      expect(data).toContainEqual(
+        expect.objectContaining({
+          name: 'Pinterest Sandbox',
+          slug: 'pinterest',
+          comingSoon: true,
+          requiresMedia: true,
+        })
+      );
       expect(data[2]).toHaveProperty('name', 'LinkedIn');
       expect(data[4]).toHaveProperty('name', 'TikTok');
     });
