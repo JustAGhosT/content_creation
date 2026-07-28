@@ -61,9 +61,10 @@
 2. After Trial approval, open **My apps > OmniPost Sandbox**, generate the
    provider's 30-day sandbox token, and create a non-group sandbox board. Never
    paste the token into chat, source, GitHub, Baton, logs, or shell history.
-3. Supply `PINTEREST_SANDBOX_ACCESS_TOKEN` and
-   `PINTEREST_SANDBOX_BOARD_ID` only through an ephemeral secret environment,
-   then run `pnpm smoke:pinterest-sandbox` according to the runbook.
+3. Select a public HTTPS image URL that contains no secrets or personal data.
+   Supply `PINTEREST_SANDBOX_ACCESS_TOKEN`, `PINTEREST_SANDBOX_BOARD_ID`, and
+   `PINTEREST_SANDBOX_IMAGE_URL` only through an ephemeral environment, then
+   run `pnpm smoke:pinterest-sandbox` according to the runbook.
 4. Require one successful Sandbox Pin create, exact-ID read-back, and delete.
    Record only nonsecret IDs and results as `provider_sandbox`, never
    `live_publish`.
