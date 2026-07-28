@@ -1,0 +1,101 @@
+.page {
+  padding: 8rem 1.5rem 5rem;
+  background:
+    radial-gradient(circle at top right, rgb(124 58 237 / 10%), transparent 30rem), #f8fafc;
+  color: #172033;
+}
+
+.container {
+  width: min(100%, 52rem);
+  margin: 0 auto;
+  padding: 3rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
+  background: #ffffff;
+  box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 8%);
+}
+
+.header {
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  color: #6d28d9;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin: 0;
+  color: #111827;
+  font-size: clamp(2.25rem, 7vw, 3.5rem);
+  line-height: 1.05;
+}
+
+.updated {
+  margin: 0.8rem 0 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.intro {
+  max-width: 44rem;
+  margin: 1.5rem 0 0;
+  color: #334155;
+  font-size: 1.15rem;
+  line-height: 1.75;
+}
+
+.container section {
+  padding-top: 2rem;
+}
+
+.container h2 {
+  margin: 0 0 0.75rem;
+  color: #1e293b;
+  font-size: 1.35rem;
+}
+
+.container p,
+.container li {
+  color: #475569;
+  line-height: 1.75;
+}
+
+.container p {
+  margin: 0;
+}
+
+.container ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.35rem;
+}
+
+.container li + li {
+  margin-top: 0.6rem;
+}
+
+.container strong {
+  color: #334155;
+}
+
+.container a {
+  color: #6d28d9;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 6.5rem 1rem 3rem;
+  }
+
+  .container {
+    padding: 1.75rem;
+  }
+}

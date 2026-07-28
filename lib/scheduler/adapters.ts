@@ -12,6 +12,7 @@ import {
 } from './types';
 import { getPlatformConfig } from '@/lib/config/platforms';
 import { getValidXAccessToken } from '@/lib/platforms/x/repository';
+import { PinterestSandboxClient } from '@/lib/platforms/pinterest/sandbox';
 import { generatePlatformPostId } from '@/lib/utils/id';
 
 /**
@@ -616,6 +617,57 @@ export class TikTokAdapter extends BasePlatformAdapter {
 }
 
 /**
+ * Pinterest's provider-operated sandbox. This adapter intentionally cannot be
+ * pointed at the production API host.
+ */
+export class PinterestSandboxAdapter extends BasePlatformAdapter {
+  platformId = 'pinterest';
+
+  constructor(private readonly client?: PinterestSandboxClient) {
+    super();
+  }
+
+  getMaxLength(): number {
+    return 800;
+  }
+
+  async publish(content: ScheduledJob['content']): Promise<PlatformPublishResult> {
+    const imageUrl = content.mediaUrls?.[0];
+    if (!imageUrl) throw new Error('Pinterest Sandbox posts require an image URL');
+
+    const pin = await (this.client ?? new PinterestSandboxClient()).createPin({
+      title: content.text,
+      description: this.formatContent(content),
+      imageUrl,
+    });
+
+    return {
+      id: pin.id,
+      url: `https://www.pinterest.com/pin/${pin.id}/`,
+      platformData: { ...pin, environment: 'sandbox' },
+    };
+  }
+
+  validateContent(content: ScheduledJob['content']): ValidationResult {
+    const result = super.validateContent(content);
+    if (!content.mediaUrls?.[0]) {
+      result.errors.push('Pinterest Sandbox posts require an image URL');
+      result.valid = false;
+    }
+    return result;
+  }
+
+  private formatContent(content: ScheduledJob['content']): string {
+    const hashtags = content.hashtags?.map(value => (value.startsWith('#') ? value : `#${value}`));
+    return hashtags?.length ? `${content.text}\n\n${hashtags.join(' ')}` : content.text;
+  }
+
+  protected getMockUrl(postId: string): string {
+    return `https://www.pinterest.com/pin/${postId}/`;
+  }
+}
+
+/**
  * Adapter registry
  */
 const adapters = new Map<string, PlatformAdapter>();
@@ -624,6 +676,7 @@ adapters.set('linkedin', new LinkedInAdapter());
 adapters.set('facebook', new FacebookAdapter());
 adapters.set('instagram', new InstagramAdapter());
 adapters.set('tiktok', new TikTokAdapter());
+adapters.set('pinterest', new PinterestSandboxAdapter());
 
 /**
  * Get adapter for a platform

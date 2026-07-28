@@ -20,6 +20,7 @@
     "test:coverage": "jest --coverage",
     "renovate:verify": "npx --yes --package renovate -- renovate-config-validator --strict",
     "marketing:validate": "node scripts/validate-marketing-contracts.mjs",
+    "smoke:pinterest-sandbox": "node scripts/pinterest-sandbox-smoke.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { getAdapter, TwitterAdapter } from '../../lib/scheduler/adapters';
+import { getAdapter, PinterestSandboxAdapter, TwitterAdapter } from '../../lib/scheduler/adapters';
+import type { PinterestSandboxClient } from '@/lib/platforms/pinterest/sandbox';
 import { platformConfigurations, platforms } from '../../lib/config/platforms';
 
 const originalNodeEnv = process.env.NODE_ENV;
@@ -79,8 +80,38 @@ describe('Scheduler platform adapters', () => {
       'facebook',
       'instagram',
       'linkedin',
+      'pinterest',
       'tiktok',
     ]);
+  });
+
+  test('Pinterest Sandbox requires media and retains sandbox evidence', async () => {
+    const createPin = jest.fn(async () => ({ id: 'pin-123' }));
+    const adapter = new PinterestSandboxAdapter({ createPin } as unknown as PinterestSandboxClient);
+
+    expect(adapter.validateContent({ text: 'Image-free Pin' })).toMatchObject({
+      valid: false,
+      errors: expect.arrayContaining(['Pinterest Sandbox posts require an image URL']),
+    });
+
+    await expect(
+      adapter.publish({
+        text: 'Sandbox-only Pin',
+        mediaUrls: ['https://cdn.example.com/test.png'],
+        hashtags: ['OmniPost'],
+      })
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: 'pin-123',
+        url: 'https://www.pinterest.com/pin/pin-123/',
+        platformData: { id: 'pin-123', environment: 'sandbox' },
+      })
+    );
+    expect(createPin).toHaveBeenCalledWith({
+      title: 'Sandbox-only Pin',
+      description: 'Sandbox-only Pin\n\n#OmniPost',
+      imageUrl: 'https://cdn.example.com/test.png',
+    });
   });
 
   test('X publishes through the v2 create-post contract and returns an X URL', async () => {
