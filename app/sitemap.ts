@@ -7,7 +7,7 @@ import type { MetadataRoute } from 'next';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || 'https://nl-dev-omnipost-web.azurewebsites.net';
-const lastModified = new Date('2026-03-30');
+const lastModified = new Date('2026-07-28');
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
@@ -22,6 +22,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified,
       changeFrequency: 'monthly',
       priority: 0.9,
+    },
+    {
+      url: `${BASE_URL}/privacy`,
+      lastModified,
+      changeFrequency: 'yearly',
+      priority: 0.4,
     },
     {
       url: `${BASE_URL}/signup`,
