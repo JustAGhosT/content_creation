@@ -1,5 +1,82 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-07-28 Pinterest Sandbox Registration Handoff
+
+### Current State
+
+- **Production commit:** `e073264913492b3728d95c96945abcdeaf2af9f3` on
+  `main`, merged through
+  [PR #200](https://github.com/neuralliquid/omnipost/pull/200).
+- **Production verification:** post-merge CI run
+  [30338120219](https://github.com/neuralliquid/omnipost/actions/runs/30338120219)
+  and Azure deployment run
+  [30338120251](https://github.com/neuralliquid/omnipost/actions/runs/30338120251)
+  passed. The public `/api/health` and `/privacy` endpoints returned HTTP 200.
+- **Pinterest developer app:** `OmniPost Sandbox`, App ID `1595103`.
+- **Provider state:** **Trial access pending**. Pinterest reports that the
+  connection request is still being reviewed. This is registration evidence,
+  not API-access or publishing proof.
+- **Baton task:** `57cc115e-4234-435c-ab34-8329f1596086`, retained
+  `inprogress` while waiting on the provider and the reversible sandbox smoke.
+- **X acceptance remains separate:** Gate 3 task
+  `8b2fe3e9-1765-464d-9e88-6f8aed147769` and controlled-live-post task
+  `7e1feab6-a668-4c18-b54d-691eddcd243f` still require the explicitly approved,
+  staffed X post, no-duplicate evidence, and disconnect/revocation proof.
+
+### Delivered
+
+- Added a Pinterest API v5 client pinned to the provider-operated Sandbox host,
+  a media-required scheduler adapter, sanitized provider errors, configuration
+  checks, and create/read/delete smoke tooling.
+- Added the public OmniPost privacy page required for provider registration.
+- Added unit and scheduler-adapter coverage and the operator runbook at
+  [`docs/runbooks/PINTEREST_SANDBOX.md`](runbooks/PINTEREST_SANDBOX.md).
+- Created the Pinterest business/developer account, verified its email, restored
+  the expired registration form, uploaded the OmniPost app icon, and submitted
+  the connection request.
+- Preserved the operator-selected registration choices exactly: Consumer
+  experience; Pin creation and scheduling, Reporting, Ad campaign management,
+  Ecommerce, and Recommendations & experimentation; Creators, Advertisers,
+  Merchants, and Businesses; reads Pins and boards for general users.
+
+### Verification And Evidence Boundary
+
+- PR #200 was merged with the user's explicit admin-bypass approval after its
+  implementation checks passed; its post-merge CI and deployment then passed.
+- Pinterest assigned App ID `1595103` and shows `Trial access pending` with the
+  request under review. No access token or credential was recorded in source,
+  GitHub, Baton, or this handoff.
+- The sandbox smoke has **not** run. Do not label the integration verified,
+  connected, or publishable until Pinterest grants Trial access and the
+  provider create/read/delete sequence succeeds.
+- The generated icon remains a local, untracked source artifact at
+  `output/imagegen/omnipost-app-icon.png` in the primary checkout; Pinterest has
+  the uploaded copy. Do not treat that local path as a deployed application
+  asset.
+
+### Exact Continuation
+
+1. Wait for Pinterest's review email; do not create a duplicate connection
+   request or change the submitted choices while this request is open.
+2. After Trial approval, open **My apps > OmniPost Sandbox**, generate the
+   provider's 30-day sandbox token, and create a non-group sandbox board. Never
+   paste the token into chat, source, GitHub, Baton, logs, or shell history.
+3. Supply `PINTEREST_SANDBOX_ACCESS_TOKEN` and
+   `PINTEREST_SANDBOX_BOARD_ID` only through an ephemeral secret environment,
+   then run `pnpm smoke:pinterest-sandbox` according to the runbook.
+4. Require one successful Sandbox Pin create, exact-ID read-back, and delete.
+   Record only nonsecret IDs and results as `provider_sandbox`, never
+   `live_publish`.
+5. Keep Pinterest unavailable for ordinary OmniPost scheduling until a complete
+   encrypted, tenant-scoped OAuth lifecycle and server-owned readiness contract
+   are implemented. Keep the authentic X gate independent.
+
+Stop on denied Trial access, unexpected account or app identity, a group board,
+401/403, an unknown provider outcome, failed cleanup, or any request to expose
+credentials. Do not retry an unknown create outcome blindly.
+
+---
+
 ## 2026-07-27 Content Delivery Status And X Acceptance Handoff
 
 ### Current State
