@@ -1,5 +1,69 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-08-09 X Billing Hardening And Operations Reconciliation
+
+### Current State
+
+- [PR #199](https://github.com/neuralliquid/omnipost/pull/199) is the active
+  change for classifying X API HTTP 402 responses as operator-actionable and
+  non-retryable, persisting the classification, and showing truthful provider
+  capacity guidance in the platform settings UI.
+- The implementation was rebased onto `origin/main` at
+  `233f6c0a266af5d11bd9c61fb5480dffb2df6cff` and marked ready for review. It
+  must not be merged without fresh exact-head CI, review-thread, mergeability,
+  and user-authorization checks.
+- Authentic X acceptance remains blocked until the account owner confirms API
+  credits and explicitly resumes the staffed one-job workflow. Do not retry the
+  existing dead job or create another job during code validation.
+- Pinterest Sandbox acceptance remains independent. Recheck the provider
+  console before relying on the July 28 `Trial access pending` snapshot; do not
+  create a duplicate application or record provider credentials.
+
+### Validation
+
+- Marketing contract validation, TypeScript, and lint passed locally; lint
+  retained the repository's 120 pre-existing warnings and added no errors.
+- The production Next.js build passed with all 59 static pages generated.
+- Jest passed 48 suites and 338 tests; 2 PostgreSQL integration suites and 11
+  tests were skipped locally because no test database was supplied. The four
+  PR-specific suites passed 17/17 tests.
+- `git diff --check` passed. The repository-wide Windows Prettier check remains
+  blocked by the existing broad formatting baseline, so GitHub's Linux format
+  check is authoritative for the refreshed PR head.
+
+### Workspace And Tracker Follow-up
+
+- Three missing `C:\tmp` worktree registrations were pruned. The primary
+  checkout's untracked Pinterest source icon at
+  `output/imagegen/omnipost-app-icon.png` must be preserved during branch
+  cleanup.
+- Move the primary checkout to current `main`, remove only branch heads already
+  proven merged, and retain `agent/x-402-nonretryable` until PR #199 is closed.
+- Reconcile the stale Gate 3 Baton records: Gate 3C's in-memory-scheduler text
+  is superseded by the deployed durable scheduler, Gate 3B implementation is
+  complete, and the remaining X acceptance work is duplicated across tasks.
+- Track OmniPost-to-Sluice verification separately: prove a real routed request,
+  model alias, cost/operation telemetry, and fail-closed behavior before
+  deciding whether to migrate from the OmniPost-owned LiteLLM Container App to
+  the shared `phoenixvc/sluice` gateway. No provider call, spend, deployment, or
+  migration is authorized by this handoff.
+
+### Exact Continuation
+
+1. Wait for all checks and bot reviews on the latest PR #199 head, then inspect
+   GraphQL `reviewThreads`, exact head SHA, mergeability, and checks again.
+2. If the PR is green and review-clean, request explicit merge authorization;
+   do not infer it from this handoff.
+3. Finish the verified branch cleanup and update the duplicate/stale Baton
+   records with the PR, test, residual-risk, and next-action evidence.
+4. Perform a no-spend OmniPost-to-Sluice configuration and contract preflight.
+   A billable or production gateway request requires separate authorization.
+5. Use staffed, visible provider-console sessions to recheck X credits and
+   Pinterest Trial status. Do not capture credentials, expose session material,
+   publish, retry a job, or create a Pin during a status check.
+
+---
+
 ## 2026-07-28 Pinterest Sandbox Registration Handoff
 
 ### Current State
