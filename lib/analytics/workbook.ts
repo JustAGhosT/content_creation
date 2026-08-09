@@ -101,7 +101,13 @@ export async function buildCampaignWorkbook(
       orderBy: { occurredAt: 'asc' },
     }),
     client.schedulerJob.findMany({
-      where: { userId, campaignId: stableCampaignId },
+      where: {
+        userId,
+        campaignId: stableCampaignId,
+        type: 'campaign_post',
+        campaignVersionId: { not: null },
+        publishAttempt: { isNot: null },
+      },
       orderBy: { createdAt: 'asc' },
     }),
     client.platformAccount.findMany({
@@ -127,12 +133,14 @@ export async function buildCampaignWorkbook(
         .map(event => event.userId as string)
     ),
   ];
-  const convertedUserPublishes =
+  const convertedPublishers =
     convertedUserIds.length > 0
-      ? await client.analyticsEventRecord.count({
+      ? await client.analyticsEventRecord.findMany({
           where: { name: 'publish_succeeded', userId: { in: convertedUserIds } },
+          select: { userId: true },
+          distinct: ['userId'],
         })
-      : 0;
+      : [];
 
   const eventCounts = countBy(events, event => event.name);
   const latestVersion = campaign.versions[0];
@@ -271,7 +279,7 @@ export async function buildCampaignWorkbook(
         ctaClicks: eventCounts.cta_clicked ?? 0,
         signupStarted: eventCounts.signup_started ?? 0,
         signupCompleted: eventCounts.signup_completed ?? 0,
-        firstPublish: convertedUserPublishes > 0 ? 1 : 0,
+        firstPublish: convertedPublishers.length,
       },
       dataQuality: {
         malformedAttributionLinkIds: malformedLinks.map(link => link.id),

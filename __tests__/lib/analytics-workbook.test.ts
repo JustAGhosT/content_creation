@@ -86,6 +86,15 @@ describe('campaign evidence workbook', () => {
       campaignToken: 'mtk_omnipost_x_1',
       userId: 'converted-user-1',
     });
+    events.push({
+      eventId: 'event-signup-completed-2',
+      name: 'signup_completed',
+      contentId: null,
+      variantId: null,
+      platform: null,
+      campaignToken: 'mtk_omnipost_x_1',
+      userId: 'converted-user-2',
+    });
     const jobs: Array<{
       id: string;
       contentId: string;
@@ -111,13 +120,18 @@ describe('campaign evidence workbook', () => {
         errorCode: null,
       },
     ];
+    const analyticsFindMany = jest.fn(async (args: { where?: { name?: string } }) =>
+      args.where?.name === 'publish_succeeded'
+        ? [{ userId: 'converted-user-1' }, { userId: 'converted-user-2' }]
+        : events
+    );
+    const schedulerFindMany = jest.fn().mockResolvedValue(jobs);
     const client = {
       campaign: { findFirst: jest.fn().mockResolvedValue(campaign) },
       analyticsEventRecord: {
-        findMany: jest.fn().mockResolvedValue(events),
-        count: jest.fn().mockResolvedValue(1),
+        findMany: analyticsFindMany,
       },
-      schedulerJob: { findMany: jest.fn().mockResolvedValue(jobs) },
+      schedulerJob: { findMany: schedulerFindMany },
       platformAccount: { findMany: jest.fn().mockResolvedValue([]) },
       schedulerPlatformQuota: { findMany: jest.fn().mockResolvedValue([]) },
     } as unknown as PrismaClient;
@@ -132,9 +146,24 @@ describe('campaign evidence workbook', () => {
       averageLatencyMs: 2000,
     });
     expect(workbook.views.attribution[0]).toMatchObject({ landingViews: 1 });
-    expect(workbook.views.conversion.firstPublish).toBe(1);
-    expect(client.analyticsEventRecord.count).toHaveBeenCalledWith({
-      where: { name: 'publish_succeeded', userId: { in: ['converted-user-1'] } },
+    expect(workbook.views.conversion.firstPublish).toBe(2);
+    expect(analyticsFindMany).toHaveBeenCalledWith({
+      where: {
+        name: 'publish_succeeded',
+        userId: { in: ['converted-user-1', 'converted-user-2'] },
+      },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    expect(schedulerFindMany).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-1',
+        campaignId: 'omnipost-x-live-001',
+        type: 'campaign_post',
+        campaignVersionId: { not: null },
+        publishAttempt: { isNot: null },
+      },
+      orderBy: { createdAt: 'asc' },
     });
     expect(workbook.views.decisions[0].workbookEvidenceCited).toBe(true);
     expect(workbook.reconciliation.reconciled).toBe(true);
