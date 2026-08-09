@@ -74,14 +74,21 @@ function getStoredUTMs(): UTMProperties {
 // ── Event Queue & Batching ───────────────────────────────────────────────
 
 interface QueuedEvent {
+  eventId: string;
   name: string;
   properties: Record<string, unknown>;
+}
+
+function createEventId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `client:${crypto.randomUUID()}`;
+  }
+  return `client:${Date.now()}:${Math.random().toString(36).slice(2, 12)}`;
 }
 
 class AnalyticsTracker {
   private queue: QueuedEvent[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
-  private userId: string | undefined;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -99,8 +106,9 @@ class AnalyticsTracker {
   /**
    * Set the authenticated user ID for attribution
    */
-  identify(userId: string): void {
-    this.userId = userId;
+  identify(_userId: string): void {
+    // Identity is derived from the authenticated server request. Never trust a
+    // client-supplied user identifier as the durable analytics owner.
   }
 
   /**
@@ -110,12 +118,12 @@ class AnalyticsTracker {
     const baseProps: BaseEventProperties = {
       timestamp: new Date().toISOString(),
       sessionId: getOrCreateSessionId(),
-      ...(this.userId ? { userId: this.userId } : {}),
     };
 
     const utms = getStoredUTMs();
 
     this.queue.push({
+      eventId: createEventId(),
       name,
       properties: { ...baseProps, ...utms, ...properties },
     });

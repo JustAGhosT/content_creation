@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient, SchedulerJob as StoredSchedulerJob } from '@prisma/client';
 import { z } from 'zod';
+import { recordAnalyticsEvents } from '@/lib/analytics/repository';
 import type {
   ClaimedJobUpdate,
   JobQueue,
@@ -262,7 +263,7 @@ export class PrismaJobQueue implements JobQueue {
         );
       }
       const persisted = await this.addUsing(transaction, job);
-      await transaction.publishAttempt.upsert({
+      const publishAttempt = await transaction.publishAttempt.upsert({
         where: { schedulerJobId: persisted.job.id },
         create: {
           campaignId: audit.campaignId,
@@ -276,6 +277,25 @@ export class PrismaJobQueue implements JobQueue {
         },
         update: {},
       });
+      await recordAnalyticsEvents(
+        [
+          {
+            eventId: `scheduler:${persisted.job.id}:queued`,
+            name: 'publish_job_queued',
+            properties: {
+              timestamp: persisted.job.createdAt,
+              campaignId: persisted.job.campaignId,
+              campaignVersion: persisted.job.campaignVersion,
+              contentId: persisted.job.contentId,
+              variantId: persisted.job.variantId,
+              platform: persisted.job.platformId,
+              publishAttemptId: publishAttempt.id,
+            },
+          },
+        ],
+        persisted.job.createdBy,
+        transaction
+      );
       return persisted;
     });
   }
@@ -417,19 +437,43 @@ export class PrismaJobQueue implements JobQueue {
     leaseToken: string,
     attemptedAt: Date
   ): Promise<ScheduledJob | null> {
-    const result = await this.client.schedulerJob.updateMany({
-      where: { id, status: 'processing', leaseToken },
-      data: {
-        attempts: { increment: 1 },
-        lastAttemptAt: attemptedAt,
-        attemptStartedAt: attemptedAt,
-      },
+    return this.client.$transaction(async transaction => {
+      const result = await transaction.schedulerJob.updateMany({
+        where: { id, status: 'processing', leaseToken },
+        data: {
+          attempts: { increment: 1 },
+          lastAttemptAt: attemptedAt,
+          attemptStartedAt: attemptedAt,
+        },
+      });
+      if (result.count !== 1) return null;
+      const row = await transaction.schedulerJob.findFirst({
+        where: { id, status: 'processing', leaseToken },
+        include: { publishAttempt: { select: { id: true } } },
+      });
+      if (!row) return null;
+      await recordAnalyticsEvents(
+        [
+          {
+            eventId: `scheduler:${id}:attempt:${row.attempts}`,
+            name: 'publish_attempted',
+            properties: {
+              timestamp: attemptedAt.toISOString(),
+              campaignId: row.campaignId ?? undefined,
+              campaignVersion: row.campaignVersion ?? undefined,
+              contentId: row.contentId,
+              variantId: row.variantId ?? undefined,
+              platform: row.platformId,
+              publishAttemptId: row.publishAttempt?.id,
+              attemptNumber: row.attempts,
+            },
+          },
+        ],
+        row.userId,
+        transaction
+      );
+      return parseStoredJob(row);
     });
-    if (result.count !== 1) return null;
-    const row = await this.client.schedulerJob.findFirst({
-      where: { id, status: 'processing', leaseToken },
-    });
-    return row ? parseStoredJob(row) : null;
   }
 
   async renewClaimLease(id: string, leaseToken: string, leaseExpiresAt: Date): Promise<boolean> {
@@ -446,16 +490,78 @@ export class PrismaJobQueue implements JobQueue {
   }
 
   async updateClaimed(id: string, leaseToken: string, updates: ClaimedJobUpdate): Promise<boolean> {
-    const result = await this.client.schedulerJob.updateMany({
-      where: { id, status: 'processing', leaseToken },
-      data: {
-        ...updateData(updates),
-        leaseToken: null,
-        leaseExpiresAt: null,
-        attemptStartedAt: null,
-      },
+    return this.client.$transaction(async transaction => {
+      const job = await transaction.schedulerJob.findFirst({
+        where: { id, status: 'processing', leaseToken },
+        include: { publishAttempt: { select: { id: true, requestedAt: true } } },
+      });
+      if (!job) return false;
+      const result = await transaction.schedulerJob.updateMany({
+        where: { id, status: 'processing', leaseToken },
+        data: {
+          ...updateData(updates),
+          leaseToken: null,
+          leaseExpiresAt: null,
+          attemptStartedAt: null,
+        },
+      });
+      if (result.count !== 1) return false;
+
+      if (job.publishAttempt && updates.status) {
+        await transaction.publishAttempt.update({
+          where: { id: job.publishAttempt.id },
+          data: {
+            status: updates.status,
+            providerPostId: updates.platformPostId,
+            providerPostUrl: updates.publishedUrl,
+            errorCode: updates.errorCode,
+            completedAt: ['published', 'dead', 'reconciliation_required'].includes(updates.status)
+              ? new Date(updates.publishedAt ?? updates.updatedAt ?? Date.now())
+              : undefined,
+          },
+        });
+      }
+
+      const eventName =
+        updates.status === 'published'
+          ? 'publish_succeeded'
+          : job.attempts > 0 &&
+              ['failed', 'dead', 'reconciliation_required'].includes(updates.status ?? '')
+            ? 'publish_failed'
+            : null;
+      if (eventName) {
+        const occurredAt = updates.publishedAt ?? updates.updatedAt ?? new Date().toISOString();
+        const completedAt = new Date(occurredAt);
+        const latencyMs = job.lastAttemptAt
+          ? Math.max(0, completedAt.getTime() - job.lastAttemptAt.getTime())
+          : undefined;
+        await recordAnalyticsEvents(
+          [
+            {
+              eventId: `scheduler:${id}:${eventName}:attempt:${job.attempts}:lease:${leaseToken}`,
+              name: eventName,
+              properties: {
+                timestamp: completedAt.toISOString(),
+                campaignId: job.campaignId ?? undefined,
+                campaignVersion: job.campaignVersion ?? undefined,
+                contentId: job.contentId,
+                variantId: job.variantId ?? undefined,
+                platform: job.platformId,
+                publishAttemptId: job.publishAttempt?.id,
+                providerPostId: updates.platformPostId,
+                failureCode: eventName === 'publish_failed' ? updates.errorCode : undefined,
+                retryable: eventName === 'publish_failed' ? updates.status === 'failed' : undefined,
+                latencyMs,
+                attemptNumber: job.attempts > 0 ? job.attempts : undefined,
+              },
+            },
+          ],
+          job.userId,
+          transaction
+        );
+      }
+      return true;
     });
-    return result.count === 1;
   }
 
   async getByStatus(status: JobStatus, limit?: number, userId?: string): Promise<ScheduledJob[]> {

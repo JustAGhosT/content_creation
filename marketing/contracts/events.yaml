@@ -1,4 +1,4 @@
-schemaVersion: 1
+schemaVersion: 2
 privacy:
   prohibitedAttributes:
     - access_token
@@ -13,49 +13,99 @@ events:
     allowedAttributes:
       - campaign_id
       - campaign_version
-      - platform_id
       - owner_role
-  - name: content_approval_changed
-    purpose: Human approval audit
+  - name: content_approved
+    purpose: Immutable human approval evidence
     allowedAttributes:
       - campaign_id
+      - campaign_version
       - content_id
       - variant_id
       - approval_state
-      - content_hash
       - reviewer_role
-  - name: publish_requested
-    purpose: Publish funnel start
+  - name: publish_job_queued
+    purpose: Durable scheduling funnel entry
     allowedAttributes:
       - campaign_id
+      - campaign_version
       - content_id
       - variant_id
-      - platform_id
-      - tracking_token
-  - name: publish_completed
+      - platform
+      - publish_attempt_id
+      - campaign_token
+  - name: publish_attempted
+    purpose: Provider request attempt evidence
+    allowedAttributes:
+      - campaign_id
+      - campaign_version
+      - content_id
+      - variant_id
+      - platform
+      - publish_attempt_id
+      - attempt_number
+  - name: publish_succeeded
     purpose: Provider-confirmed delivery
     allowedAttributes:
       - campaign_id
+      - campaign_version
       - content_id
       - variant_id
-      - platform_id
-      - tracking_token
+      - platform
+      - publish_attempt_id
       - provider_post_id
       - latency_ms
   - name: publish_failed
-    purpose: Actionable delivery failure
+    purpose: Classified delivery failure
     allowedAttributes:
       - campaign_id
+      - campaign_version
       - content_id
       - variant_id
-      - platform_id
-      - tracking_token
+      - platform
+      - publish_attempt_id
       - failure_code
       - retryable
-  - name: campaign_result_recorded
-    purpose: Measurement window close
+      - latency_ms
+  - name: landing_view
+    purpose: Attributed campaign landing view
     allowedAttributes:
-      - campaign_id
-      - primary_metric
-      - primary_value
-      - measurement_window
+      - campaign_token
+      - utm_source
+      - utm_medium
+      - utm_campaign
+      - utm_content
+      - landing_page
+  - name: cta_clicked
+    purpose: Attributed call-to-action click
+    allowedAttributes:
+      - campaign_token
+      - utm_source
+      - utm_medium
+      - utm_campaign
+      - utm_content
+      - landing_page
+  - name: signup_started
+    purpose: Attributed signup funnel entry
+    allowedAttributes:
+      - campaign_token
+      - utm_source
+      - utm_medium
+      - utm_campaign
+      - utm_content
+      - landing_page
+      - method
+  - name: signup_completed
+    purpose: Attributed signup completion
+    allowedAttributes:
+      - campaign_token
+      - utm_source
+      - utm_medium
+      - utm_campaign
+      - utm_content
+      - landing_page
+      - method
+  - name: platform_connected
+    purpose: Activation through a connected publishing destination
+    allowedAttributes:
+      - platform
+      - campaign_token

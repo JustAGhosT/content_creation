@@ -1,5 +1,6 @@
 import type { CampaignVersion, Prisma, PrismaClient } from '@prisma/client';
 import prisma from '@/lib/db/prisma';
+import { recordAnalyticsEvents } from '@/lib/analytics/repository';
 import type { ScheduledJob } from '@/lib/scheduler/types';
 import type { Campaign } from '@/types/campaign';
 import {
@@ -159,7 +160,7 @@ export async function saveCampaignVersion(input: {
       campaignRowId = existing.id;
     }
 
-    return transaction.campaignVersion.create({
+    const createdVersion = await transaction.campaignVersion.create({
       data: {
         campaignId: campaignRowId,
         version: nextVersion,
@@ -168,6 +169,24 @@ export async function saveCampaignVersion(input: {
         createdBy: input.userId,
       },
     });
+    if (!existing) {
+      await recordAnalyticsEvents(
+        [
+          {
+            eventId: `campaign:${sanitizedCampaign.id}:created:v${nextVersion}`,
+            name: 'campaign_created',
+            properties: {
+              timestamp: createdVersion.createdAt.toISOString(),
+              campaignId: sanitizedCampaign.id,
+              campaignVersion: nextVersion,
+            },
+          },
+        ],
+        input.userId,
+        transaction
+      );
+    }
+    return createdVersion;
   });
 
   return parseVersion(version);
@@ -227,7 +246,7 @@ export async function recordApproval(input: {
       );
     }
 
-    return transaction.campaignApproval.create({
+    const approval = await transaction.campaignApproval.create({
       data: {
         campaignVersionId: version.id,
         contentId: input.contentId,
@@ -238,6 +257,27 @@ export async function recordApproval(input: {
         notes: input.notes,
       },
     });
+    if (approval.state === 'approved') {
+      await recordAnalyticsEvents(
+        [
+          {
+            eventId: `approval:${approval.id}`,
+            name: 'content_approved',
+            properties: {
+              timestamp: approval.reviewedAt.toISOString(),
+              campaignId: input.campaignId,
+              campaignVersion: input.version,
+              contentId: input.contentId,
+              variantId: input.variantId,
+              approvalState: 'approved',
+            },
+          },
+        ],
+        input.userId,
+        transaction
+      );
+    }
+    return approval;
   });
 }
 

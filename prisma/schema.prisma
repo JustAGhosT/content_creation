@@ -32,6 +32,7 @@ model User {
   platformAccounts   PlatformAccount[]
   externalIdentities ExternalIdentity[]
   schedulerJobs      SchedulerJob[]
+  analyticsEvents    AnalyticsEventRecord[]
 }
 
 // Durable mapping from an external provider subject to its local tenant owner.
@@ -362,6 +363,39 @@ model SchedulerPlatformQuota {
   backoffUntil   DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// Privacy-safe, durable product and campaign telemetry. Properties are stored
+// only after event-specific allow-list validation; raw content, credentials,
+// email addresses, IP addresses, and authorization material are rejected.
+model AnalyticsEventRecord {
+  id               String   @id @default(cuid())
+  eventId          String   @unique
+  name             String
+  userId           String?
+  campaignId       String?
+  campaignVersion  Int?
+  contentId        String?
+  variantId        String?
+  platform         String?
+  publishAttemptId String?
+  providerPostId   String?
+  campaignToken    String?
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  utmContent       String?
+  landingPage      String?
+  properties       String
+  occurredAt       DateTime
+  receivedAt       DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([userId, campaignId, occurredAt])
+  @@index([campaignToken, occurredAt])
+  @@index([name, occurredAt])
 }
 
 // Series model for content series

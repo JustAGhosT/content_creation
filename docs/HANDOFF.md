@@ -1,5 +1,64 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-08-09 X Acceptance Complete And Gate 4 In Progress
+
+### Current State
+
+- Authentic X publish acceptance passed for `@OmniPostHQ`. Exactly one approved
+  X-only scheduler job, `job_1786238765946_c6a090e20`, published on its first
+  attempt as provider post `2086262766420037970`:
+  <https://x.com/OmniPostHQ/status/2086262766420037970>.
+- The processor returned `processed=1`, `successful=1`, and `failed=0`. Five
+  subsequent two-minute runs processed no jobs through the ten-minute
+  observation window, no duplicate appeared, and the historical HTTP 402 job
+  was not retried.
+- X remains connected. Disconnecting it through OmniPost, proving provider
+  revocation, and proving local credential removal remain a separate
+  operator-authorized action. Do not expose tokens, cookies, OAuth session
+  material, or secret URIs while performing that closeout.
+- Canonical Baton task `7e1feab6-a668-4c18-b54d-691eddcd243f` owns the remaining
+  X revocation boundary. Gate 4 task `9a3e5add-14ea-404a-bd73-41f455c0c75c`
+  owns the next agent-executable product slice.
+
+### Gate 4 Implementation
+
+- Branch `agent/gate4-attribution-workbook` starts from deployed `origin/main`
+  commit `df4b14e97ec2088ec88a55ac88ebeb474a6c8604`.
+- A PostgreSQL `AnalyticsEventRecord` stores idempotent, tenant-scoped,
+  allow-listed product and campaign events. Unknown properties and
+  secret-bearing attributes are rejected; trusted campaign lifecycle events
+  cannot be authored through the browser endpoint.
+- Campaign creation, content approval, durable queueing, provider attempts, and
+  publish outcomes emit evidence from the same database transactions that own
+  those state changes.
+- `GET /api/analytics/workbook?campaignId=...` returns the nine Gate 4 workbook
+  views and an explicit runtime-versus-telemetry reconciliation result. It does
+  not ingest provider analytics or infer engagement that OmniPost has not
+  received.
+
+### Validation And Continuation
+
+- Prisma client generation and schema validation, TypeScript, marketing contract
+  validation, lint, targeted Prettier, and the production build pass locally.
+  The build compiled 60 routes/pages, including `/api/analytics/workbook`. Lint
+  retains the repository's 120 pre-existing warnings and adds no errors.
+- Jest passed 51 suites and 350 tests. Two PostgreSQL integration suites and 11
+  tests were skipped because no local test database was supplied; CI must run
+  them against PostgreSQL before merge.
+- `pnpm check-all` passed marketing validation, TypeScript, and lint, then
+  stopped at the repository's existing Windows Prettier baseline (505 unrelated
+  files). Targeted Prettier for every changed JavaScript, TypeScript, and Markdown
+  file passed, as did `git diff --check`.
+- Before merge, run `pnpm check-all`, obtain exact-head CI and review-thread
+  proof, and keep deployment separate from local validation.
+- Deployment must apply the committed PostgreSQL migration before the new code
+  serves analytics traffic. After deployment, use an authenticated read-only
+  workbook request to verify schema availability. No provider publish,
+  disconnect, Pinterest smoke, or production telemetry fabrication is part of
+  that verification.
+
+---
+
 ## 2026-08-09 X Billing Hardening And Operations Reconciliation
 
 ### Current State

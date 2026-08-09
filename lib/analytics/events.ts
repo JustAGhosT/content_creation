@@ -10,6 +10,16 @@
 // ── Event Names ──────────────────────────────────────────────────────────
 
 export const AnalyticsEvents = {
+  // Governed campaign lifecycle
+  CAMPAIGN_CREATED: 'campaign_created',
+  CONTENT_APPROVED: 'content_approved',
+  PUBLISH_JOB_QUEUED: 'publish_job_queued',
+  PUBLISH_ATTEMPTED: 'publish_attempted',
+  PUBLISH_SUCCEEDED: 'publish_succeeded',
+  PUBLISH_FAILED: 'publish_failed',
+  LANDING_VIEW: 'landing_view',
+  CTA_CLICKED: 'cta_clicked',
+
   // Acquisition
   PAGE_VIEWED: 'page_viewed',
   SIGNUP_STARTED: 'signup_started',
@@ -18,6 +28,7 @@ export const AnalyticsEvents = {
   // Activation
   ONBOARDING_STEP_COMPLETED: 'onboarding_step_completed',
   PLATFORM_CONNECTED: 'platform_connected',
+  PLATFORM_DISCONNECTED: 'platform_disconnected',
   POST_CREATED: 'post_created',
   POST_PUBLISHED: 'post_published',
 
@@ -124,6 +135,7 @@ export type EventProperties =
 // ── Analytics Event Record ───────────────────────────────────────────────
 
 export interface AnalyticsEvent {
+  eventId: string;
   name: AnalyticsEventName;
   properties: EventProperties;
 }

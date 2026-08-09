@@ -349,6 +349,11 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     await expect(
       setupClient.publishAttempt.count({ where: { schedulerJobId: campaignJob.id } })
     ).resolves.toBe(1);
+    await expect(
+      setupClient.analyticsEventRecord.count({
+        where: { eventId: `scheduler:${campaignJob.id}:queued` },
+      })
+    ).resolves.toBe(1);
 
     const invalidJob = {
       ...campaignJob,
