@@ -299,16 +299,17 @@ jobs:
 
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             HEALTH_RESPONSE=$(curl --silent --show-error --fail "${APP_URL}/api/health" || true)
-            ACTUAL_COMMIT=$(jq -r '.commit // empty' <<<"$HEALTH_RESPONSE")
-            ACTUAL_ENVIRONMENT=$(jq -r '.environment // empty' <<<"$HEALTH_RESPONSE")
-            VERSION=$(jq -r '.version // empty' <<<"$HEALTH_RESPONSE")
-            BUILT_AT=$(jq -r '.builtAt // empty' <<<"$HEALTH_RESPONSE")
+            HEALTH_JSON=$(jq -c 'if type == "object" then . else {} end' <<<"$HEALTH_RESPONSE" 2>/dev/null || echo '{}')
+            ACTUAL_COMMIT=$(jq -r '.commit // empty' <<<"$HEALTH_JSON")
+            ACTUAL_ENVIRONMENT=$(jq -r '.environment // empty' <<<"$HEALTH_JSON")
+            VERSION=$(jq -r '.version // empty' <<<"$HEALTH_JSON")
+            BUILT_AT=$(jq -r '.builtAt // empty' <<<"$HEALTH_JSON")
 
             if [ "$ACTUAL_COMMIT" = "$EXPECTED_COMMIT" ] && \
                [ "$ACTUAL_ENVIRONMENT" = "$EXPECTED_ENVIRONMENT" ] && \
-               [ -n "$VERSION" ] && [ -n "$BUILT_AT" ]; then
+              [ -n "$VERSION" ] && [ -n "$BUILT_AT" ]; then
               echo "✅ Health check passed for the expected deployment artifact."
-              jq '{status, version, commit, builtAt, environment}' <<<"$HEALTH_RESPONSE"
+              jq '{status, version, commit, builtAt, environment}' <<<"$HEALTH_JSON"
               exit 0
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
