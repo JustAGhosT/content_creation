@@ -23,6 +23,20 @@ describe('scheduler retry classification', () => {
     });
   });
 
+  test('preserves a publisher classification passed to the scheduler', () => {
+    expect(
+      handler.classifyError({
+        code: 'PAYMENT_REQUIRED',
+        retryable: false,
+        message: 'X API error: 402',
+      })
+    ).toEqual({
+      retryable: false,
+      code: 'PAYMENT_REQUIRED',
+      message: 'X API error: 402',
+    });
+  });
+
   test('does not mislabel ordinary errors as unknown HTTP errors', () => {
     expect(handler.classifyError(new Error('Unexpected adapter failure'))).toEqual({
       retryable: true,

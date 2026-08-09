@@ -6,6 +6,7 @@ describe('platform operational profiles', () => {
       'facebook',
       'instagram',
       'linkedin',
+      'pinterest',
       'tiktok',
       'twitter',
     ]);

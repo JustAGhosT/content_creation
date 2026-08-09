@@ -54,6 +54,18 @@ export const platformOperationalProfiles: Record<string, PlatformOperationalProf
     referenceLabel: 'LinkedIn Community Management',
     verifiedAt: '2026-07-28',
   },
+  pinterest: {
+    messageTypes: ['image'],
+    contentLimit: 'Image and destination-link fields supported by the OmniPost sandbox adapter',
+    accessModel: 'Sandbox only — production access remains provider-approved and operator-held',
+    testSurface: 'Pinterest API sandbox with a public HTTPS image; no production Pin',
+    costSummary: ['No OmniPost per-post fee', 'Provider costs are not reported to OmniPost'],
+    quotaSummary: 'Provider-owned rate limits; no balance integration yet',
+    balanceSummary: 'No credit balance model',
+    referenceUrl: 'https://developers.pinterest.com/docs/api/v5/',
+    referenceLabel: 'Pinterest API v5',
+    verifiedAt: '2026-07-28',
+  },
   twitter: {
     messageTypes: ['text'],
     contentLimit: '280 characters; current live path is text-only',

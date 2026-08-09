@@ -25,9 +25,9 @@ export async function getPlatformCapacitySignals(
   if (!store) return { twitter: defaultSignal };
 
   const latest = await store.schedulerJob.findFirst({
-    where: { userId, platformId: 'twitter' },
-    orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-    select: { errorCode: true, error: true, updatedAt: true },
+    where: { userId, platformId: 'twitter', lastAttemptAt: { not: null } },
+    orderBy: [{ lastAttemptAt: 'desc' }, { id: 'desc' }],
+    select: { errorCode: true, error: true, lastAttemptAt: true },
   });
 
   const paymentRequired =
@@ -39,7 +39,7 @@ export async function getPlatformCapacitySignals(
         billingState: 'blocked',
         message:
           'The latest X publish was blocked because provider credits or billing are required.',
-        lastCheckedAt: latest.updatedAt.toISOString(),
+        lastCheckedAt: latest.lastAttemptAt?.toISOString(),
       },
     };
   }

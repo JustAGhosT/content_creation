@@ -8,7 +8,7 @@ describe('platform capacity signals', () => {
         findFirst: jest.fn().mockResolvedValue({
           errorCode: 'PAYMENT_REQUIRED',
           error: 'Provider credits or billing required',
-          updatedAt: new Date('2026-07-28T00:00:00.000Z'),
+          lastAttemptAt: new Date('2026-07-28T00:00:00.000Z'),
         }),
       },
     } as unknown as Pick<PrismaClient, 'schedulerJob'>;
@@ -21,6 +21,12 @@ describe('platform capacity signals', () => {
         lastCheckedAt: '2026-07-28T00:00:00.000Z',
       },
     });
+    expect(store.schedulerJob.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ lastAttemptAt: { not: null } }),
+        orderBy: [{ lastAttemptAt: 'desc' }, { id: 'desc' }],
+      })
+    );
   });
 
   test('recognizes legacy 402 errors recorded before structured codes', async () => {
@@ -29,7 +35,7 @@ describe('platform capacity signals', () => {
         findFirst: jest.fn().mockResolvedValue({
           errorCode: null,
           error: 'Unknown HTTP error: X API error: 402',
-          updatedAt: new Date('2026-07-27T14:32:21.296Z'),
+          lastAttemptAt: new Date('2026-07-27T14:32:21.296Z'),
         }),
       },
     } as unknown as Pick<PrismaClient, 'schedulerJob'>;

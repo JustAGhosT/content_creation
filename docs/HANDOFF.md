@@ -12,12 +12,13 @@
   `233f6c0a266af5d11bd9c61fb5480dffb2df6cff` and marked ready for review. It
   must not be merged without fresh exact-head CI, review-thread, mergeability,
   and user-authorization checks.
-- Authentic X acceptance remains blocked until the account owner confirms API
-  credits and explicitly resumes the staffed one-job workflow. Do not retry the
-  existing dead job or create another job during code validation.
-- Pinterest Sandbox acceptance remains independent. Recheck the provider
-  console before relying on the July 28 `Trial access pending` snapshot; do not
-  create a duplicate application or record provider credentials.
+- The X Developer Console showed a `US$5.00` prepaid balance on 2026-08-09
+  (`US$0.00` free credits). Authentic acceptance still requires the PR gates,
+  merge authority, and explicit authorization for one staffed job. Do not retry
+  the existing dead job or create another job during code validation.
+- The Pinterest console showed the OmniPost app as `Sandbox` / `Production
+limited` on 2026-08-09, superseding the July 28 `Trial access pending`
+  snapshot. Token controls are operator-held; no token was copied or used.
 
 ### Validation
 
@@ -27,6 +28,10 @@
 - Jest passed 48 suites and 338 tests; 2 PostgreSQL integration suites and 11
   tests were skipped locally because no test database was supplied. The four
   PR-specific suites passed 17/17 tests.
+- Review follow-up preserves publisher error classifications in the scheduler,
+  selects X capacity evidence by the latest attempted publish, and provides the
+  missing Pinterest operational profile. The three focused regression suites
+  pass 9/9 tests; focused ESLint, Prettier, and TypeScript checks pass.
 - `git diff --check` passed. The repository-wide Windows Prettier check remains
   blocked by the existing broad formatting baseline, so GitHub's Linux format
   check is authoritative for the refreshed PR head.
@@ -37,12 +42,13 @@
   checkout's untracked Pinterest source icon at
   `output/imagegen/omnipost-app-icon.png` must be preserved during branch
   cleanup.
-- Move the primary checkout to current `main`, remove only branch heads already
-  proven merged, and retain `agent/x-402-nonretryable` until PR #199 is closed.
-- Reconcile the stale Gate 3 Baton records: Gate 3C's in-memory-scheduler text
-  is superseded by the deployed durable scheduler, Gate 3B implementation is
-  complete, and the remaining X acceptance work is duplicated across tasks.
-- Track OmniPost-to-Sluice verification separately: prove a real routed request,
+- The primary checkout is on current `main`; merged branch clutter is removed,
+  and `agent/x-402-nonretryable` is retained until PR #199 is closed.
+- The stale Gate 3B, Gate 3C, and parent records are closed. The canonical X
+  and Pinterest acceptance tasks now hold the live console evidence and retain
+  their explicit operator-action boundaries.
+- Baton task `e050947d-655f-481a-97a9-0bdbd203d1aa` tracks OmniPost-to-Sluice
+  verification separately: prove a real routed request,
   model alias, cost/operation telemetry, and fail-closed behavior before
   deciding whether to migrate from the OmniPost-owned LiteLLM Container App to
   the shared `phoenixvc/sluice` gateway. No provider call, spend, deployment, or
@@ -54,13 +60,11 @@
    GraphQL `reviewThreads`, exact head SHA, mergeability, and checks again.
 2. If the PR is green and review-clean, request explicit merge authorization;
    do not infer it from this handoff.
-3. Finish the verified branch cleanup and update the duplicate/stale Baton
-   records with the PR, test, residual-risk, and next-action evidence.
-4. Perform a no-spend OmniPost-to-Sluice configuration and contract preflight.
+3. Perform a no-spend OmniPost-to-Sluice configuration and contract preflight.
    A billable or production gateway request requires separate authorization.
-5. Use staffed, visible provider-console sessions to recheck X credits and
-   Pinterest Trial status. Do not capture credentials, expose session material,
-   publish, retry a job, or create a Pin during a status check.
+4. After merge and explicit operator authorization, execute at most one staffed
+   X job and capture authentic acceptance evidence. The console-status check did
+   not authorize publishing, retrying a job, or creating a Pin.
 
 ---
 

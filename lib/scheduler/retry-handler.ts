@@ -35,6 +35,17 @@ export class RetryHandler {
    * Classify an error for retry handling
    */
   classifyError(error: unknown): ErrorClassification {
+    // Publisher errors have already been classified at the provider boundary.
+    // Preserve that decision when the scheduler receives the wrapper instead
+    // of accidentally treating it as an unknown retryable error.
+    if (this.isPreclassifiedError(error)) {
+      return {
+        retryable: error.retryable,
+        code: error.code,
+        message: this.getErrorMessage(error),
+      };
+    }
+
     // Handle axios-style errors with status codes
     if (this.isAxiosError(error)) {
       return this.classifyHttpError(error);
@@ -64,6 +75,17 @@ export class RetryHandler {
       code: 'UNKNOWN',
       message: this.getErrorMessage(error),
     };
+  }
+
+  private isPreclassifiedError(error: unknown): error is {
+    code: string;
+    retryable: boolean;
+    message?: string;
+  } {
+    if (typeof error !== 'object' || error === null) return false;
+
+    const candidate = error as { code?: unknown; retryable?: unknown };
+    return typeof candidate.code === 'string' && typeof candidate.retryable === 'boolean';
   }
 
   /**
