@@ -203,7 +203,7 @@ describe('Analytics Tracker', () => {
     Object.defineProperty(window, 'location', {
       value: {
         pathname: '/',
-        search: '?mtk=mtk_campaign_public_1&utm_source=x&utm_medium=organic_social',
+        search: `?mtk=mtk_campaign_public_1&utm_source=x&utm_medium=organic_social&utm_content=${'x'.repeat(129)}`,
         href: 'http://localhost:3000/?mtk=mtk_campaign_public_1',
       },
       writable: true,
@@ -224,6 +224,7 @@ describe('Analytics Tracker', () => {
         landingPage: '/',
       },
     });
+    expect(landingBatch.events[0].properties).not.toHaveProperty('utm_content');
 
     const signupLink = document.createElement('a');
     signupLink.href = '/signup';

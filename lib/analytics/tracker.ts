@@ -53,7 +53,7 @@ function captureAttributionParams(): StoredAttribution {
   const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'] as const;
   for (const key of utmKeys) {
     const value = params.get(key);
-    if (value) {
+    if (value && value.length <= 128) {
       attribution[key] = value;
     }
   }
