@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import styles from '@/styles/Header.module.css';
 import { NavigationItem, siteConfig } from '../../data/siteConfig';
 import { useAuth } from '../providers/AuthProvider';
+import ProductStatus from './ProductStatus';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -156,6 +157,7 @@ const Header: React.FC = () => {
               </li>
             ))}
             <li className={`${styles.navItem} ${styles.utilityGroup}`} aria-label="Header controls">
+              {isAuthenticated && <ProductStatus variant="header" />}
               <button
                 type="button"
                 className={styles.iconToggleButton}

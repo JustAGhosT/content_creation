@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import Header from '@/components/ui/Header';
+import ProductStatus from '@/components/ui/ProductStatus';
 import styles from '@/styles/LoginForm.module.css';
 import pageStyles from './page.module.css';
 
@@ -82,7 +83,7 @@ export default function LoginPage() {
       await login(username, password);
       router.push('/dashboard');
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      const errorMessage = err instanceof Error ? err.message : 'Sign-in failed';
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -105,7 +106,8 @@ export default function LoginPage() {
       <Header />
       <main className={pageStyles.main}>
         <div className={styles.loginContainer}>
-          <h1 className={styles.title}>Login</h1>
+          <ProductStatus variant="signIn" showDescription />
+          <h1 className={styles.title}>Sign in to OmniPost</h1>
 
           {!providersLoading && providers.length > 0 && (
             <>
@@ -170,7 +172,7 @@ export default function LoginPage() {
             </div>
 
             <button type="submit" disabled={loading} className={styles.submitButton}>
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
 

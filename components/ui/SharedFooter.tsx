@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import styles from '@/styles/SharedFooter.module.css';
 import { siteConfig, NavigationItem } from '../../data/siteConfig';
+import ProductStatus from './ProductStatus';
 
 // Reusable arrow icon for footer links
 const ArrowIcon: React.FC = () => (
@@ -111,6 +112,7 @@ const SharedFooter: React.FC = () => {
               <span className={styles.brandName}>{siteConfig.siteName}</span>
             </Link>
             <p className={styles.brandDescription}>{siteConfig.siteDescription}</p>
+            <ProductStatus variant="footer" showDescription />
 
             {/* Social links inline with brand */}
             <div className={styles.socialLinks}>
