@@ -60,7 +60,17 @@ describe('campaign evidence workbook', () => {
       platform: name.startsWith('publish_') ? 'twitter' : null,
       campaignToken: name === 'landing_view' ? 'mtk_omnipost_x_1' : null,
     }));
-    const jobs = [
+    const jobs: Array<{
+      id: string;
+      contentId: string;
+      variantId: string;
+      platformId: string;
+      status: string;
+      attempts: number;
+      platformPostId: string | null;
+      publishedUrl: string | null;
+      errorCode: string | null;
+    }> = [
       {
         id: 'job-1',
         contentId: 'content-1',
@@ -93,5 +103,56 @@ describe('campaign evidence workbook', () => {
     expect(workbook.views.attribution[0]).toMatchObject({ landingViews: 1 });
     expect(workbook.views.decisions[0].workbookEvidenceCited).toBe(true);
     expect(workbook.reconciliation.reconciled).toBe(true);
+
+    events.push(
+      {
+        eventId: 'event-unknown-queued',
+        name: 'publish_job_queued',
+        contentId: 'content-1',
+        variantId: 'variant-x-1',
+        platform: 'twitter',
+        campaignToken: null,
+      },
+      {
+        eventId: 'event-unknown-attempted',
+        name: 'publish_attempted',
+        contentId: 'content-1',
+        variantId: 'variant-x-1',
+        platform: 'twitter',
+        campaignToken: null,
+      }
+    );
+    jobs.push({
+      id: 'job-unknown',
+      contentId: 'content-1',
+      variantId: 'variant-x-1',
+      platformId: 'twitter',
+      status: 'reconciliation_required',
+      attempts: 1,
+      platformPostId: null,
+      publishedUrl: null,
+      errorCode: 'LEASE_EXPIRED_AFTER_PROVIDER_ATTEMPT',
+    });
+
+    const workbookWithUnknownOutcome = await buildCampaignWorkbook(
+      'user-1',
+      'omnipost-x-live-001',
+      client
+    );
+    expect(workbookWithUnknownOutcome.views.publishPerformance).toMatchObject({
+      succeeded: 1,
+      failed: 0,
+      unknown: 1,
+    });
+    expect(workbookWithUnknownOutcome.views.dataQuality.reconciliationRequiredJobIds).toEqual([
+      'job-unknown',
+    ]);
+    expect(workbookWithUnknownOutcome.reconciliation.runtime).toMatchObject({
+      attempted: 2,
+      succeeded: 1,
+      failed: 0,
+      unknown: 1,
+    });
+    expect(workbookWithUnknownOutcome.reconciliation.reconciled).toBe(false);
   });
 });

@@ -36,6 +36,30 @@
   views and an explicit runtime-versus-telemetry reconciliation result. It does
   not ingest provider analytics or infer engagement that OmniPost has not
   received.
+- Review hardening makes attribution tokens globally unique and server-owned,
+  validates properties against their specific event contract, preserves the
+  existing bounded `post_created.status` field, and reports
+  `reconciliation_required` provider outcomes as unknown rather than failures.
+
+### Next Session: Private Preview UX And Navigation
+
+These items are deliberately queued for the next session and are **not**
+implemented by PR #202:
+
+1. Baton task `69643968-5c33-4193-9e75-8eeede6c5c06` — establish a single
+   truthful `Private Preview` product-status source and show it on sign-in, as
+   an accessible authenticated-header pill, and in the footer. Preserve auth
+   behavior and responsive layouts, and close with focused tests plus rendered
+   desktop/mobile evidence.
+2. Baton task `578c6e2c-8ff0-4836-941c-8aa0c603d807` — audit the public and
+   authenticated journeys, then improve task-oriented header groupings, primary
+   actions, active states, keyboard/mobile navigation, and shell ownership.
+   Scope the information architecture before implementation and close with
+   focused tests plus rendered desktop/mobile evidence.
+
+Start from current `origin/main`, inspect the existing sign-in, shared header,
+dashboard shell, and footer implementations before editing, and keep product
+status copy centralized so the three surfaces cannot drift.
 
 ### Validation And Continuation
 
@@ -43,11 +67,11 @@
   validation, lint, targeted Prettier, and the production build pass locally.
   The build compiled 60 routes/pages, including `/api/analytics/workbook`. Lint
   retains the repository's 120 pre-existing warnings and adds no errors.
-- Jest passed 51 suites and 350 tests. Two PostgreSQL integration suites and 11
+- Jest passed 51 suites and 353 tests. Two PostgreSQL integration suites and 11
   tests were skipped because no local test database was supplied; CI must run
   them against PostgreSQL before merge.
 - `pnpm check-all` passed marketing validation, TypeScript, and lint, then
-  stopped at the repository's existing Windows Prettier baseline (505 unrelated
+  stopped at the repository's existing Windows Prettier baseline (504 unrelated
   files). Targeted Prettier for every changed JavaScript, TypeScript, and Markdown
   file passed, as did `git diff --check`.
 - Before merge, run `pnpm check-all`, obtain exact-head CI and review-thread

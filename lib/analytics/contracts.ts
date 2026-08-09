@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AnalyticsEvents } from './events';
+import type { AnalyticsEventName } from './events';
 
 const boundedText = (max: number) => z.string().min(1).max(max);
 const optionalBoundedText = (max: number) => boundedText(max).optional();
@@ -67,10 +68,115 @@ export const analyticsPropertiesSchema = z
     retryable: z.boolean().optional(),
     latencyMs: z.number().int().nonnegative().optional(),
     attemptNumber: z.number().int().positive().optional(),
+    status: z.enum(['draft', 'pending', 'queued', 'scheduled', 'published', 'failed']).optional(),
   })
   .strict();
 
 export type AnalyticsProperties = z.infer<typeof analyticsPropertiesSchema>;
+
+const commonPropertyNames = ['timestamp', 'sessionId'] as const;
+const utmPropertyNames = [
+  'campaignToken',
+  'utmSource',
+  'utmMedium',
+  'utmCampaign',
+  'utmContent',
+  'landingPage',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_content',
+  'utm_term',
+] as const;
+
+function allowedProperties(
+  ...names: Array<keyof AnalyticsProperties>
+): ReadonlySet<keyof AnalyticsProperties> {
+  return new Set([...commonPropertyNames, ...names]);
+}
+
+const eventPropertyAllowList: Record<AnalyticsEventName, ReadonlySet<keyof AnalyticsProperties>> = {
+  campaign_created: allowedProperties('campaignId', 'campaignVersion', 'ownerRole'),
+  content_approved: allowedProperties(
+    'campaignId',
+    'campaignVersion',
+    'contentId',
+    'variantId',
+    'approvalState',
+    'reviewerRole'
+  ),
+  publish_job_queued: allowedProperties(
+    'campaignId',
+    'campaignVersion',
+    'contentId',
+    'variantId',
+    'platform',
+    'publishAttemptId',
+    'campaignToken'
+  ),
+  publish_attempted: allowedProperties(
+    'campaignId',
+    'campaignVersion',
+    'contentId',
+    'variantId',
+    'platform',
+    'publishAttemptId',
+    'attemptNumber'
+  ),
+  publish_succeeded: allowedProperties(
+    'campaignId',
+    'campaignVersion',
+    'contentId',
+    'variantId',
+    'platform',
+    'publishAttemptId',
+    'providerPostId',
+    'latencyMs'
+  ),
+  publish_failed: allowedProperties(
+    'campaignId',
+    'campaignVersion',
+    'contentId',
+    'variantId',
+    'platform',
+    'publishAttemptId',
+    'failureCode',
+    'retryable',
+    'latencyMs'
+  ),
+  landing_view: allowedProperties(...utmPropertyNames, 'url'),
+  cta_clicked: allowedProperties(...utmPropertyNames, 'url'),
+  page_viewed: allowedProperties('url', 'referrer', 'title', ...utmPropertyNames),
+  signup_started: allowedProperties('method', 'referralSource', ...utmPropertyNames),
+  signup_completed: allowedProperties('method', 'referralSource', ...utmPropertyNames),
+  onboarding_step_completed: allowedProperties('stepNumber', 'stepName', 'skipped'),
+  platform_connected: allowedProperties(
+    'platform',
+    'platformName',
+    'totalPlatforms',
+    ...utmPropertyNames
+  ),
+  platform_disconnected: allowedProperties('platform', 'platformName', 'totalPlatforms'),
+  post_created: allowedProperties(
+    'contentType',
+    'platformCount',
+    'platformNames',
+    'isFirstPost',
+    'status'
+  ),
+  post_published: allowedProperties('contentType', 'platformCount', 'platformNames', 'isFirstPost'),
+  session_started: allowedProperties(),
+  feature_used: allowedProperties('featureName', 'context'),
+  pricing_page_viewed: allowedProperties('source'),
+  plan_selected: allowedProperties('planName', 'billingPeriod'),
+  trial_started: allowedProperties('planName', 'billingPeriod'),
+  upgrade_initiated: allowedProperties('fromPlan', 'toPlan', 'billingPeriod'),
+  payment_completed: allowedProperties('planName', 'billingPeriod', 'amount'),
+  payment_failed: allowedProperties('planName', 'billingPeriod', 'amount', 'failureCode'),
+  referral_link_viewed: allowedProperties('referrerId'),
+  referral_link_shared: allowedProperties('channel', 'referrerId'),
+  referral_signup: allowedProperties('referrerId', 'method'),
+};
 
 export const analyticsEventSchema = z
   .object({
@@ -78,7 +184,19 @@ export const analyticsEventSchema = z
     name: analyticsEventNameSchema,
     properties: analyticsPropertiesSchema.default({}),
   })
-  .strict();
+  .strict()
+  .superRefine((event, context) => {
+    const allowed = eventPropertyAllowList[event.name];
+    for (const property of Object.keys(event.properties) as Array<keyof AnalyticsProperties>) {
+      if (!allowed.has(property)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['properties', property],
+          message: `${property} is not allowed for ${event.name}`,
+        });
+      }
+    }
+  });
 
 export const analyticsBatchSchema = z
   .object({ events: z.array(analyticsEventSchema).min(1).max(50) })

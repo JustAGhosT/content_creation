@@ -166,6 +166,32 @@ describe('Analytics Events API', () => {
       expect(response.status).toBe(400);
     });
 
+    test('rejects a property that belongs to a different event contract', async () => {
+      const response = await POST(
+        createRequest('POST', {
+          events: [event('signup_completed', { campaignId: 'client-authored-campaign' })],
+        })
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    test('accepts the existing post-created status property', async () => {
+      const response = await POST(
+        createRequest('POST', {
+          events: [
+            event('post_created', {
+              platformCount: 1,
+              platformNames: ['X'],
+              status: 'queued',
+            }),
+          ],
+        })
+      );
+
+      expect(response.status).toBe(200);
+    });
+
     test('rejects client-authored campaign lifecycle evidence', async () => {
       const response = await POST(
         createRequest('POST', {

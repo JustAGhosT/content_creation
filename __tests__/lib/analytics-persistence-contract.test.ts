@@ -20,6 +20,7 @@ describe('durable analytics persistence contract', () => {
     expect(migration).toContain('AnalyticsEventRecord_eventId_key');
     expect(migration).toContain('AnalyticsEventRecord_userId_campaignId_occurredAt_idx');
     expect(migration).toContain('AnalyticsEventRecord_campaignToken_occurredAt_idx');
+    expect(migration).toContain('AttributionLink_trackingToken_key');
   });
 
   test('rejects secret-bearing and unknown telemetry attributes', () => {
@@ -34,5 +35,35 @@ describe('durable analytics persistence contract', () => {
         ],
       }).success
     ).toBe(false);
+  });
+
+  test('enforces event-specific properties and preserves post status', () => {
+    expect(
+      analyticsBatchSchema.safeParse({
+        events: [
+          {
+            eventId: 'event:signup:1',
+            name: 'signup_completed',
+            properties: { campaignId: 'client-authored-campaign' },
+          },
+        ],
+      }).success
+    ).toBe(false);
+
+    expect(
+      analyticsBatchSchema.safeParse({
+        events: [
+          {
+            eventId: 'event:post:1',
+            name: 'post_created',
+            properties: {
+              platformCount: 1,
+              platformNames: ['X'],
+              status: 'queued',
+            },
+          },
+        ],
+      }).success
+    ).toBe(true);
   });
 });

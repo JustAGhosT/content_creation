@@ -102,14 +102,17 @@ export async function buildCampaignWorkbook(
     event => !event.contentId || !event.variantId || !event.platform
   );
   const publishedJobs = jobs.filter(job => job.status === 'published');
-  const failedJobs = jobs.filter(job =>
-    ['failed', 'dead', 'reconciliation_required'].includes(job.status)
-  );
+  const failedJobs = jobs.filter(job => ['failed', 'dead'].includes(job.status));
+  const reconciliationRequiredJobs = jobs.filter(job => job.status === 'reconciliation_required');
   const latencies = campaign.publishAttempts
     .filter(attempt => attempt.completedAt)
     .map(attempt => attempt.completedAt!.getTime() - attempt.requestedAt.getTime());
   const attemptedPublishes = jobs.reduce((total, job) => total + job.attempts, 0);
-  const failedPublishAttempts = Math.max(0, attemptedPublishes - publishedJobs.length);
+  const unknownPublishAttempts = reconciliationRequiredJobs.length;
+  const failedPublishAttempts = Math.max(
+    0,
+    attemptedPublishes - publishedJobs.length - unknownPublishAttempts
+  );
   const attribution = campaign.attributionLinks.map(link => ({
     contentId: link.contentId,
     variantId: link.variantId,
@@ -180,10 +183,12 @@ export async function buildCampaignWorkbook(
         attempted: attemptedPublishes,
         published: publishedJobs.length,
         failed: failedJobs.length,
+        reconciliationRequired: reconciliationRequiredJobs.length,
       },
       publishPerformance: {
         succeeded: publishedJobs.length,
         failed: failedPublishAttempts,
+        unknown: unknownPublishAttempts,
         retries: jobs.reduce((total, job) => total + Math.max(0, job.attempts - 1), 0),
         averageLatencyMs:
           latencies.length > 0
@@ -216,6 +221,7 @@ export async function buildCampaignWorkbook(
       dataQuality: {
         malformedAttributionLinkIds: malformedLinks.map(link => link.id),
         incompleteEventIds: incompleteEvents.map(event => event.eventId),
+        reconciliationRequiredJobIds: reconciliationRequiredJobs.map(job => job.id),
       },
       platformHealth: {
         accounts,
@@ -234,6 +240,7 @@ export async function buildCampaignWorkbook(
         attempted: attemptedPublishes,
         succeeded: publishedJobs.length,
         failed: failedPublishAttempts,
+        unknown: unknownPublishAttempts,
       },
       telemetry: {
         queued: eventCounts.publish_job_queued ?? 0,
@@ -245,7 +252,8 @@ export async function buildCampaignWorkbook(
         jobs.length === (eventCounts.publish_job_queued ?? 0) &&
         attemptedPublishes === (eventCounts.publish_attempted ?? 0) &&
         publishedJobs.length === (eventCounts.publish_succeeded ?? 0) &&
-        failedPublishAttempts === (eventCounts.publish_failed ?? 0),
+        failedPublishAttempts === (eventCounts.publish_failed ?? 0) &&
+        unknownPublishAttempts === 0,
     },
   };
 }

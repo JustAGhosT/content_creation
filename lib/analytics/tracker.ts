@@ -15,6 +15,14 @@ const BATCH_SIZE = 10;
 const FLUSH_INTERVAL_MS = 30_000; // 30 seconds
 const SESSION_KEY = 'omnipost_session_id';
 const UTM_KEY = 'omnipost_utm';
+const ATTRIBUTION_EVENT_NAMES = new Set([
+  'landing_view',
+  'cta_clicked',
+  'page_viewed',
+  'signup_started',
+  'signup_completed',
+  'platform_connected',
+]);
 
 // ── Session Management ───────────────────────────────────────────────────
 
@@ -120,7 +128,7 @@ class AnalyticsTracker {
       sessionId: getOrCreateSessionId(),
     };
 
-    const utms = getStoredUTMs();
+    const utms = ATTRIBUTION_EVENT_NAMES.has(name) ? getStoredUTMs() : {};
 
     this.queue.push({
       eventId: createEventId(),

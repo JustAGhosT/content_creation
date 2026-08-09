@@ -98,6 +98,7 @@ export interface PostProperties extends BaseEventProperties {
   platformCount: number;
   platformNames: string[];
   isFirstPost?: boolean;
+  status?: 'draft' | 'pending' | 'queued' | 'scheduled' | 'published' | 'failed';
 }
 
 export interface PricingProperties extends BaseEventProperties {

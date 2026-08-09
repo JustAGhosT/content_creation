@@ -11,16 +11,14 @@ describe('analytics repository', () => {
     }));
     const client = {
       attributionLink: {
-        findMany: jest.fn().mockResolvedValue([
-          {
-            campaign: {
-              userId: 'owner-1',
-              externalId: 'omnipost-x-live-001',
-              id: 'campaign-row-1',
-              currentVersion: 1,
-            },
+        findUnique: jest.fn().mockResolvedValue({
+          campaign: {
+            userId: 'owner-1',
+            externalId: 'omnipost-x-live-001',
+            id: 'campaign-row-1',
+            currentVersion: 1,
           },
-        ]),
+        }),
       },
       analyticsEventRecord: { upsert },
     } as unknown as PrismaClient;
@@ -54,7 +52,7 @@ describe('analytics repository', () => {
 
   test('rejects an unknown campaign token instead of storing orphan attribution', async () => {
     const client = {
-      attributionLink: { findMany: jest.fn().mockResolvedValue([]) },
+      attributionLink: { findUnique: jest.fn().mockResolvedValue(null) },
       analyticsEventRecord: { upsert: jest.fn() },
     } as unknown as PrismaClient;
 

@@ -5,11 +5,7 @@ import { normalizedDimensions, type ValidatedAnalyticsEvent } from './contracts'
 
 export class AnalyticsPersistenceError extends Error {
   constructor(
-    public readonly code:
-      | 'DATABASE_UNAVAILABLE'
-      | 'UNKNOWN_CAMPAIGN_TOKEN'
-      | 'AMBIGUOUS_CAMPAIGN_TOKEN'
-      | 'EVENT_ID_CONFLICT',
+    public readonly code: 'DATABASE_UNAVAILABLE' | 'UNKNOWN_CAMPAIGN_TOKEN' | 'EVENT_ID_CONFLICT',
     message: string
   ) {
     super(message);
@@ -34,20 +30,13 @@ async function resolveCampaignOwner(
   campaignToken: string | undefined
 ): Promise<{ userId: string; campaignId: string; campaignVersion: number } | null> {
   if (!campaignToken) return null;
-  const matches = await client.attributionLink.findMany({
+  const match = await client.attributionLink.findUnique({
     where: { trackingToken: campaignToken },
     select: {
       campaign: { select: { userId: true, externalId: true, id: true, currentVersion: true } },
     },
-    take: 2,
   });
-  if (matches.length > 1) {
-    throw new AnalyticsPersistenceError(
-      'AMBIGUOUS_CAMPAIGN_TOKEN',
-      'The campaign token does not identify exactly one campaign'
-    );
-  }
-  const campaign = matches[0]?.campaign;
+  const campaign = match?.campaign;
   return campaign
     ? {
         userId: campaign.userId,

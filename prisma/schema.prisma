@@ -164,7 +164,7 @@ model AttributionLink {
   contentId         String
   variantId         String
   platformId        String
-  trackingToken     String
+  trackingToken     String   @unique
   utmId             String
   utmSource         String
   utmMedium         String
@@ -176,7 +176,6 @@ model AttributionLink {
   campaignVersion CampaignVersion @relation(fields: [campaignVersionId], references: [id], onDelete: Cascade)
 
   @@unique([campaignVersionId, variantId])
-  @@unique([campaignId, trackingToken])
   @@index([campaignId])
 }
 
