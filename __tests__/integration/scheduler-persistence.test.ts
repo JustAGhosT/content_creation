@@ -279,6 +279,39 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     ).resolves.toBe(1);
   });
 
+  test('records provider-confirmed outcomes for standalone jobs', async () => {
+    if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
+    const queue = new PrismaJobQueue(setupClient);
+    const attemptedAt = new Date('2026-07-26T08:00:00Z');
+    const completedAt = new Date('2026-07-26T08:00:02Z');
+    const standalone = testJob(ownerId, `${suffix}-standalone-outcome`);
+    await queue.add(standalone);
+    const [claimed] = await queue.claimDueJobs(
+      attemptedAt,
+      1,
+      'standalone-outcome-lease',
+      new Date('2026-07-26T08:02:00Z')
+    );
+    await queue.markClaimAttempt(claimed.id, claimed.leaseToken!, attemptedAt);
+    await queue.updateClaimed(claimed.id, claimed.leaseToken!, {
+      status: 'published',
+      platformPostId: 'standalone-post-1',
+      publishedAt: completedAt.toISOString(),
+      updatedAt: completedAt.toISOString(),
+    });
+
+    await expect(
+      setupClient.analyticsEventRecord.findFirst({
+        where: { eventId: { startsWith: `scheduler:${standalone.id}:publish_succeeded:` } },
+      })
+    ).resolves.toMatchObject({
+      name: 'publish_succeeded',
+      userId: ownerId,
+      publishAttemptId: null,
+      providerPostId: 'standalone-post-1',
+    });
+  });
+
   test('atomically reserves shared platform quota across database clients', async () => {
     if (!databaseUrl) throw new Error('PostgreSQL DATABASE_URL is required');
     const platformId = `quota-${suffix}`;

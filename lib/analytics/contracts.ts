@@ -40,7 +40,7 @@ export const analyticsPropertiesSchema = z
     url: optionalBoundedText(2048),
     referrer: optionalBoundedText(2048),
     title: optionalBoundedText(500),
-    method: z.enum(['email', 'google', 'github']).optional(),
+    method: z.enum(['email', 'google', 'github', 'mystira']).optional(),
     referralSource: optionalBoundedText(128),
     stepNumber: z.number().int().nonnegative().optional(),
     stepName: optionalBoundedText(128),

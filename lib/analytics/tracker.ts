@@ -89,6 +89,10 @@ function getStoredAttribution(): StoredAttribution {
   return {};
 }
 
+export function getStoredCampaignToken(): string | undefined {
+  return getStoredAttribution().campaignToken;
+}
+
 // ── Event Queue & Batching ───────────────────────────────────────────────
 
 interface QueuedEvent {

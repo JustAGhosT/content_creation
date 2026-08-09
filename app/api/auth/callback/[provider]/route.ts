@@ -20,6 +20,7 @@ import {
   initiateExternalAuth,
 } from '../../../../../lib/auth/identity-provider';
 import { prisma } from '../../../../../lib/db/prisma';
+import { recordAnalyticsEvents } from '../../../../../lib/analytics/repository';
 
 const OAUTH_STATE_COOKIE_PREFIX = 'oauth-state-';
 
@@ -27,6 +28,7 @@ interface StoredOAuthState {
   state: string;
   redirect: string;
   codeVerifier: string;
+  campaignToken?: string;
 }
 
 function getPublicOrigin(request: Request, fallbackUrl: URL): string {
@@ -67,6 +69,10 @@ function parseStoredOAuthState(value: string | undefined): StoredOAuthState | nu
       state: parsed.state,
       redirect: parsed.redirect,
       codeVerifier: parsed.codeVerifier,
+      campaignToken:
+        typeof parsed.campaignToken === 'string' && /^mtk_[a-z0-9_]+$/.test(parsed.campaignToken)
+          ? parsed.campaignToken
+          : undefined,
     };
   } catch {
     return null;
@@ -102,6 +108,11 @@ async function handleCallback(
     const codeVerifier = randomBytes(32).toString('base64url');
     const codeChallenge = createCodeChallenge(codeVerifier);
     const requestedRedirect = url.searchParams.get('redirect') || '/dashboard';
+    const requestedCampaignToken = url.searchParams.get('campaign_token');
+    const campaignToken =
+      requestedCampaignToken && /^mtk_[a-z0-9_]+$/.test(requestedCampaignToken)
+        ? requestedCampaignToken
+        : undefined;
     const redirect = await initiateExternalAuth(provider, callbackUrl, state, codeChallenge);
 
     if (!redirect) {
@@ -116,6 +127,7 @@ async function handleCallback(
         state,
         redirect: parseSafeRedirect(requestedRedirect, publicOrigin),
         codeVerifier,
+        campaignToken,
       }),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -172,6 +184,31 @@ async function handleCallback(
   const { id: userId, username, role, isNew: isNewUser } = localUser;
 
   const token = authService.generateToken({ id: userId, username, role });
+
+  if (isNewUser) {
+    const timestamp = new Date().toISOString();
+    const method = provider === 'google' || provider === 'github' ? provider : 'mystira';
+    try {
+      await recordAnalyticsEvents(
+        [
+          {
+            eventId: `server:signup_started:${provider}:${userId}`,
+            name: 'signup_started',
+            properties: { timestamp, method, campaignToken: storedState.campaignToken },
+          },
+          {
+            eventId: `server:signup_completed:${provider}:${userId}`,
+            name: 'signup_completed',
+            properties: { timestamp, method, campaignToken: storedState.campaignToken },
+          },
+        ],
+        userId,
+        prisma
+      );
+    } catch (error) {
+      console.error('[Auth] Failed to record external signup analytics:', error);
+    }
+  }
 
   cookieStore.set({
     name: 'auth-token',

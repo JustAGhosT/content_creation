@@ -14,6 +14,7 @@ import Header from '@/components/ui/Header';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { tokenStorage } from '@/lib/storage/token-storage';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { getStoredCampaignToken } from '@/lib/analytics';
 import styles from '@/styles/Signup.module.css';
 
 function escapeHtml(str: string): string {
@@ -107,9 +108,14 @@ export default function SignupPage() {
   }, [isAuthenticated, isLoading, router]);
 
   const handleProviderLogin = (providerId: string) => {
-    const callbackUrl = `${window.location.origin}/api/auth/callback/${encodeURIComponent(providerId)}`;
-    window.location.href =
-      callbackUrl + `?redirect=${encodeURIComponent(window.location.origin + '/onboarding')}`;
+    const callbackUrl = new URL(
+      `/api/auth/callback/${encodeURIComponent(providerId)}`,
+      window.location.origin
+    );
+    callbackUrl.searchParams.set('redirect', window.location.origin + '/onboarding');
+    const campaignToken = getStoredCampaignToken();
+    if (campaignToken) callbackUrl.searchParams.set('campaign_token', campaignToken);
+    window.location.href = callbackUrl.toString();
   };
 
   const handleSignupStarted = () => {

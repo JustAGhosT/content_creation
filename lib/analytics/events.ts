@@ -78,7 +78,7 @@ export interface PageViewProperties extends BaseEventProperties, UTMProperties {
 }
 
 export interface SignupProperties extends BaseEventProperties {
-  method: 'email' | 'google' | 'github';
+  method: 'email' | 'google' | 'github' | 'mystira';
   referralSource?: string;
 }
 

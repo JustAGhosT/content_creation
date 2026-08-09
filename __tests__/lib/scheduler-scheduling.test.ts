@@ -183,4 +183,62 @@ describe('scheduler request idempotency', () => {
     expect(updates).not.toHaveProperty('errorCode');
     expect(updates).not.toHaveProperty('error');
   });
+
+  test('timestamps a successful outcome after the provider returns', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-09T12:00:00.000Z'));
+    const updateClaimed = jest.fn().mockResolvedValue(true);
+    const scheduledJob: ScheduleJobResult['job'] = {
+      id: 'outcome-time-job',
+      idempotencyKey: 'outcome-time-key',
+      requestFingerprint: 'outcome-time-fingerprint',
+      type: 'standalone',
+      contentId: 'content-1',
+      platformId: 'twitter',
+      content: { text: 'Provider-timed post' },
+      scheduledTime: '2026-08-09T12:00:00.000Z',
+      timezone: 'UTC',
+      status: 'processing',
+      attempts: 0,
+      maxAttempts: 5,
+      createdAt: '2026-08-09T11:00:00.000Z',
+      updatedAt: '2026-08-09T12:00:00.000Z',
+      createdBy: 'user-1',
+    };
+    const markClaimAttempt = jest.fn().mockImplementation(async (_id, _lease, attemptedAt) => ({
+      ...scheduledJob,
+      attempts: 1,
+      lastAttemptAt: attemptedAt.toISOString(),
+    }));
+    jest
+      .mocked(getQueue)
+      .mockReturnValue({ updateClaimed, markClaimAttempt } as unknown as JobQueue);
+    jest.mocked(getPublisher).mockReturnValue({
+      publish: async (
+        _job: ScheduleJobResult['job'],
+        options: { beforeProviderCall?: () => Promise<boolean> }
+      ) => {
+        await options.beforeProviderCall?.();
+        jest.setSystemTime(new Date('2026-08-09T12:00:02.000Z'));
+        return { success: true, result: { id: 'post-1', url: 'https://x.com/post-1' } };
+      },
+    } as unknown as ReturnType<typeof getPublisher>);
+    const scheduler = new Scheduler();
+    Object.assign(scheduler, { startLeaseHeartbeat: () => async () => undefined });
+
+    await (
+      scheduler as unknown as {
+        processJob: (job: ScheduleJobResult['job'], lease: string) => Promise<unknown>;
+      }
+    ).processJob(scheduledJob, 'lease-1');
+
+    expect(updateClaimed).toHaveBeenCalledWith(
+      'outcome-time-job',
+      'lease-1',
+      expect.objectContaining({
+        publishedAt: '2026-08-09T12:00:02.000Z',
+        updatedAt: '2026-08-09T12:00:02.000Z',
+      })
+    );
+    jest.useRealTimers();
+  });
 });

@@ -315,7 +315,6 @@ export class Scheduler {
    * Process a single job
    */
   private async processJob(job: ScheduledJob, leaseToken: string): Promise<JobResult> {
-    const now = new Date().toISOString();
     let attemptedJob = job;
 
     // Attempt to publish
@@ -327,14 +326,15 @@ export class Scheduler {
     });
 
     if (publishResult.success && publishResult.result) {
+      const completedAt = new Date().toISOString();
       const completed = await this.queue.updateClaimed(job.id, leaseToken, {
         status: 'published',
-        publishedAt: now,
+        publishedAt: completedAt,
         publishedUrl: publishResult.result.url,
         platformPostId: publishResult.result.id,
         errorCode: undefined,
         error: undefined,
-        updatedAt: now,
+        updatedAt: completedAt,
       });
       if (!completed) {
         return {
@@ -346,7 +346,7 @@ export class Scheduler {
               'Provider accepted the request but the processing lease could not be completed',
             retryable: false,
           },
-          executedAt: now,
+          executedAt: completedAt,
         };
       }
 
@@ -361,7 +361,7 @@ export class Scheduler {
         jobId: job.id,
         status: 'success',
         platformResponse: publishResult.result,
-        executedAt: now,
+        executedAt: completedAt,
       };
     }
 
