@@ -534,8 +534,6 @@ export class Scheduler {
         status: 'scheduled',
         scheduledTime: new Date().toISOString(),
         nextRetryAt: undefined,
-        errorCode: undefined,
-        error: undefined,
         attempts: 0,
         updatedAt: new Date().toISOString(),
       },

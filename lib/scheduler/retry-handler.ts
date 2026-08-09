@@ -35,6 +35,13 @@ export class RetryHandler {
    * Classify an error for retry handling
    */
   classifyError(error: unknown): ErrorClassification {
+    // A thread can publish one or more posts before a later provider call
+    // fails. Classify the provider failure, not the partial-result wrapper, so
+    // non-retryable responses cannot replay already-public thread parts.
+    if (this.isPartialPublishError(error)) {
+      return this.classifyError(error.partialResult.error);
+    }
+
     // Publisher errors have already been classified at the provider boundary.
     // Preserve that decision when the scheduler receives the wrapper instead
     // of accidentally treating it as an unknown retryable error.
@@ -86,6 +93,23 @@ export class RetryHandler {
 
     const candidate = error as { code?: unknown; retryable?: unknown };
     return typeof candidate.code === 'string' && typeof candidate.retryable === 'boolean';
+  }
+
+  private isPartialPublishError(error: unknown): error is {
+    partialResult: { error: unknown };
+  } {
+    if (typeof error !== 'object' || error === null || !('partialResult' in error)) return false;
+
+    const partialResult = (error as { partialResult?: unknown }).partialResult;
+    if (
+      typeof partialResult !== 'object' ||
+      partialResult === null ||
+      !('error' in partialResult)
+    ) {
+      return false;
+    }
+
+    return (partialResult as { error: unknown }).error !== error;
   }
 
   /**

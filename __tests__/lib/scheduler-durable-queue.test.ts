@@ -71,6 +71,30 @@ describe('durable scheduler queue contract', () => {
     expect([...first, ...second][0]).toMatchObject({ status: 'processing', attempts: 0 });
   });
 
+  test('retains the latest provider error while a retry is claimed', async () => {
+    const queue = new ServerMemoryQueue();
+    const dueAt = new Date('2026-07-26T08:00:00Z');
+    await queue.add(
+      job({
+        status: 'failed',
+        nextRetryAt: dueAt.toISOString(),
+        lastAttemptAt: '2026-07-26T07:55:00.000Z',
+        errorCode: 'PAYMENT_REQUIRED',
+        error: 'Provider credits or billing required',
+      })
+    );
+
+    await expect(
+      queue.claimDueJobs(dueAt, 1, 'retry-lease', new Date('2026-07-26T08:02:00Z'))
+    ).resolves.toEqual([
+      expect.objectContaining({
+        status: 'processing',
+        errorCode: 'PAYMENT_REQUIRED',
+        error: 'Provider credits or billing required',
+      }),
+    ]);
+  });
+
   test('requires the active lease token to complete a claim', async () => {
     const queue = new ServerMemoryQueue();
     const dueAt = new Date('2026-07-26T08:00:00Z');

@@ -1,4 +1,4 @@
-import { PlatformHttpError } from '@/lib/scheduler/adapters';
+import { PartialPublishError, PlatformHttpError } from '@/lib/scheduler/adapters';
 import { RetryHandler } from '@/lib/scheduler/retry-handler';
 
 describe('scheduler retry classification', () => {
@@ -34,6 +34,23 @@ describe('scheduler retry classification', () => {
       retryable: false,
       code: 'PAYMENT_REQUIRED',
       message: 'X API error: 402',
+    });
+  });
+
+  test('classifies the provider failure inside a partial thread result', () => {
+    const providerError = new PlatformHttpError('X', 402, 'Payment Required');
+
+    expect(
+      handler.classifyError(
+        new PartialPublishError('Thread partially published', {
+          tweetIds: ['tweet-1'],
+          error: providerError,
+        })
+      )
+    ).toEqual({
+      retryable: false,
+      code: 'PAYMENT_REQUIRED',
+      message: 'Provider credits or billing required (402): Payment Required',
     });
   });
 

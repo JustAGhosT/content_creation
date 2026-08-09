@@ -403,8 +403,6 @@ export class PrismaJobQueue implements JobQueue {
           leaseToken,
           leaseExpiresAt,
           attemptStartedAt: null,
-          errorCode: null,
-          error: null,
         },
       });
       if (claim.count !== 1) continue;

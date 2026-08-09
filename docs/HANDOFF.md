@@ -30,8 +30,11 @@ limited` on 2026-08-09, superseding the July 28 `Trial access pending`
   PR-specific suites passed 17/17 tests.
 - Review follow-up preserves publisher error classifications in the scheduler,
   selects X capacity evidence by the latest attempted publish, and provides the
-  missing Pinterest operational profile. The three focused regression suites
-  pass 9/9 tests; focused ESLint, Prettier, and TypeScript checks pass.
+  missing Pinterest operational profile. It also unwraps partial-thread provider
+  failures and retains confirmed billing evidence while a manual retry is queued
+  or claimed. The latest four scheduler/capacity regression suites pass 21/21
+  tests; the focused Pinterest profile suite and ESLint, Prettier, and TypeScript
+  checks pass.
 - `git diff --check` passed. The repository-wide Windows Prettier check remains
   blocked by the existing broad formatting baseline, so GitHub's Linux format
   check is authoritative for the refreshed PR head.

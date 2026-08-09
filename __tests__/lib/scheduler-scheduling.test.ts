@@ -157,4 +157,30 @@ describe('scheduler request idempotency', () => {
       'provider',
     ]);
   });
+
+  test('keeps prior provider evidence when a manual retry is queued', async () => {
+    const failedJob = {
+      ...(await new Scheduler().scheduleWithResult(input)).job,
+      status: 'dead' as const,
+      errorCode: 'PAYMENT_REQUIRED',
+      error: 'Provider credits or billing required',
+      lastAttemptAt: '2026-07-26T14:01:00.000Z',
+    };
+    const updateIfStatus = jest.fn().mockResolvedValue(true);
+    const get = jest.fn().mockResolvedValue(failedJob);
+    jest.mocked(getQueue).mockReturnValue({ get, updateIfStatus } as unknown as JobQueue);
+
+    await expect(new Scheduler().retry(failedJob.id, failedJob.createdBy)).resolves.toEqual(
+      failedJob
+    );
+    expect(updateIfStatus).toHaveBeenCalledWith(
+      failedJob.id,
+      ['failed', 'dead'],
+      expect.any(Object),
+      failedJob.createdBy
+    );
+    const updates = updateIfStatus.mock.calls[0][2];
+    expect(updates).not.toHaveProperty('errorCode');
+    expect(updates).not.toHaveProperty('error');
+  });
 });
