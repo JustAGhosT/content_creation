@@ -5,7 +5,8 @@ import { buildCampaignWorkbook } from '@/lib/analytics/workbook';
 
 describe('campaign evidence workbook', () => {
   test('reconciles durable scheduler records with allow-listed telemetry', async () => {
-    const requestedAt = new Date('2026-08-09T01:00:00.000Z');
+    const requestedAt = new Date('2026-08-08T01:00:00.000Z');
+    const attemptedAt = new Date('2026-08-09T01:00:00.000Z');
     const completedAt = new Date('2026-08-09T01:00:02.000Z');
     const campaign = {
       id: 'campaign-row-1',
@@ -92,6 +93,7 @@ describe('campaign evidence workbook', () => {
       platformId: string;
       status: string;
       attempts: number;
+      lastAttemptAt: Date | null;
       platformPostId: string | null;
       publishedUrl: string | null;
       errorCode: string | null;
@@ -103,6 +105,7 @@ describe('campaign evidence workbook', () => {
         platformId: 'twitter',
         status: 'published',
         attempts: 1,
+        lastAttemptAt: attemptedAt,
         platformPostId: '2086262766420037970',
         publishedUrl: 'https://x.com/OmniPostHQ/status/2086262766420037970',
         errorCode: null,
@@ -131,7 +134,7 @@ describe('campaign evidence workbook', () => {
     expect(workbook.views.attribution[0]).toMatchObject({ landingViews: 1 });
     expect(workbook.views.conversion.firstPublish).toBe(1);
     expect(client.analyticsEventRecord.count).toHaveBeenCalledWith({
-      where: { name: 'post_published', userId: { in: ['converted-user-1'] } },
+      where: { name: 'publish_succeeded', userId: { in: ['converted-user-1'] } },
     });
     expect(workbook.views.decisions[0].workbookEvidenceCited).toBe(true);
     expect(workbook.reconciliation.reconciled).toBe(true);
@@ -163,6 +166,7 @@ describe('campaign evidence workbook', () => {
       platformId: 'twitter',
       status: 'reconciliation_required',
       attempts: 1,
+      lastAttemptAt: attemptedAt,
       platformPostId: null,
       publishedUrl: null,
       errorCode: 'LEASE_EXPIRED_AFTER_PROVIDER_ATTEMPT',
