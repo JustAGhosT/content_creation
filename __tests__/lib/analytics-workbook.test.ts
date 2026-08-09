@@ -156,6 +156,19 @@ describe('campaign evidence workbook', () => {
     expect(workbook.views.conversion.firstPublish).toBe(2);
     expect(analyticsFindMany).toHaveBeenCalledWith({
       where: {
+        OR: [
+          {
+            userId: 'user-1',
+            campaignId: 'omnipost-x-live-001',
+            publishAttemptId: { in: ['attempt-1'] },
+          },
+          { campaignToken: { in: ['mtk_omnipost_x_1'] } },
+        ],
+      },
+      orderBy: { occurredAt: 'asc' },
+    });
+    expect(analyticsFindMany).toHaveBeenCalledWith({
+      where: {
         name: 'publish_succeeded',
         userId: { in: ['converted-user-1', 'converted-user-2'] },
       },

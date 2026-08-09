@@ -90,11 +90,20 @@ export async function buildCampaignWorkbook(
 
   const stableCampaignId = campaign.externalId ?? campaign.id;
   const campaignTokens = campaign.attributionLinks.map(link => link.trackingToken);
+  const auditedPublishAttemptIds = campaign.publishAttempts.map(attempt => attempt.id);
   const [events, jobs, accounts, quotas] = await Promise.all([
     client.analyticsEventRecord.findMany({
       where: {
         OR: [
-          { userId, campaignId: stableCampaignId },
+          ...(auditedPublishAttemptIds.length > 0
+            ? [
+                {
+                  userId,
+                  campaignId: stableCampaignId,
+                  publishAttemptId: { in: auditedPublishAttemptIds },
+                },
+              ]
+            : []),
           ...(campaignTokens.length > 0 ? [{ campaignToken: { in: campaignTokens } }] : []),
         ],
       },
