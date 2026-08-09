@@ -19,4 +19,11 @@ describe('platform operational profiles', () => {
       verifiedAt: '2026-07-28',
     });
   });
+
+  test('describes only Pinterest fields wired through the scheduler adapter', () => {
+    expect(platformOperationalProfiles.pinterest.contentLimit).toBe(
+      'Image with title and description supported by the OmniPost sandbox adapter'
+    );
+    expect(platformOperationalProfiles.pinterest.contentLimit).not.toContain('link');
+  });
 });

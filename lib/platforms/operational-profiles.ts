@@ -56,7 +56,7 @@ export const platformOperationalProfiles: Record<string, PlatformOperationalProf
   },
   pinterest: {
     messageTypes: ['image'],
-    contentLimit: 'Image and destination-link fields supported by the OmniPost sandbox adapter',
+    contentLimit: 'Image with title and description supported by the OmniPost sandbox adapter',
     accessModel: 'Sandbox only — production access remains provider-approved and operator-held',
     testSurface: 'Pinterest API sandbox with a public HTTPS image; no production Pin',
     costSummary: ['No OmniPost per-post fee', 'Provider costs are not reported to OmniPost'],
