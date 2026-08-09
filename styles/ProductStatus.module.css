@@ -1,4 +1,7 @@
 .status {
+  --product-status-pill-foreground: #3a5481;
+  --product-status-footer-description: rgba(255, 255, 255, 0.78);
+
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -15,7 +18,7 @@
   border: 1px solid color-mix(in srgb, var(--color-primary, #4a6491) 45%, transparent);
   border-radius: var(--radius-full, 9999px);
   background: color-mix(in srgb, var(--color-primary, #4a6491) 8%, transparent);
-  color: var(--color-primary-dark, #3a5481);
+  color: var(--product-status-pill-foreground);
   font-size: 0.75rem;
   font-weight: var(--font-weight-semibold, 600);
   line-height: 1;
@@ -76,7 +79,30 @@
 }
 
 .footer .description {
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--product-status-footer-description);
+}
+
+@media (prefers-color-scheme: dark) {
+  .status {
+    --product-status-footer-description: #1e293b;
+  }
+
+  .header {
+    --product-status-pill-foreground: #dbeafe;
+  }
+}
+
+:global(:root[data-theme='light']) .status {
+  --product-status-pill-foreground: #3a5481;
+  --product-status-footer-description: rgba(255, 255, 255, 0.78);
+}
+
+:global(:root[data-theme='dark']) .status {
+  --product-status-footer-description: #1e293b;
+}
+
+:global(:root[data-theme='dark']) .header {
+  --product-status-pill-foreground: #dbeafe;
 }
 
 @media (max-width: 768px) {
