@@ -66,6 +66,8 @@ describe('campaign evidence workbook', () => {
     const events = [
       'publish_job_queued',
       'publish_attempted',
+      'publish_failed',
+      'publish_attempted',
       'publish_succeeded',
       'landing_view',
     ].map((name, index) => ({
@@ -76,6 +78,9 @@ describe('campaign evidence workbook', () => {
       platform: name.startsWith('publish_') ? 'twitter' : null,
       campaignToken: name === 'landing_view' ? 'mtk_omnipost_x_1' : null,
       userId: 'user-1',
+      properties: JSON.stringify({
+        latencyMs: name === 'publish_failed' ? 10_000 : name === 'publish_succeeded' ? 2_000 : null,
+      }),
     }));
     events.push({
       eventId: 'event-signup-completed',
@@ -85,6 +90,7 @@ describe('campaign evidence workbook', () => {
       platform: null,
       campaignToken: 'mtk_omnipost_x_1',
       userId: 'converted-user-1',
+      properties: '{}',
     });
     events.push({
       eventId: 'event-signup-completed-2',
@@ -94,6 +100,7 @@ describe('campaign evidence workbook', () => {
       platform: null,
       campaignToken: 'mtk_omnipost_x_1',
       userId: 'converted-user-2',
+      properties: '{}',
     });
     const jobs: Array<{
       id: string;
@@ -113,7 +120,7 @@ describe('campaign evidence workbook', () => {
         variantId: 'variant-x-1',
         platformId: 'twitter',
         status: 'published',
-        attempts: 1,
+        attempts: 2,
         lastAttemptAt: attemptedAt,
         platformPostId: '2086262766420037970',
         publishedUrl: 'https://x.com/OmniPostHQ/status/2086262766420037970',
@@ -141,9 +148,9 @@ describe('campaign evidence workbook', () => {
     expect(workbook.views.preflight.complete).toBe(true);
     expect(workbook.views.publishPerformance).toMatchObject({
       succeeded: 1,
-      failed: 0,
-      retries: 0,
-      averageLatencyMs: 2000,
+      failed: 1,
+      retries: 1,
+      averageLatencyMs: 6000,
     });
     expect(workbook.views.attribution[0]).toMatchObject({ landingViews: 1 });
     expect(workbook.views.conversion.firstPublish).toBe(2);
@@ -192,6 +199,7 @@ describe('campaign evidence workbook', () => {
         platform: 'twitter',
         campaignToken: null,
         userId: 'user-1',
+        properties: '{}',
       },
       {
         eventId: 'event-unknown-attempted',
@@ -201,6 +209,7 @@ describe('campaign evidence workbook', () => {
         platform: 'twitter',
         campaignToken: null,
         userId: 'user-1',
+        properties: '{}',
       }
     );
     jobs.push({
@@ -223,16 +232,16 @@ describe('campaign evidence workbook', () => {
     );
     expect(workbookWithUnknownOutcome.views.publishPerformance).toMatchObject({
       succeeded: 1,
-      failed: 0,
+      failed: 1,
       unknown: 1,
     });
     expect(workbookWithUnknownOutcome.views.dataQuality.reconciliationRequiredJobIds).toEqual([
       'job-unknown',
     ]);
     expect(workbookWithUnknownOutcome.reconciliation.runtime).toMatchObject({
-      attempted: 2,
+      attempted: 3,
       succeeded: 1,
-      failed: 0,
+      failed: 1,
       unknown: 1,
     });
     expect(workbookWithUnknownOutcome.reconciliation.reconciled).toBe(false);

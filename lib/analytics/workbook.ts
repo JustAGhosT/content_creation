@@ -176,10 +176,11 @@ export async function buildCampaignWorkbook(
   const publishedJobs = jobs.filter(job => job.status === 'published');
   const failedJobs = jobs.filter(job => ['failed', 'dead'].includes(job.status));
   const reconciliationRequiredJobs = jobs.filter(job => job.status === 'reconciliation_required');
-  const latencies = campaign.publishAttempts.flatMap(attempt => {
-    const attemptedAt = jobs.find(job => job.id === attempt.schedulerJobId)?.lastAttemptAt;
-    return attempt.completedAt && attemptedAt
-      ? [Math.max(0, attempt.completedAt.getTime() - attemptedAt.getTime())]
+  const latencies = campaignEvents.flatMap(event => {
+    if (event.name !== 'publish_succeeded' && event.name !== 'publish_failed') return [];
+    const latencyMs = parseEvidence(event.properties)?.latencyMs;
+    return typeof latencyMs === 'number' && Number.isFinite(latencyMs) && latencyMs >= 0
+      ? [latencyMs]
       : [];
   });
   const attemptedPublishes = jobs.reduce((total, job) => total + job.attempts, 0);

@@ -301,7 +301,7 @@ function FaqAccordionItem({ item }: { readonly item: FaqItem }) {
 
 export default function PricingPage() {
   const [isAnnual, setIsAnnual] = useState(true);
-  const { track, events } = useAnalytics({ trackPageView: true });
+  const { track, events } = useAnalytics({ trackPageView: false });
 
   useEffect(() => {
     track(events.PRICING_PAGE_VIEWED, { source: 'direct' });
