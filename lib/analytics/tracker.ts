@@ -16,6 +16,8 @@ const BATCH_SIZE = 10;
 const FLUSH_INTERVAL_MS = 30_000; // 30 seconds
 const SESSION_KEY = 'omnipost_session_id';
 const UTM_KEY = 'omnipost_utm';
+const MAX_ATTRIBUTION_VALUE_LENGTH = 128;
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'] as const;
 const ATTRIBUTION_EVENT_NAMES = new Set([
   'landing_view',
   'cta_clicked',
@@ -27,6 +29,34 @@ const ATTRIBUTION_EVENT_NAMES = new Set([
 
 interface StoredAttribution extends UTMProperties {
   campaignToken?: string;
+}
+
+function normalizeAttribution(value: unknown): StoredAttribution {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const input = value as Record<string, unknown>;
+  const normalized: StoredAttribution = {};
+
+  for (const key of UTM_KEYS) {
+    const candidate = input[key];
+    if (
+      typeof candidate === 'string' &&
+      candidate.length > 0 &&
+      candidate.length <= MAX_ATTRIBUTION_VALUE_LENGTH
+    ) {
+      normalized[key] = candidate;
+    }
+  }
+
+  const campaignToken = input.campaignToken;
+  if (
+    typeof campaignToken === 'string' &&
+    campaignToken.length <= MAX_ATTRIBUTION_VALUE_LENGTH &&
+    /^mtk_[a-z0-9_]+$/.test(campaignToken)
+  ) {
+    normalized.campaignToken = campaignToken;
+  }
+
+  return normalized;
 }
 
 // ── Session Management ───────────────────────────────────────────────────
@@ -50,16 +80,19 @@ function captureAttributionParams(): StoredAttribution {
   const params = new URLSearchParams(window.location.search);
   const attribution: StoredAttribution = {};
 
-  const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'] as const;
-  for (const key of utmKeys) {
+  for (const key of UTM_KEYS) {
     const value = params.get(key);
-    if (value && value.length <= 128) {
+    if (value && value.length <= MAX_ATTRIBUTION_VALUE_LENGTH) {
       attribution[key] = value;
     }
   }
 
   const campaignToken = params.get('mtk') ?? params.get('campaign_token');
-  if (campaignToken && campaignToken.length <= 128 && /^mtk_[a-z0-9_]+$/.test(campaignToken)) {
+  if (
+    campaignToken &&
+    campaignToken.length <= MAX_ATTRIBUTION_VALUE_LENGTH &&
+    /^mtk_[a-z0-9_]+$/.test(campaignToken)
+  ) {
     attribution.campaignToken = campaignToken;
   }
 
@@ -81,7 +114,13 @@ function getStoredAttribution(): StoredAttribution {
   try {
     const stored = sessionStorage.getItem(UTM_KEY);
     if (stored) {
-      return JSON.parse(stored) as StoredAttribution;
+      const attribution = normalizeAttribution(JSON.parse(stored) as unknown);
+      if (Object.keys(attribution).length > 0) {
+        sessionStorage.setItem(UTM_KEY, JSON.stringify(attribution));
+      } else {
+        sessionStorage.removeItem(UTM_KEY);
+      }
+      return attribution;
     }
   } catch {
     // parse error or storage unavailable

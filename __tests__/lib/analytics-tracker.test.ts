@@ -244,4 +244,38 @@ describe('Analytics Tracker', () => {
     campaignTracker.destroy();
     signupLink.remove();
   });
+
+  test('normalizes legacy persisted attribution before attaching it to events', async () => {
+    tracker.destroy();
+    jest.clearAllMocks();
+    sessionStorage.setItem(
+      'omnipost_utm',
+      JSON.stringify({
+        campaignToken: 'mtk_campaign_public_1',
+        utm_source: 'x',
+        utm_content: 'x'.repeat(129),
+        unexpected: 'discard-me',
+      })
+    );
+
+    jest.resetModules();
+    const legacyTracker = require('../../lib/analytics/tracker').tracker as typeof tracker;
+    legacyTracker.track('signup_started', { method: 'email' });
+    await legacyTracker.flush();
+
+    const call = mockFetch.mock.calls[0] as unknown[];
+    const batch = JSON.parse((call[1] as RequestInit).body as string);
+    expect(batch.events[0].properties).toMatchObject({
+      campaignToken: 'mtk_campaign_public_1',
+      utm_source: 'x',
+      method: 'email',
+    });
+    expect(batch.events[0].properties).not.toHaveProperty('utm_content');
+    expect(batch.events[0].properties).not.toHaveProperty('unexpected');
+    expect(JSON.parse(sessionStorage.getItem('omnipost_utm') ?? '{}')).toEqual({
+      campaignToken: 'mtk_campaign_public_1',
+      utm_source: 'x',
+    });
+    legacyTracker.destroy();
+  });
 });
