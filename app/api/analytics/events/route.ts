@@ -1,165 +1,145 @@
-/**
- * Analytics Events API
- *
- * Receives batched analytics events from the client-side tracker.
- * Validates event structure, logs to audit trail, and stores for analysis.
- *
- * POST /api/analytics/events
- * Body: { events: Array<{ name: string, properties: object }> }
- */
-
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
+import { getCurrentUserId, getVerifiedCurrentUserId, isAuthenticated } from '../../_utils/auth';
 import { Errors, withErrorHandling } from '../../_utils/errors';
-import { isAuthenticated } from '../../_utils/auth';
 import { withRateLimit, RateLimitPresets } from '../../_utils/rateLimit';
 import { logToAuditTrail } from '../../_utils/audit';
+import { analyticsBatchSchema, analyticsEventNameSchema } from '@/lib/analytics/contracts';
+import { AnalyticsPersistenceError, recordAnalyticsEvents } from '@/lib/analytics/repository';
+import prisma from '@/lib/db/prisma';
 
-// ── Validation Schema ────────────────────────────────────────────────────
+const significantEventNames = new Set([
+  'signup_completed',
+  'platform_connected',
+  'publish_succeeded',
+  'publish_failed',
+]);
 
-const eventSchema = z.object({
-  name: z.string().min(1).max(100),
-  properties: z.record(z.unknown()).default({}),
-});
-
-const batchSchema = z.object({
-  events: z.array(eventSchema).min(1).max(50),
-});
-
-// ── In-Memory Event Store (Alpha) ────────────────────────────────────────
-
-interface StoredEvent {
-  name: string;
-  properties: Record<string, unknown>;
-  receivedAt: string;
-  ip?: string;
-}
-
-const eventStore: StoredEvent[] = [];
-const MAX_STORED_EVENTS = 50_000;
-
-// ── Route Handlers ───────────────────────────────────────────────────────
+const serverOnlyEventNames = new Set([
+  'campaign_created',
+  'content_approved',
+  'publish_job_queued',
+  'publish_attempted',
+  'publish_succeeded',
+  'publish_failed',
+]);
 
 export const POST = withRateLimit(
   withErrorHandling(async (request: Request) => {
-    const body = await request.json();
-    const validation = batchSchema.safeParse(body);
-
+    const validation = analyticsBatchSchema.safeParse(await request.json());
     if (!validation.success) {
       return NextResponse.json(
         { message: 'Invalid event batch', errors: validation.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
-
-    const { events } = validation.data;
-    const receivedAt = new Date().toISOString();
-
-    // Store events (bounded)
-    for (const event of events) {
-      if (eventStore.length >= MAX_STORED_EVENTS) {
-        // Remove oldest 10% to make room
-        eventStore.splice(0, Math.floor(MAX_STORED_EVENTS * 0.1));
-      }
-
-      eventStore.push({
-        name: event.name,
-        properties: event.properties,
-        receivedAt,
-      });
+    if (validation.data.events.some(event => serverOnlyEventNames.has(event.name))) {
+      return Errors.forbidden('Campaign lifecycle events are recorded by trusted server workflows');
     }
 
-    // Audit log for significant events
-    const significantEvents = events.filter(e =>
-      ['signup_completed', 'platform_connected', 'post_published', 'payment_completed'].includes(
-        e.name
-      )
-    );
+    const userId = await getVerifiedCurrentUserId();
+    try {
+      await recordAnalyticsEvents(validation.data.events, userId);
+    } catch (error) {
+      if (error instanceof AnalyticsPersistenceError) {
+        const status =
+          error.code === 'EVENT_ID_CONFLICT'
+            ? 409
+            : error.code === 'DATABASE_UNAVAILABLE'
+              ? 503
+              : 400;
+        return NextResponse.json({ message: error.message, code: error.code }, { status });
+      }
+      throw error;
+    }
 
+    const significantEvents = validation.data.events.filter(event =>
+      significantEventNames.has(event.name)
+    );
     if (significantEvents.length > 0) {
       await logToAuditTrail({
         action: 'ANALYTICS_SIGNIFICANT_EVENTS',
         user: 'analytics',
-        timestamp: receivedAt,
+        timestamp: new Date().toISOString(),
         path: '/api/analytics/events',
         method: 'POST',
         body: {
-          eventNames: significantEvents.map(e => e.name),
+          eventNames: significantEvents.map(event => event.name),
           count: significantEvents.length,
         },
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      received: events.length,
-    });
+    return NextResponse.json({ success: true, received: validation.data.events.length });
   }),
   '/api/analytics/events',
   RateLimitPresets.GENERAL
 );
 
-/**
- * GET /api/analytics/events
- * Returns aggregated event counts for the analytics dashboard.
- * Requires authentication.
- */
 export const GET = withRateLimit(
   withErrorHandling(async (request: Request) => {
     if (!(await isAuthenticated())) {
       return Errors.unauthorized('Authentication required to view analytics');
     }
+    const userId = await getCurrentUserId();
+    if (!userId) return Errors.unauthorized('User ID not found');
+    if (!prisma) {
+      return NextResponse.json(
+        { message: 'Durable analytics persistence is unavailable' },
+        { status: 503 }
+      );
+    }
 
     const url = new URL(request.url);
     const eventName = url.searchParams.get('event');
     const since = url.searchParams.get('since');
-
-    let filtered = eventStore;
-
-    if (eventName) {
-      filtered = filtered.filter(e => e.name === eventName);
+    const campaignId = url.searchParams.get('campaignId');
+    if (eventName && !analyticsEventNameSchema.safeParse(eventName).success) {
+      return Errors.badRequest('Unknown analytics event name');
+    }
+    const sinceDate = since ? new Date(since) : null;
+    if (sinceDate && Number.isNaN(sinceDate.getTime())) {
+      return Errors.badRequest('Invalid since timestamp');
     }
 
-    if (since) {
-      const sinceDate = new Date(since).getTime();
-      if (!isNaN(sinceDate)) {
-        filtered = filtered.filter(e => new Date(e.receivedAt).getTime() >= sinceDate);
-      }
-    }
-
-    // Aggregate by event name
-    const counts: Record<string, number> = {};
-    for (const event of filtered) {
-      counts[event.name] = (counts[event.name] || 0) + 1;
-    }
-
-    // AARRR funnel metrics
-    const funnel = {
-      acquisition: {
-        pageViews: counts['page_viewed'] || 0,
-        signupStarted: counts['signup_started'] || 0,
-        signupCompleted: counts['signup_completed'] || 0,
+    const events = await prisma.analyticsEventRecord.findMany({
+      where: {
+        userId,
+        name: eventName ?? undefined,
+        campaignId: campaignId ?? undefined,
+        occurredAt: sinceDate ? { gte: sinceDate } : undefined,
       },
-      activation: {
-        platformConnected: counts['platform_connected'] || 0,
-        postCreated: counts['post_created'] || 0,
-        postPublished: counts['post_published'] || 0,
-      },
-      revenue: {
-        pricingViewed: counts['pricing_page_viewed'] || 0,
-        trialStarted: counts['trial_started'] || 0,
-        paymentCompleted: counts['payment_completed'] || 0,
-      },
-      referral: {
-        linkShared: counts['referral_link_shared'] || 0,
-        referralSignup: counts['referral_signup'] || 0,
-      },
-    };
+      select: { name: true },
+      orderBy: { occurredAt: 'asc' },
+    });
+    const counts = events.reduce<Record<string, number>>((result, event) => {
+      result[event.name] = (result[event.name] ?? 0) + 1;
+      return result;
+    }, {});
 
     return NextResponse.json({
-      totalEvents: filtered.length,
+      totalEvents: events.length,
       counts,
-      funnel,
+      funnel: {
+        acquisition: {
+          pageViews: counts.page_viewed ?? counts.landing_view ?? 0,
+          signupStarted: counts.signup_started ?? 0,
+          signupCompleted: counts.signup_completed ?? 0,
+        },
+        activation: {
+          platformConnected: counts.platform_connected ?? 0,
+          postCreated: counts.post_created ?? 0,
+          postPublished: counts.publish_succeeded ?? counts.post_published ?? 0,
+        },
+        revenue: {
+          pricingViewed: counts.pricing_page_viewed ?? 0,
+          trialStarted: counts.trial_started ?? 0,
+          paymentCompleted: counts.payment_completed ?? 0,
+        },
+        referral: {
+          linkShared: counts.referral_link_shared ?? 0,
+          referralSignup: counts.referral_signup ?? 0,
+        },
+      },
     });
   }),
   '/api/analytics/events',

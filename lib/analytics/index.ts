@@ -2,7 +2,7 @@
  * Analytics module exports
  */
 
-export { tracker } from './tracker';
+export { getStoredCampaignToken, tracker } from './tracker';
 export { AnalyticsEvents } from './events';
 export type {
   AnalyticsEventName,

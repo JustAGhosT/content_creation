@@ -114,6 +114,28 @@ function nextWithIdentityHeaders(request: NextRequest, decoded: jwt.JwtPayload):
   requestHeaders.set('x-user-id', decoded.id as string);
   requestHeaders.set('x-user-role', decoded.role as string);
   requestHeaders.set('x-user-name', decoded.username as string);
+  requestHeaders.set('x-user-authenticated', 'true');
+
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+}
+
+function nextWithoutIdentityHeaders(request: NextRequest): NextResponse {
+  const requestHeaders = new Headers();
+  const identityHeaders = new Set([
+    'x-user-id',
+    'x-user-role',
+    'x-user-name',
+    'x-user-authenticated',
+  ]);
+  request.headers.forEach((value, key) => {
+    if (!identityHeaders.has(key.toLowerCase())) {
+      requestHeaders.set(key, value);
+    }
+  });
 
   return NextResponse.next({
     request: {
@@ -158,7 +180,7 @@ export default function proxy(request: NextRequest) {
     }
   }
 
-  return decoded ? nextWithIdentityHeaders(request, decoded) : NextResponse.next();
+  return decoded ? nextWithIdentityHeaders(request, decoded) : nextWithoutIdentityHeaders(request);
 }
 
 // Configure the proxy to run only on API routes

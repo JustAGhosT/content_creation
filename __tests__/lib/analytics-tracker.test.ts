@@ -33,6 +33,7 @@ describe('Analytics Tracker', () => {
 
     // Clear sessionStorage
     sessionStorage.clear();
+    localStorage.clear();
 
     // Set up window.location for tests
     Object.defineProperty(window, 'location', {
@@ -113,6 +114,20 @@ describe('Analytics Tracker', () => {
     expect(body.events[2].name).toBe('event_3');
   });
 
+  test('flush() authenticates conversion events after registration', async () => {
+    localStorage.setItem('auth-token', 'verified-registration-token');
+    tracker.track('signup_completed', { method: 'email' });
+
+    await tracker.flush();
+
+    const callArgs = mockFetch.mock.calls[0] as unknown[];
+    const init = callArgs[1] as RequestInit;
+    expect(init.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer verified-registration-token',
+    });
+  });
+
   test('flush() re-queues events on failure', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -140,6 +155,21 @@ describe('Analytics Tracker', () => {
     expect(body.events[0].name).toBe('important_event');
   });
 
+  test('flush() drops permanently rejected events without blocking later telemetry', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 400 } as Response);
+    tracker.track('landing_view', { campaignToken: 'mtk_stale_campaign' });
+    await tracker.flush();
+
+    mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+    tracker.track('signup_started', { method: 'email' });
+    await tracker.flush();
+
+    const callArgs = mockFetch.mock.calls[1] as unknown[];
+    const body = JSON.parse((callArgs[1] as RequestInit).body as string);
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0].name).toBe('signup_started');
+  });
+
   test('pageView() captures URL and referrer', () => {
     // Set document.referrer via Object.defineProperty since it's read-only in jsdom
     Object.defineProperty(document, 'referrer', {
@@ -165,5 +195,87 @@ describe('Analytics Tracker', () => {
     expect(event.properties.url).toBe('/dashboard');
     expect(event.properties.referrer).toBe('https://google.com');
     expect(event.properties.title).toBe('OmniPost Dashboard');
+  });
+
+  test('captures a public campaign token and emits landing and CTA events', async () => {
+    tracker.destroy();
+    jest.clearAllMocks();
+    Object.defineProperty(window, 'location', {
+      value: {
+        pathname: '/',
+        search: `?mtk=mtk_campaign_public_1&utm_source=x&utm_medium=organic_social&utm_content=${'x'.repeat(129)}`,
+        href: 'http://localhost:3000/?mtk=mtk_campaign_public_1',
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    jest.resetModules();
+    const campaignTracker = require('../../lib/analytics/tracker').tracker as typeof tracker;
+    await campaignTracker.flush();
+
+    const landingCall = mockFetch.mock.calls[0] as unknown[];
+    const landingBatch = JSON.parse((landingCall[1] as RequestInit).body as string);
+    expect(landingBatch.events[0]).toMatchObject({
+      name: 'landing_view',
+      properties: {
+        campaignToken: 'mtk_campaign_public_1',
+        utm_source: 'x',
+        landingPage: '/',
+      },
+    });
+    expect(landingBatch.events[0].properties).not.toHaveProperty('utm_content');
+
+    const signupLink = document.createElement('a');
+    signupLink.href = '/signup';
+    document.body.appendChild(signupLink);
+    signupLink.click();
+    await campaignTracker.flush();
+
+    const ctaCall = mockFetch.mock.calls[1] as unknown[];
+    const ctaBatch = JSON.parse((ctaCall[1] as RequestInit).body as string);
+    expect(ctaBatch.events[0]).toMatchObject({
+      name: 'cta_clicked',
+      properties: {
+        campaignToken: 'mtk_campaign_public_1',
+        landingPage: '/',
+      },
+    });
+    campaignTracker.destroy();
+    signupLink.remove();
+  });
+
+  test('normalizes legacy persisted attribution before attaching it to events', async () => {
+    tracker.destroy();
+    jest.clearAllMocks();
+    sessionStorage.setItem(
+      'omnipost_utm',
+      JSON.stringify({
+        campaignToken: 'mtk_campaign_public_1',
+        utm_source: 'x',
+        utm_content: 'x'.repeat(129),
+        unexpected: 'discard-me',
+      })
+    );
+
+    jest.resetModules();
+    const legacyTracker = require('../../lib/analytics/tracker').tracker as typeof tracker;
+    legacyTracker.track('signup_started', { method: 'email' });
+    await legacyTracker.flush();
+
+    const call = mockFetch.mock.calls[0] as unknown[];
+    const batch = JSON.parse((call[1] as RequestInit).body as string);
+    expect(batch.events[0].properties).toMatchObject({
+      campaignToken: 'mtk_campaign_public_1',
+      utm_source: 'x',
+      method: 'email',
+    });
+    expect(batch.events[0].properties).not.toHaveProperty('utm_content');
+    expect(batch.events[0].properties).not.toHaveProperty('unexpected');
+    expect(JSON.parse(sessionStorage.getItem('omnipost_utm') ?? '{}')).toEqual({
+      campaignToken: 'mtk_campaign_public_1',
+      utm_source: 'x',
+    });
+    legacyTracker.destroy();
   });
 });

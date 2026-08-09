@@ -52,7 +52,7 @@ export async function importCanonicalXCampaign(userId: string) {
     source: 'git-import',
   });
 
-  await recordAttributionLinks({
+  const attributionLinks = await recordAttributionLinks({
     userId,
     campaignId: contract.campaignId,
     version: persisted.version,
@@ -71,5 +71,5 @@ export async function importCanonicalXCampaign(userId: string) {
     ),
   });
 
-  return persisted;
+  return { ...persisted, attributionLinks };
 }

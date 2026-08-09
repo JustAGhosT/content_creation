@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import type { CampaignVersion, Prisma, PrismaClient } from '@prisma/client';
 import prisma from '@/lib/db/prisma';
+import { recordAnalyticsEvents } from '@/lib/analytics/repository';
 import type { ScheduledJob } from '@/lib/scheduler/types';
 import type { Campaign } from '@/types/campaign';
 import {
@@ -159,7 +161,7 @@ export async function saveCampaignVersion(input: {
       campaignRowId = existing.id;
     }
 
-    return transaction.campaignVersion.create({
+    const createdVersion = await transaction.campaignVersion.create({
       data: {
         campaignId: campaignRowId,
         version: nextVersion,
@@ -168,6 +170,24 @@ export async function saveCampaignVersion(input: {
         createdBy: input.userId,
       },
     });
+    if (!existing) {
+      await recordAnalyticsEvents(
+        [
+          {
+            eventId: `campaign:${campaignRowId}:created:v${nextVersion}`,
+            name: 'campaign_created',
+            properties: {
+              timestamp: createdVersion.createdAt.toISOString(),
+              campaignId: sanitizedCampaign.id,
+              campaignVersion: nextVersion,
+            },
+          },
+        ],
+        input.userId,
+        transaction
+      );
+    }
+    return createdVersion;
   });
 
   return parseVersion(version);
@@ -227,7 +247,7 @@ export async function recordApproval(input: {
       );
     }
 
-    return transaction.campaignApproval.create({
+    const approval = await transaction.campaignApproval.create({
       data: {
         campaignVersionId: version.id,
         contentId: input.contentId,
@@ -238,6 +258,27 @@ export async function recordApproval(input: {
         notes: input.notes,
       },
     });
+    if (approval.state === 'approved') {
+      await recordAnalyticsEvents(
+        [
+          {
+            eventId: `approval:${approval.id}`,
+            name: 'content_approved',
+            properties: {
+              timestamp: approval.reviewedAt.toISOString(),
+              campaignId: input.campaignId,
+              campaignVersion: input.version,
+              contentId: input.contentId,
+              variantId: input.variantId,
+              approvalState: 'approved',
+            },
+          },
+        ],
+        input.userId,
+        transaction
+      );
+    }
+    return approval;
   });
 }
 
@@ -256,9 +297,9 @@ export async function recordAttributionLinks(input: {
     utmCampaign: string;
     utmContent: string;
   }>;
-}): Promise<void> {
+}) {
   const client = getClient();
-  await client.$transaction(async transaction => {
+  return client.$transaction(async transaction => {
     const campaign = await ownedCampaign(transaction, input.campaignId, input.userId);
     const version = await transaction.campaignVersion.findUnique({
       where: {
@@ -270,6 +311,7 @@ export async function recordAttributionLinks(input: {
     }
     const snapshot = campaignSnapshotSchema.parse(JSON.parse(version.snapshot));
 
+    const recordedLinks = [];
     for (const link of input.links) {
       const content = snapshot.contentItems.find(item => item.id === link.contentId);
       const adaptation = content?.adaptations.find(
@@ -281,8 +323,13 @@ export async function recordAttributionLinks(input: {
           'Attribution adaptation not found in campaign version'
         );
       }
-      const existing = await transaction.attributionLink.findFirst({
-        where: { campaignId: campaign.id, trackingToken: link.trackingToken },
+      const existing = await transaction.attributionLink.findUnique({
+        where: {
+          campaignVersionId_variantId: {
+            campaignVersionId: version.id,
+            variantId: link.variantId,
+          },
+        },
       });
       if (existing) {
         const sameIdentity =
@@ -296,17 +343,22 @@ export async function recordAttributionLinks(input: {
             `Tracking token ${link.trackingToken} already identifies another adaptation`
           );
         }
+        recordedLinks.push(existing);
         continue;
       }
 
-      await transaction.attributionLink.create({
+      const { trackingToken: _canonicalToken, ...attribution } = link;
+      const created = await transaction.attributionLink.create({
         data: {
           campaignId: campaign.id,
           campaignVersionId: version.id,
-          ...link,
+          ...attribution,
+          trackingToken: `mtk_${randomUUID().replaceAll('-', '')}`,
         },
       });
+      recordedLinks.push(created);
     }
+    return recordedLinks;
   });
 }
 

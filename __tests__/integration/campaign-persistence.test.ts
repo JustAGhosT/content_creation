@@ -94,18 +94,60 @@ describePostgres('campaign persistence restart behavior', () => {
       utmCampaign: 'omnipost-x-live-001',
       utmContent: 'post-1',
     };
-    await repository.recordAttributionLinks({
+    const firstAttributionLinks = await repository.recordAttributionLinks({
       userId: ownerId,
       campaignId: omnipostXCampaignSeed.id,
       version: persisted.version,
       links: [attribution],
     });
-    await repository.recordAttributionLinks({
+    const secondAttributionLinks = await repository.recordAttributionLinks({
       userId: secondOwnerId,
       campaignId: omnipostXCampaignSeed.id,
       version: secondTenant.version,
       links: [attribution],
     });
+    expect(firstAttributionLinks[0].trackingToken).toMatch(/^mtk_[a-z0-9_]+$/);
+    expect(secondAttributionLinks[0].trackingToken).toMatch(/^mtk_[a-z0-9_]+$/);
+    expect(secondAttributionLinks[0].trackingToken).not.toBe(
+      firstAttributionLinks[0].trackingToken
+    );
+
+    const analyticsRepository = await import('@/lib/analytics/repository');
+    await analyticsRepository.recordAnalyticsEvents([
+      {
+        eventId: `event:tenant-attribution:${testSuffix}:1`,
+        name: 'landing_view',
+        properties: { campaignToken: firstAttributionLinks[0].trackingToken },
+      },
+      {
+        eventId: `event:tenant-attribution:${testSuffix}:2`,
+        name: 'landing_view',
+        properties: { campaignToken: secondAttributionLinks[0].trackingToken },
+      },
+    ]);
+
+    const analyticsClient = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: databaseUrl }),
+    });
+    const creationEvents = await analyticsClient.analyticsEventRecord.findMany({
+      where: {
+        name: 'campaign_created',
+        userId: { in: [ownerId, secondOwnerId] },
+      },
+      orderBy: { userId: 'asc' },
+    });
+    const attributedEvents = await analyticsClient.analyticsEventRecord.findMany({
+      where: { eventId: { startsWith: `event:tenant-attribution:${testSuffix}:` } },
+      orderBy: { userId: 'asc' },
+    });
+    await analyticsClient.$disconnect();
+    expect(creationEvents).toHaveLength(2);
+    expect(new Set(creationEvents.map(event => event.eventId)).size).toBe(2);
+    expect(creationEvents.map(event => event.campaignId)).toEqual([
+      omnipostXCampaignSeed.id,
+      omnipostXCampaignSeed.id,
+    ]);
+    expect(attributedEvents.map(event => event.userId)).toEqual([ownerId, secondOwnerId]);
 
     const globalPrisma = globalThis as unknown as {
       prisma?: PrismaClient;

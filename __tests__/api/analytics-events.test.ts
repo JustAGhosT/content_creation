@@ -8,6 +8,51 @@
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import '../setup';
 
+interface MockStoredEvent {
+  name: string;
+  occurredAt: Date;
+  userId: string;
+  campaignId?: string;
+}
+
+const mockStoredEvents: MockStoredEvent[] = [];
+let mockSequence = 0;
+
+jest.mock('../../lib/analytics/repository', () => ({
+  AnalyticsPersistenceError: class AnalyticsPersistenceError extends Error {},
+  recordAnalyticsEvents: jest.fn(
+    async (events: Array<{ name: string; properties: Record<string, unknown> }>) => {
+      for (const event of events) {
+        mockStoredEvents.push({
+          name: event.name,
+          occurredAt: new Date((event.properties.timestamp as string | undefined) ?? Date.now()),
+          userId: '1',
+          campaignId: event.properties.campaignId as string | undefined,
+        });
+      }
+    }
+  ),
+}));
+
+jest.mock('../../lib/db/prisma', () => ({
+  __esModule: true,
+  default: {
+    analyticsEventRecord: {
+      findMany: jest.fn(async ({ where }: { where: Record<string, unknown> }) =>
+        mockStoredEvents
+          .filter(event => event.userId === where.userId)
+          .filter(event => !where.name || event.name === where.name)
+          .filter(event => !where.campaignId || event.campaignId === where.campaignId)
+          .filter(event => {
+            const occurredAt = where.occurredAt as { gte?: Date } | undefined;
+            return !occurredAt?.gte || event.occurredAt >= occurredAt.gte;
+          })
+          .map(event => ({ name: event.name }))
+      ),
+    },
+  },
+}));
+
 // Mock audit trail
 jest.mock('../../app/api/_utils/audit', () => ({
   createLogEntry: jest.fn(() => ({})),
@@ -37,9 +82,16 @@ function createRequest(
   } as unknown as Request;
 }
 
+function event(name: string, properties: Record<string, unknown> = {}) {
+  mockSequence += 1;
+  return { eventId: `test:event:${mockSequence}`, name, properties };
+}
+
 describe('Analytics Events API', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockStoredEvents.splice(0);
+    mockSequence = 0;
     // Re-import to reset in-memory eventStore
     jest.resetModules();
     const mod = await import('../../app/api/analytics/events/route');
@@ -51,8 +103,8 @@ describe('Analytics Events API', () => {
     test('should accept a valid event batch (200)', async () => {
       const request = createRequest('POST', {
         events: [
-          { name: 'page_viewed', properties: { url: '/home' } },
-          { name: 'signup_started', properties: { method: 'email' } },
+          event('page_viewed', { url: '/home' }),
+          event('signup_started', { method: 'email' }),
         ],
       });
 
@@ -62,6 +114,18 @@ describe('Analytics Events API', () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.received).toBe(2);
+    });
+
+    test('does not trust an unverified user header on public ingestion', async () => {
+      const response = await POST(
+        createRequest('POST', { events: [event('page_viewed', { url: '/home' })] })
+      );
+      const { recordAnalyticsEvents } = require('../../lib/analytics/repository') as {
+        recordAnalyticsEvents: jest.Mock;
+      };
+
+      expect(response.status).toBe(200);
+      expect(recordAnalyticsEvents).toHaveBeenCalledWith(expect.any(Array), null);
     });
 
     test('should reject an empty events array (400)', async () => {
@@ -78,6 +142,7 @@ describe('Analytics Events API', () => {
 
     test('should reject an oversized batch with more than 50 events (400)', async () => {
       const events = Array.from({ length: 51 }, (_, i) => ({
+        eventId: `test:event:${i}`,
         name: `event_${i}`,
         properties: {},
       }));
@@ -93,7 +158,7 @@ describe('Analytics Events API', () => {
 
     test('should reject an event with an empty name (400)', async () => {
       const request = createRequest('POST', {
-        events: [{ name: '', properties: {} }],
+        events: [event('', {})],
       });
 
       const response = await POST(request);
@@ -101,6 +166,52 @@ describe('Analytics Events API', () => {
 
       expect(response.status).toBe(400);
       expect(data.message).toContain('Invalid event batch');
+    });
+
+    test('rejects properties outside the privacy allow-list', async () => {
+      const response = await POST(
+        createRequest('POST', {
+          events: [event('landing_view', { access_token: 'must-not-be-stored' })],
+        })
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    test('rejects a property that belongs to a different event contract', async () => {
+      const response = await POST(
+        createRequest('POST', {
+          events: [event('signup_completed', { campaignId: 'client-authored-campaign' })],
+        })
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    test('accepts the existing post-created status property', async () => {
+      const response = await POST(
+        createRequest('POST', {
+          events: [
+            event('post_created', {
+              platformCount: 1,
+              platformNames: ['X'],
+              status: 'queued',
+            }),
+          ],
+        })
+      );
+
+      expect(response.status).toBe(200);
+    });
+
+    test('rejects client-authored campaign lifecycle evidence', async () => {
+      const response = await POST(
+        createRequest('POST', {
+          events: [event('publish_succeeded', { campaignId: 'campaign-1' })],
+        })
+      );
+
+      expect(response.status).toBe(403);
     });
   });
 
@@ -128,10 +239,10 @@ describe('Analytics Events API', () => {
       // First, ingest some events
       const postRequest = createRequest('POST', {
         events: [
-          { name: 'page_viewed', properties: {} },
-          { name: 'signup_started', properties: {} },
-          { name: 'signup_completed', properties: {} },
-          { name: 'platform_connected', properties: {} },
+          event('page_viewed'),
+          event('signup_started'),
+          event('signup_completed'),
+          event('platform_connected'),
         ],
       });
       await POST(postRequest);
@@ -158,11 +269,7 @@ describe('Analytics Events API', () => {
     test('should filter by event name', async () => {
       // Ingest events
       const postRequest = createRequest('POST', {
-        events: [
-          { name: 'page_viewed', properties: {} },
-          { name: 'page_viewed', properties: {} },
-          { name: 'signup_started', properties: {} },
-        ],
+        events: [event('page_viewed'), event('page_viewed'), event('signup_started')],
       });
       await POST(postRequest);
 
@@ -185,7 +292,7 @@ describe('Analytics Events API', () => {
     test('should filter by since date', async () => {
       // Ingest events
       const postRequest = createRequest('POST', {
-        events: [{ name: 'page_viewed', properties: {} }],
+        events: [event('page_viewed')],
       });
       await POST(postRequest);
 

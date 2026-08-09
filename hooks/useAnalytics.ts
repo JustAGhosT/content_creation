@@ -28,7 +28,9 @@ interface AnalyticsAPI {
   /** Track a page view explicitly */
   trackPageView: (properties?: Record<string, unknown>) => void;
   /** Track signup completion */
-  trackSignup: (method: 'email' | 'google' | 'github') => void;
+  trackSignup: (method: 'email' | 'google' | 'github' | 'mystira') => void;
+  /** Track the first meaningful interaction with signup */
+  trackSignupStarted: (method: 'email' | 'google' | 'github' | 'mystira') => void;
   /** Track onboarding step */
   trackOnboardingStep: (stepNumber: number, stepName: string, skipped?: boolean) => void;
   /** Track platform connection */
@@ -71,8 +73,12 @@ export function useAnalytics(options: UseAnalyticsOptions = {}): AnalyticsAPI {
     tracker.pageView(properties);
   }, []);
 
-  const trackSignup = useCallback((method: 'email' | 'google' | 'github') => {
+  const trackSignup = useCallback((method: 'email' | 'google' | 'github' | 'mystira') => {
     tracker.track(AnalyticsEvents.SIGNUP_COMPLETED, { method });
+  }, []);
+
+  const trackSignupStarted = useCallback((method: 'email' | 'google' | 'github' | 'mystira') => {
+    tracker.track(AnalyticsEvents.SIGNUP_STARTED, { method });
   }, []);
 
   const trackOnboardingStep = useCallback(
@@ -113,6 +119,7 @@ export function useAnalytics(options: UseAnalyticsOptions = {}): AnalyticsAPI {
     track,
     trackPageView: trackPageViewFn,
     trackSignup,
+    trackSignupStarted,
     trackOnboardingStep,
     trackPlatformConnected,
     trackPostPublished,

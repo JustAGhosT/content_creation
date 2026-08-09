@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -14,6 +14,7 @@ import Header from '@/components/ui/Header';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { tokenStorage } from '@/lib/storage/token-storage';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { getStoredCampaignToken } from '@/lib/analytics';
 import styles from '@/styles/Signup.module.css';
 
 function escapeHtml(str: string): string {
@@ -44,7 +45,8 @@ interface AuthProviderInfo {
 export default function SignupPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const { trackSignup } = useAnalytics({ trackPageView: true });
+  const { trackSignup, trackSignupStarted } = useAnalytics({ trackPageView: true });
+  const signupStarted = useRef(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -106,9 +108,20 @@ export default function SignupPage() {
   }, [isAuthenticated, isLoading, router]);
 
   const handleProviderLogin = (providerId: string) => {
-    const callbackUrl = `${window.location.origin}/api/auth/callback/${encodeURIComponent(providerId)}`;
-    window.location.href =
-      callbackUrl + `?redirect=${encodeURIComponent(window.location.origin + '/onboarding')}`;
+    const callbackUrl = new URL(
+      `/api/auth/callback/${encodeURIComponent(providerId)}`,
+      window.location.origin
+    );
+    callbackUrl.searchParams.set('redirect', window.location.origin + '/onboarding');
+    const campaignToken = getStoredCampaignToken();
+    if (campaignToken) callbackUrl.searchParams.set('campaign_token', campaignToken);
+    window.location.href = callbackUrl.toString();
+  };
+
+  const handleSignupStarted = () => {
+    if (signupStarted.current) return;
+    signupStarted.current = true;
+    trackSignupStarted('email');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -246,7 +259,7 @@ export default function SignupPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} name="signup-form">
+          <form onSubmit={handleSubmit} onFocusCapture={handleSignupStarted} name="signup-form">
             <div className={styles.formGroup}>
               <label htmlFor="username" className={styles.label}>
                 Username
