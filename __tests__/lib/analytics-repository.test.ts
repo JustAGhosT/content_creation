@@ -72,4 +72,38 @@ describe('analytics repository', () => {
       code: 'UNKNOWN_CAMPAIGN_TOKEN',
     });
   });
+
+  test('retains the verified converted user on an attributed signup', async () => {
+    const upsert = jest.fn(async ({ create }) => create);
+    const client = {
+      attributionLink: {
+        findUnique: jest.fn().mockResolvedValue({
+          campaign: { userId: 'campaign-owner', externalId: 'campaign-1', id: 'row-1' },
+          campaignVersion: { version: 1 },
+        }),
+      },
+      analyticsEventRecord: { upsert },
+    } as unknown as PrismaClient;
+
+    await recordAnalyticsEvents(
+      [
+        {
+          eventId: 'event:signup:converted',
+          name: 'signup_completed',
+          properties: { campaignToken: 'mtk_campaign_1', method: 'email' },
+        },
+      ],
+      'converted-user',
+      client
+    );
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          userId: 'converted-user',
+          campaignId: 'campaign-1',
+        }),
+      })
+    );
+  });
 });

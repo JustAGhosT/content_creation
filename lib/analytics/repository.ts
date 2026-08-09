@@ -68,7 +68,9 @@ export async function recordAnalyticsEvents(
     const data = {
       eventId: event.eventId,
       name: event.name,
-      userId: owner?.userId ?? authenticatedUserId ?? null,
+      // Preserve the verified product user for conversion events. The campaign
+      // owner remains available through campaignId/campaignVersion.
+      userId: authenticatedUserId ?? owner?.userId ?? null,
       campaignId: owner?.campaignId ?? dimensions.campaignId ?? null,
       campaignVersion: owner?.campaignVersion ?? dimensions.campaignVersion ?? null,
       contentId: dimensions.contentId ?? null,

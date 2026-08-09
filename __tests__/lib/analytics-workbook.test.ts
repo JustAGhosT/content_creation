@@ -74,7 +74,17 @@ describe('campaign evidence workbook', () => {
       variantId: name.startsWith('publish_') ? 'variant-x-1' : null,
       platform: name.startsWith('publish_') ? 'twitter' : null,
       campaignToken: name === 'landing_view' ? 'mtk_omnipost_x_1' : null,
+      userId: 'user-1',
     }));
+    events.push({
+      eventId: 'event-signup-completed',
+      name: 'signup_completed',
+      contentId: null,
+      variantId: null,
+      platform: null,
+      campaignToken: 'mtk_omnipost_x_1',
+      userId: 'converted-user-1',
+    });
     const jobs: Array<{
       id: string;
       contentId: string;
@@ -100,7 +110,10 @@ describe('campaign evidence workbook', () => {
     ];
     const client = {
       campaign: { findFirst: jest.fn().mockResolvedValue(campaign) },
-      analyticsEventRecord: { findMany: jest.fn().mockResolvedValue(events) },
+      analyticsEventRecord: {
+        findMany: jest.fn().mockResolvedValue(events),
+        count: jest.fn().mockResolvedValue(1),
+      },
       schedulerJob: { findMany: jest.fn().mockResolvedValue(jobs) },
       platformAccount: { findMany: jest.fn().mockResolvedValue([]) },
       schedulerPlatformQuota: { findMany: jest.fn().mockResolvedValue([]) },
@@ -116,6 +129,10 @@ describe('campaign evidence workbook', () => {
       averageLatencyMs: 2000,
     });
     expect(workbook.views.attribution[0]).toMatchObject({ landingViews: 1 });
+    expect(workbook.views.conversion.firstPublish).toBe(1);
+    expect(client.analyticsEventRecord.count).toHaveBeenCalledWith({
+      where: { name: 'post_published', userId: { in: ['converted-user-1'] } },
+    });
     expect(workbook.views.decisions[0].workbookEvidenceCited).toBe(true);
     expect(workbook.reconciliation.reconciled).toBe(true);
 
@@ -127,6 +144,7 @@ describe('campaign evidence workbook', () => {
         variantId: 'variant-x-1',
         platform: 'twitter',
         campaignToken: null,
+        userId: 'user-1',
       },
       {
         eventId: 'event-unknown-attempted',
@@ -135,6 +153,7 @@ describe('campaign evidence workbook', () => {
         variantId: 'variant-x-1',
         platform: 'twitter',
         campaignToken: null,
+        userId: 'user-1',
       }
     );
     jobs.push({

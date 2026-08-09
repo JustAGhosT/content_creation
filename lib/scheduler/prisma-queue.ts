@@ -552,7 +552,6 @@ export class PrismaJobQueue implements JobQueue {
                 failureCode: eventName === 'publish_failed' ? updates.errorCode : undefined,
                 retryable: eventName === 'publish_failed' ? updates.status === 'failed' : undefined,
                 latencyMs,
-                attemptNumber: job.attempts > 0 ? job.attempts : undefined,
               },
             },
           ],

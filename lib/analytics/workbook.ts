@@ -89,9 +89,15 @@ export async function buildCampaignWorkbook(
   }
 
   const stableCampaignId = campaign.externalId ?? campaign.id;
+  const campaignTokens = campaign.attributionLinks.map(link => link.trackingToken);
   const [events, jobs, accounts, quotas] = await Promise.all([
     client.analyticsEventRecord.findMany({
-      where: { userId, campaignId: stableCampaignId },
+      where: {
+        OR: [
+          { userId, campaignId: stableCampaignId },
+          ...(campaignTokens.length > 0 ? [{ campaignToken: { in: campaignTokens } }] : []),
+        ],
+      },
       orderBy: { occurredAt: 'asc' },
     }),
     client.schedulerJob.findMany({
@@ -111,6 +117,22 @@ export async function buildCampaignWorkbook(
     }),
     client.schedulerPlatformQuota.findMany(),
   ]);
+
+  const convertedUserIds = [
+    ...new Set(
+      events
+        .filter(
+          event => event.name === 'signup_completed' && event.userId && event.userId !== userId
+        )
+        .map(event => event.userId as string)
+    ),
+  ];
+  const convertedUserPublishes =
+    convertedUserIds.length > 0
+      ? await client.analyticsEventRecord.count({
+          where: { name: 'post_published', userId: { in: convertedUserIds } },
+        })
+      : 0;
 
   const eventCounts = countBy(events, event => event.name);
   const latestVersion = campaign.versions[0];
@@ -246,7 +268,7 @@ export async function buildCampaignWorkbook(
         ctaClicks: eventCounts.cta_clicked ?? 0,
         signupStarted: eventCounts.signup_started ?? 0,
         signupCompleted: eventCounts.signup_completed ?? 0,
-        firstPublish: publishedJobs.length > 0 ? 1 : 0,
+        firstPublish: convertedUserPublishes > 0 ? 1 : 0,
       },
       dataQuality: {
         malformedAttributionLinkIds: malformedLinks.map(link => link.id),

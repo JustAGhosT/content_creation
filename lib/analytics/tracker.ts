@@ -10,6 +10,7 @@
  */
 
 import type { AnalyticsEventName, BaseEventProperties, UTMProperties } from './events';
+import { tokenStorage } from '@/lib/storage/token-storage';
 
 const BATCH_SIZE = 10;
 const FLUSH_INTERVAL_MS = 30_000; // 30 seconds
@@ -193,9 +194,13 @@ class AnalyticsTracker {
     this.queue = [];
 
     try {
+      const token = tokenStorage.getToken();
       const response = await fetch('/api/analytics/events', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ events }),
         // Use keepalive for beforeunload reliability
         keepalive: true,

@@ -33,6 +33,7 @@ describe('Analytics Tracker', () => {
 
     // Clear sessionStorage
     sessionStorage.clear();
+    localStorage.clear();
 
     // Set up window.location for tests
     Object.defineProperty(window, 'location', {
@@ -111,6 +112,20 @@ describe('Analytics Tracker', () => {
     expect(body.events[0].name).toBe('event_1');
     expect(body.events[1].name).toBe('event_2');
     expect(body.events[2].name).toBe('event_3');
+  });
+
+  test('flush() authenticates conversion events after registration', async () => {
+    localStorage.setItem('auth-token', 'verified-registration-token');
+    tracker.track('signup_completed', { method: 'email' });
+
+    await tracker.flush();
+
+    const callArgs = mockFetch.mock.calls[0] as unknown[];
+    const init = callArgs[1] as RequestInit;
+    expect(init.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer verified-registration-token',
+    });
   });
 
   test('flush() re-queues events on failure', async () => {

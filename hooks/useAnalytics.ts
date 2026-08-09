@@ -29,6 +29,8 @@ interface AnalyticsAPI {
   trackPageView: (properties?: Record<string, unknown>) => void;
   /** Track signup completion */
   trackSignup: (method: 'email' | 'google' | 'github') => void;
+  /** Track the first meaningful interaction with signup */
+  trackSignupStarted: (method: 'email' | 'google' | 'github') => void;
   /** Track onboarding step */
   trackOnboardingStep: (stepNumber: number, stepName: string, skipped?: boolean) => void;
   /** Track platform connection */
@@ -75,6 +77,10 @@ export function useAnalytics(options: UseAnalyticsOptions = {}): AnalyticsAPI {
     tracker.track(AnalyticsEvents.SIGNUP_COMPLETED, { method });
   }, []);
 
+  const trackSignupStarted = useCallback((method: 'email' | 'google' | 'github') => {
+    tracker.track(AnalyticsEvents.SIGNUP_STARTED, { method });
+  }, []);
+
   const trackOnboardingStep = useCallback(
     (stepNumber: number, stepName: string, skipped = false) => {
       tracker.track(AnalyticsEvents.ONBOARDING_STEP_COMPLETED, {
@@ -113,6 +119,7 @@ export function useAnalytics(options: UseAnalyticsOptions = {}): AnalyticsAPI {
     track,
     trackPageView: trackPageViewFn,
     trackSignup,
+    trackSignupStarted,
     trackOnboardingStep,
     trackPlatformConnected,
     trackPostPublished,

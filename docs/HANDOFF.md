@@ -168,7 +168,7 @@ estate until target data, DNS, identity, and runtime evidence all pass.
   validation, lint, targeted Prettier, and the production build pass locally.
   The build compiled 60 routes/pages, including `/api/analytics/workbook`. Lint
   retains the repository's 120 pre-existing warnings and adds no errors.
-- Jest passed 52 suites and 357 tests. Two PostgreSQL integration suites and 12
+- Jest passed 53 suites and 360 tests. Two PostgreSQL integration suites and 12
   tests were skipped because no local test database was supplied; CI must run
   them against PostgreSQL before merge.
 - `pnpm check-all` passed marketing validation, TypeScript, and lint, then

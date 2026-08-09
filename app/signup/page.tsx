@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -44,7 +44,8 @@ interface AuthProviderInfo {
 export default function SignupPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const { trackSignup } = useAnalytics({ trackPageView: true });
+  const { trackSignup, trackSignupStarted } = useAnalytics({ trackPageView: true });
+  const signupStarted = useRef(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -109,6 +110,12 @@ export default function SignupPage() {
     const callbackUrl = `${window.location.origin}/api/auth/callback/${encodeURIComponent(providerId)}`;
     window.location.href =
       callbackUrl + `?redirect=${encodeURIComponent(window.location.origin + '/onboarding')}`;
+  };
+
+  const handleSignupStarted = () => {
+    if (signupStarted.current) return;
+    signupStarted.current = true;
+    trackSignupStarted('email');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -246,7 +253,7 @@ export default function SignupPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} name="signup-form">
+          <form onSubmit={handleSubmit} onFocusCapture={handleSignupStarted} name="signup-form">
             <div className={styles.formGroup}>
               <label htmlFor="username" className={styles.label}>
                 Username
