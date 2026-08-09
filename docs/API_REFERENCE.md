@@ -77,8 +77,10 @@ Always returns HTTP 200 if the application is running, regardless of configurati
   "status": "healthy",
   "timestamp": "2025-12-05T10:30:00.000Z",
   "version": "1.0.0",
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "builtAt": "2026-08-09T16:00:00.000Z",
   "uptime": 86400,
-  "environment": "production"
+  "environment": "dev"
 }
 ```
 
@@ -91,6 +93,8 @@ Returns HTTP 200 for "healthy" or "degraded" status. Returns HTTP 503 only for "
   "status": "healthy",
   "timestamp": "2025-12-05T10:30:00.000Z",
   "version": "1.0.0",
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "builtAt": "2026-08-09T16:00:00.000Z",
   "uptime": 86400,
   "environment": "production",
   "components": [

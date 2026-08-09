@@ -75,6 +75,8 @@ jobs:
           pnpm run db:migrate:deploy
           pnpm test
         env:
+          APP_COMMIT: ${{ github.sha }}
+          APP_ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
           JWT_SECRET: test-secret-key-for-deployment-ci
           DATABASE_URL: postgresql://omnipost:omnipost@localhost:5432/omnipost_ci?sslmode=disable
 
@@ -282,6 +284,9 @@ jobs:
           package: node-app.zip
 
       - name: Verify deployment health
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+          EXPECTED_ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           echo "Waiting 30 seconds for app to start..."
           sleep 30
@@ -293,15 +298,21 @@ jobs:
           RETRY_COUNT=0
 
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/api/health" || echo "000")
-            
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Health check passed! App is running."
-              curl -s "${APP_URL}/api/health" | jq .
+            HEALTH_RESPONSE=$(curl --silent --show-error --fail "${APP_URL}/api/health" || true)
+            ACTUAL_COMMIT=$(jq -r '.commit // empty' <<<"$HEALTH_RESPONSE")
+            ACTUAL_ENVIRONMENT=$(jq -r '.environment // empty' <<<"$HEALTH_RESPONSE")
+            VERSION=$(jq -r '.version // empty' <<<"$HEALTH_RESPONSE")
+            BUILT_AT=$(jq -r '.builtAt // empty' <<<"$HEALTH_RESPONSE")
+
+            if [ "$ACTUAL_COMMIT" = "$EXPECTED_COMMIT" ] && \
+               [ "$ACTUAL_ENVIRONMENT" = "$EXPECTED_ENVIRONMENT" ] && \
+               [ -n "$VERSION" ] && [ -n "$BUILT_AT" ]; then
+              echo "✅ Health check passed for the expected deployment artifact."
+              jq '{status, version, commit, builtAt, environment}' <<<"$HEALTH_RESPONSE"
               exit 0
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
-              echo "⚠️  Attempt $RETRY_COUNT/$MAX_RETRIES: Health check returned $HTTP_CODE"
+              echo "⚠️  Attempt $RETRY_COUNT/$MAX_RETRIES: expected $EXPECTED_ENVIRONMENT/$EXPECTED_COMMIT, observed ${ACTUAL_ENVIRONMENT:-missing}/${ACTUAL_COMMIT:-missing}"
               if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
                 echo "Retrying in 10 seconds..."
                 sleep 10
@@ -309,7 +320,7 @@ jobs:
             fi
           done
 
-          echo "❌ Health check failed after $MAX_RETRIES attempts"
+          echo "❌ Expected deployment artifact was not verified after $MAX_RETRIES attempts"
           echo "Deployment may have issues. Check Azure logs:"
           echo "az webapp log tail --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }}"
           exit 1

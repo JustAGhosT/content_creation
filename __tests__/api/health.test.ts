@@ -64,10 +64,30 @@ describe('GET /api/health', () => {
       expect(data.status).toBe('healthy');
       expect(data).toHaveProperty('timestamp');
       expect(data).toHaveProperty('version');
+      expect(data).toHaveProperty('commit');
+      expect(data).toHaveProperty('builtAt');
       expect(data).toHaveProperty('uptime');
       expect(data).toHaveProperty('environment');
       expect(data).not.toHaveProperty('components');
       expect(data).not.toHaveProperty('details');
+    });
+
+    it('should expose the exact artifact build stamp', async () => {
+      process.env.OMNIPOST_VERSION = '2.3.4';
+      process.env.OMNIPOST_COMMIT = '0123456789abcdef0123456789abcdef01234567';
+      process.env.OMNIPOST_BUILT_AT = '2026-08-09T16:00:00.000Z';
+      process.env.OMNIPOST_ENVIRONMENT = 'dev';
+
+      const request = createMockRequest('http://localhost:3000/api/health');
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(data).toMatchObject({
+        version: '2.3.4',
+        commit: '0123456789abcdef0123456789abcdef01234567',
+        builtAt: '2026-08-09T16:00:00.000Z',
+        environment: 'dev',
+      });
     });
 
     it('should return 200 even when JWT_SECRET is missing', async () => {
