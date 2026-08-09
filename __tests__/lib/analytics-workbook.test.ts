@@ -168,6 +168,21 @@ describe('campaign evidence workbook', () => {
     expect(workbook.views.decisions[0].workbookEvidenceCited).toBe(true);
     expect(workbook.reconciliation.reconciled).toBe(true);
 
+    campaign.attributionLinks[0].utmContent = 'wrong-variant';
+    const workbookWithMismatchedUtmContent = await buildCampaignWorkbook(
+      'user-1',
+      'omnipost-x-live-001',
+      client
+    );
+    expect(workbookWithMismatchedUtmContent.views.preflight).toMatchObject({
+      complete: false,
+      missing: expect.arrayContaining(['valid_attribution_tags']),
+    });
+    expect(workbookWithMismatchedUtmContent.views.dataQuality.malformedAttributionLinkIds).toEqual([
+      'link-1',
+    ]);
+    campaign.attributionLinks[0].utmContent = 'variant-x-1';
+
     events.push(
       {
         eventId: 'event-unknown-queued',
@@ -241,6 +256,27 @@ describe('campaign evidence workbook', () => {
       missing: expect.arrayContaining(['approved_content']),
     });
     expect(workbookAfterRejection.views.approvalAndScheduling.approved).toBe(0);
+
+    campaign.versions[0].approvals.push({
+      id: 'approval-3',
+      contentId: 'content-2',
+      variantId: 'variant-x-2',
+      state: 'approved',
+      contentHash: 'sha256:approved-2',
+      reviewedAt: new Date('2026-08-09T00:50:00.000Z'),
+    });
+    const workbookWithoutApprovedLink = await buildCampaignWorkbook(
+      'user-1',
+      'omnipost-x-live-001',
+      client
+    );
+    expect(workbookWithoutApprovedLink.views.preflight).toMatchObject({
+      complete: false,
+      approvedContent: 1,
+      attributionLinks: 1,
+      approvedAttributionLinks: 0,
+      missing: expect.arrayContaining(['approved_attribution_links']),
+    });
 
     campaign.attributionLinks[0].campaignVersionId = 'version-0';
     const workbookWithoutCurrentLinks = await buildCampaignWorkbook(

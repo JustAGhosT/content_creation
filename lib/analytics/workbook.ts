@@ -151,6 +151,14 @@ export async function buildCampaignWorkbook(
   const currentAttributionLinks = latestVersion
     ? campaign.attributionLinks.filter(link => link.campaignVersionId === latestVersion.id)
     : [];
+  const approvedContentKeys = new Set(
+    currentApprovalStates
+      .filter(approval => approval.state === 'approved')
+      .map(approval => `${approval.contentId}\u0000${approval.variantId ?? ''}`)
+  );
+  const approvedAttributionLinks = currentAttributionLinks.filter(link =>
+    approvedContentKeys.has(`${link.contentId}\u0000${link.variantId}`)
+  );
   const malformedLinks = currentAttributionLinks.filter(
     link =>
       !/^mtk_[a-z0-9_]+$/.test(link.trackingToken) ||
@@ -158,7 +166,8 @@ export async function buildCampaignWorkbook(
       !link.utmSource ||
       !link.utmMedium ||
       !link.utmCampaign ||
-      !link.utmContent
+      !link.utmContent ||
+      link.utmContent !== link.variantId
   );
   const campaignEvents = events.filter(event => event.name.startsWith('publish_'));
   const incompleteEvents = campaignEvents.filter(
@@ -221,6 +230,7 @@ export async function buildCampaignWorkbook(
     missingPreflight.push('approved_content');
   }
   if (currentAttributionLinks.length === 0) missingPreflight.push('attribution_links');
+  if (approvedAttributionLinks.length === 0) missingPreflight.push('approved_attribution_links');
   if (malformedLinks.length > 0) missingPreflight.push('valid_attribution_tags');
 
   return {
@@ -239,6 +249,7 @@ export async function buildCampaignWorkbook(
         versionCount: campaign.currentVersion,
         approvedContent,
         attributionLinks: currentAttributionLinks.length,
+        approvedAttributionLinks: approvedAttributionLinks.length,
       },
       approvalAndScheduling: {
         approved: approvedContent,
