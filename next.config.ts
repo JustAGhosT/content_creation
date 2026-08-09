@@ -1,8 +1,22 @@
 import { NextConfig } from 'next';
+import packageJson from './package.json';
+
+const buildVersion = process.env.APP_VERSION || packageJson.version;
+const buildCommit = process.env.APP_COMMIT || process.env.GITHUB_SHA || 'unknown';
+const builtAt = process.env.APP_BUILT_AT || new Date().toISOString();
+const deploymentEnvironment = process.env.APP_ENVIRONMENT || 'development';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone', // Optimized production build with minimal dependencies
+  // Embed only non-secret provenance in the artifact. This prevents a failed
+  // deployment from advertising a SHA that never reached the running app.
+  env: {
+    OMNIPOST_VERSION: buildVersion,
+    OMNIPOST_COMMIT: buildCommit,
+    OMNIPOST_BUILT_AT: builtAt,
+    OMNIPOST_ENVIRONMENT: deploymentEnvironment,
+  },
   images: {
     remotePatterns: [
       {

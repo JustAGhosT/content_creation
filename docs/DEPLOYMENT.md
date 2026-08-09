@@ -65,3 +65,16 @@ curl https://nl-dev-omnipost-sluice.jollyfield-e2805f37.westeurope.azurecontaine
 ```
 
 Expected result: HTTP `200 OK`; Sluice readiness should include `db: "connected"`.
+
+The application health payload also exposes the non-secret artifact stamp:
+`version`, `commit`, `builtAt`, and `environment`. The deployment workflow does
+not accept HTTP 200 alone: it verifies that the live `commit` equals the exact
+GitHub Actions build SHA before the run can qualify as successful deployment
+evidence. A merge, successful build, Terraform plan, or failed deployment must
+not be reported as shipped.
+
+The GitHub Actions run URL for a successful deployment is the authoritative
+deployment and acceptance evidence. Roll back by redeploying a previously
+verified commit through the same workflow, then verify that `/api/health`
+reports that exact rollback commit. Do not change the runtime stamp separately
+from the application artifact.

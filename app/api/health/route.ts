@@ -42,6 +42,8 @@ interface HealthResponse {
   status: HealthStatus;
   timestamp: string;
   version: string;
+  commit: string;
+  builtAt: string;
   uptime: number;
   environment: string;
   components?: ComponentHealth[];
@@ -62,7 +64,19 @@ interface HealthResponse {
  * Get application version from package.json or environment
  */
 function getVersion(): string {
-  return process.env.npm_package_version || process.env.APP_VERSION || '0.1.0';
+  return process.env.OMNIPOST_VERSION || process.env.APP_VERSION || '0.1.0';
+}
+
+function getCommit(): string {
+  return process.env.OMNIPOST_COMMIT || 'unknown';
+}
+
+function getBuiltAt(): string {
+  return process.env.OMNIPOST_BUILT_AT || 'unknown';
+}
+
+function getEnvironment(): string {
+  return process.env.OMNIPOST_ENVIRONMENT || process.env.NODE_ENV || 'development';
 }
 
 /**
@@ -214,8 +228,10 @@ export async function GET(request: NextRequest): Promise<NextResponse<HealthResp
         status: 'healthy',
         timestamp: new Date().toISOString(),
         version: getVersion(),
+        commit: getCommit(),
+        builtAt: getBuiltAt(),
         uptime: getUptime(),
-        environment: process.env.NODE_ENV || 'development',
+        environment: getEnvironment(),
       },
       {
         status: 200,
@@ -252,8 +268,10 @@ export async function GET(request: NextRequest): Promise<NextResponse<HealthResp
       status: overallStatus,
       timestamp: new Date().toISOString(),
       version: getVersion(),
+      commit: getCommit(),
+      builtAt: getBuiltAt(),
       uptime: getUptime(),
-      environment: process.env.NODE_ENV || 'development',
+      environment: getEnvironment(),
       components,
       details: {
         memory: {
