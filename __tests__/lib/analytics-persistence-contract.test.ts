@@ -23,6 +23,9 @@ describe('durable analytics persistence contract', () => {
     expect(migration).toContain('AttributionLink_trackingToken_key');
     expect(migration).toContain('Duplicate attribution tokens detected');
     expect(migration).not.toContain('SET "trackingToken"');
+    expect(migration.indexOf('Duplicate attribution tokens detected')).toBeLessThan(
+      migration.indexOf('CREATE TABLE "AnalyticsEventRecord"')
+    );
   });
 
   test('rejects secret-bearing and unknown telemetry attributes', () => {

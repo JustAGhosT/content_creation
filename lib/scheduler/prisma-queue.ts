@@ -525,7 +525,7 @@ export class PrismaJobQueue implements JobQueue {
       const eventName =
         updates.status === 'published'
           ? 'publish_succeeded'
-          : job.attempts > 0 &&
+          : job.attemptStartedAt &&
               ['failed', 'dead', 'reconciliation_required'].includes(updates.status ?? '')
             ? 'publish_failed'
             : null;

@@ -31,6 +31,31 @@ function countBy<T>(items: T[], key: (item: T) => string): Record<string, number
   }, {});
 }
 
+function latestApprovalStates<
+  T extends {
+    id: string;
+    contentId: string;
+    variantId: string | null;
+    contentHash: string;
+    reviewedAt: Date;
+  },
+>(approvals: T[]): T[] {
+  const seen = new Set<string>();
+  return [...approvals]
+    .sort(
+      (left, right) =>
+        right.reviewedAt.getTime() - left.reviewedAt.getTime() || right.id.localeCompare(left.id)
+    )
+    .filter(approval => {
+      const key = [approval.contentId, approval.variantId ?? '', approval.contentHash].join(
+        '\u0000'
+      );
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 export async function buildCampaignWorkbook(
   userId: string,
   campaignIdentifier: string,
@@ -89,6 +114,10 @@ export async function buildCampaignWorkbook(
 
   const eventCounts = countBy(events, event => event.name);
   const latestVersion = campaign.versions[0];
+  const currentApprovalStates = latestVersion ? latestApprovalStates(latestVersion.approvals) : [];
+  const approvedContent = currentApprovalStates.filter(
+    approval => approval.state === 'approved'
+  ).length;
   const currentAttributionLinks = latestVersion
     ? campaign.attributionLinks.filter(link => link.campaignVersionId === latestVersion.id)
     : [];
@@ -155,7 +184,7 @@ export async function buildCampaignWorkbook(
   });
   const missingPreflight: string[] = [];
   if (!latestVersion) missingPreflight.push('campaign_version');
-  if (!latestVersion?.approvals.some(approval => approval.state === 'approved')) {
+  if (approvedContent === 0) {
     missingPreflight.push('approved_content');
   }
   if (currentAttributionLinks.length === 0) missingPreflight.push('attribution_links');
@@ -175,13 +204,11 @@ export async function buildCampaignWorkbook(
         complete: missingPreflight.length === 0,
         missing: missingPreflight,
         versionCount: campaign.currentVersion,
-        approvedContent:
-          latestVersion?.approvals.filter(approval => approval.state === 'approved').length ?? 0,
+        approvedContent,
         attributionLinks: currentAttributionLinks.length,
       },
       approvalAndScheduling: {
-        approved:
-          latestVersion?.approvals.filter(approval => approval.state === 'approved').length ?? 0,
+        approved: approvedContent,
         queued: jobs.length,
         attempted: attemptedPublishes,
         published: publishedJobs.length,

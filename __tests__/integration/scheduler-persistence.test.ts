@@ -84,6 +84,9 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
   afterEach(async () => {
     if (setupClient) {
       await setupClient.publishAttempt.deleteMany({ where: { campaignId } });
+      await setupClient.analyticsEventRecord.deleteMany({
+        where: { userId: { in: [ownerId, otherOwnerId] } },
+      });
       await setupClient.schedulerJob.deleteMany({
         where: { userId: { in: [ownerId, otherOwnerId] } },
       });
@@ -218,6 +221,62 @@ describePostgres('scheduler persistence, idempotency, and leases', () => {
     ).resolves.toMatchObject({ attempts: 1, lastAttemptAt: dueAt.toISOString() });
     await firstClient.$disconnect();
     await secondClient.$disconnect();
+  });
+
+  test('emits a failure only when the current claim started a provider attempt', async () => {
+    if (!setupClient) throw new Error('PostgreSQL setup client was not initialized');
+    const queue = new PrismaJobQueue(setupClient);
+    const dueAt = new Date('2026-07-26T08:00:00Z');
+    const beforeAttempt = testJob(ownerId, `${suffix}-retry-before-attempt`);
+    await queue.add({
+      ...beforeAttempt,
+      status: 'failed',
+      attempts: 1,
+      lastAttemptAt: '2026-07-26T07:30:00.000Z',
+      nextRetryAt: dueAt.toISOString(),
+    });
+    const [claimedBeforeAttempt] = await queue.claimDueJobs(
+      dueAt,
+      1,
+      'retry-before-attempt-lease',
+      new Date('2026-07-26T08:02:00Z')
+    );
+    await queue.updateClaimed(claimedBeforeAttempt.id, claimedBeforeAttempt.leaseToken!, {
+      status: 'failed',
+      errorCode: 'VALIDATION_FAILED',
+      updatedAt: dueAt.toISOString(),
+    });
+    await expect(
+      setupClient.analyticsEventRecord.count({
+        where: { eventId: { startsWith: `scheduler:${beforeAttempt.id}:publish_failed:` } },
+      })
+    ).resolves.toBe(0);
+
+    const afterAttempt = testJob(ownerId, `${suffix}-retry-after-attempt`);
+    await queue.add({
+      ...afterAttempt,
+      status: 'failed',
+      attempts: 1,
+      lastAttemptAt: '2026-07-26T07:30:00.000Z',
+      nextRetryAt: dueAt.toISOString(),
+    });
+    const [claimedAfterAttempt] = await queue.claimDueJobs(
+      dueAt,
+      1,
+      'retry-after-attempt-lease',
+      new Date('2026-07-26T08:02:00Z')
+    );
+    await queue.markClaimAttempt(claimedAfterAttempt.id, claimedAfterAttempt.leaseToken!, dueAt);
+    await queue.updateClaimed(claimedAfterAttempt.id, claimedAfterAttempt.leaseToken!, {
+      status: 'failed',
+      errorCode: 'PROVIDER_FAILED',
+      updatedAt: dueAt.toISOString(),
+    });
+    await expect(
+      setupClient.analyticsEventRecord.count({
+        where: { eventId: { startsWith: `scheduler:${afterAttempt.id}:publish_failed:` } },
+      })
+    ).resolves.toBe(1);
   });
 
   test('atomically reserves shared platform quota across database clients', async () => {

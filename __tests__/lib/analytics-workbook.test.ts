@@ -13,7 +13,21 @@ describe('campaign evidence workbook', () => {
       name: 'OmniPost X live',
       status: 'active',
       currentVersion: 1,
-      versions: [{ id: 'version-1', approvals: [{ state: 'approved' }] }],
+      versions: [
+        {
+          id: 'version-1',
+          approvals: [
+            {
+              id: 'approval-1',
+              contentId: 'content-1',
+              variantId: 'variant-x-1',
+              state: 'approved',
+              contentHash: 'sha256:approved',
+              reviewedAt: new Date('2026-08-09T00:30:00.000Z'),
+            },
+          ],
+        },
+      ],
       attributionLinks: [
         {
           id: 'link-1',
@@ -155,6 +169,26 @@ describe('campaign evidence workbook', () => {
       unknown: 1,
     });
     expect(workbookWithUnknownOutcome.reconciliation.reconciled).toBe(false);
+
+    campaign.versions[0].approvals.push({
+      id: 'approval-2',
+      contentId: 'content-1',
+      variantId: 'variant-x-1',
+      state: 'rejected',
+      contentHash: 'sha256:approved',
+      reviewedAt: new Date('2026-08-09T00:45:00.000Z'),
+    });
+    const workbookAfterRejection = await buildCampaignWorkbook(
+      'user-1',
+      'omnipost-x-live-001',
+      client
+    );
+    expect(workbookAfterRejection.views.preflight).toMatchObject({
+      complete: false,
+      approvedContent: 0,
+      missing: expect.arrayContaining(['approved_content']),
+    });
+    expect(workbookAfterRejection.views.approvalAndScheduling.approved).toBe(0);
 
     campaign.attributionLinks[0].campaignVersionId = 'version-0';
     const workbookWithoutCurrentLinks = await buildCampaignWorkbook(
