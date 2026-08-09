@@ -22,8 +22,9 @@
 
 ### Gate 4 Implementation
 
-- Branch `agent/gate4-attribution-workbook` starts from deployed `origin/main`
-  commit `df4b14e97ec2088ec88a55ac88ebeb474a6c8604`.
+- [PR #202](https://github.com/neuralliquid/omnipost/pull/202) on branch
+  `agent/gate4-attribution-workbook` starts from deployed `origin/main` commit
+  `df4b14e97ec2088ec88a55ac88ebeb474a6c8604`.
 - A PostgreSQL `AnalyticsEventRecord` stores idempotent, tenant-scoped,
   allow-listed product and campaign events. Unknown properties and
   secret-bearing attributes are rejected; trusted campaign lifecycle events
