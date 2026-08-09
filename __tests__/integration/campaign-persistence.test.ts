@@ -107,6 +107,24 @@ describePostgres('campaign persistence restart behavior', () => {
       links: [attribution],
     });
 
+    const analyticsClient = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: databaseUrl }),
+    });
+    const creationEvents = await analyticsClient.analyticsEventRecord.findMany({
+      where: {
+        name: 'campaign_created',
+        userId: { in: [ownerId, secondOwnerId] },
+      },
+      orderBy: { userId: 'asc' },
+    });
+    await analyticsClient.$disconnect();
+    expect(creationEvents).toHaveLength(2);
+    expect(new Set(creationEvents.map(event => event.eventId)).size).toBe(2);
+    expect(creationEvents.map(event => event.campaignId)).toEqual([
+      omnipostXCampaignSeed.id,
+      omnipostXCampaignSeed.id,
+    ]);
+
     const globalPrisma = globalThis as unknown as {
       prisma?: PrismaClient;
     };

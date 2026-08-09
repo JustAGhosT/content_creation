@@ -173,7 +173,7 @@ export async function saveCampaignVersion(input: {
       await recordAnalyticsEvents(
         [
           {
-            eventId: `campaign:${sanitizedCampaign.id}:created:v${nextVersion}`,
+            eventId: `campaign:${campaignRowId}:created:v${nextVersion}`,
             name: 'campaign_created',
             properties: {
               timestamp: createdVersion.createdAt.toISOString(),
