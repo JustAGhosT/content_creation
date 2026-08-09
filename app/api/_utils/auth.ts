@@ -32,6 +32,15 @@ export async function getCurrentUserId(): Promise<string | null> {
 }
 
 /**
+ * Gets an identity only when the API proxy marked it as JWT-verified.
+ * Public routes must use this instead of trusting caller-authored identity headers.
+ */
+export async function getVerifiedCurrentUserId(): Promise<string | null> {
+  const headersList = await headers();
+  return headersList.get('x-user-authenticated') === 'true' ? headersList.get('x-user-id') : null;
+}
+
+/**
  * Gets the current username from the request
  * @returns Username or null if not authenticated
  */

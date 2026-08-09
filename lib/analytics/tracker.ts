@@ -24,6 +24,10 @@ const ATTRIBUTION_EVENT_NAMES = new Set([
   'platform_connected',
 ]);
 
+interface StoredAttribution extends UTMProperties {
+  campaignToken?: string;
+}
+
 // ── Session Management ───────────────────────────────────────────────────
 
 function getOrCreateSessionId(): string {
@@ -39,39 +43,44 @@ function getOrCreateSessionId(): string {
 
 // ── UTM Parameter Capture ────────────────────────────────────────────────
 
-function captureUTMParams(): UTMProperties {
+function captureAttributionParams(): StoredAttribution {
   if (typeof window === 'undefined') return {};
 
   const params = new URLSearchParams(window.location.search);
-  const utm: UTMProperties = {};
+  const attribution: StoredAttribution = {};
 
   const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'] as const;
   for (const key of utmKeys) {
     const value = params.get(key);
     if (value) {
-      utm[key] = value;
+      attribution[key] = value;
     }
   }
 
-  // Persist UTMs for attribution across pages
-  if (Object.keys(utm).length > 0) {
+  const campaignToken = params.get('mtk') ?? params.get('campaign_token');
+  if (campaignToken && /^mtk_[a-z0-9_]+$/.test(campaignToken)) {
+    attribution.campaignToken = campaignToken;
+  }
+
+  // Persist the opaque campaign token with UTMs for attribution across pages.
+  if (Object.keys(attribution).length > 0) {
     try {
-      sessionStorage.setItem(UTM_KEY, JSON.stringify(utm));
+      sessionStorage.setItem(UTM_KEY, JSON.stringify(attribution));
     } catch {
       // sessionStorage unavailable
     }
   }
 
-  return utm;
+  return attribution;
 }
 
-function getStoredUTMs(): UTMProperties {
+function getStoredAttribution(): StoredAttribution {
   if (typeof window === 'undefined') return {};
 
   try {
     const stored = sessionStorage.getItem(UTM_KEY);
     if (stored) {
-      return JSON.parse(stored) as UTMProperties;
+      return JSON.parse(stored) as StoredAttribution;
     }
   } catch {
     // parse error or storage unavailable
@@ -100,16 +109,34 @@ class AnalyticsTracker {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // Capture UTMs on first load
-      captureUTMParams();
+      const attribution = captureAttributionParams();
+      if (attribution.campaignToken) {
+        this.track('landing_view', {
+          ...attribution,
+          landingPage: window.location.pathname,
+        });
+      }
 
       // Set up periodic flush
       this.flushTimer = setInterval(() => this.flush(), FLUSH_INTERVAL_MS);
 
       // Flush on page unload
       window.addEventListener('beforeunload', () => this.flush());
+      document.addEventListener('click', this.handleDocumentClick);
     }
   }
+
+  private handleDocumentClick = (event: MouseEvent): void => {
+    if (!(event.target instanceof Element)) return;
+    const cta = event.target.closest('a[href^="/signup"], [data-analytics-cta]');
+    if (!cta) return;
+    const attribution = getStoredAttribution();
+    if (!attribution.campaignToken) return;
+    this.track('cta_clicked', {
+      ...attribution,
+      landingPage: window.location.pathname,
+    });
+  };
 
   /**
    * Set the authenticated user ID for attribution
@@ -128,12 +155,12 @@ class AnalyticsTracker {
       sessionId: getOrCreateSessionId(),
     };
 
-    const utms = ATTRIBUTION_EVENT_NAMES.has(name) ? getStoredUTMs() : {};
+    const attribution = ATTRIBUTION_EVENT_NAMES.has(name) ? getStoredAttribution() : {};
 
     this.queue.push({
       eventId: createEventId(),
       name,
-      properties: { ...baseProps, ...utms, ...properties },
+      properties: { ...baseProps, ...attribution, ...properties },
     });
 
     if (this.queue.length >= BATCH_SIZE) {
@@ -151,7 +178,7 @@ class AnalyticsTracker {
       url: window.location.pathname,
       referrer: document.referrer || undefined,
       title: document.title,
-      ...captureUTMParams(),
+      ...captureAttributionParams(),
       ...properties,
     });
   }
@@ -195,6 +222,9 @@ class AnalyticsTracker {
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('click', this.handleDocumentClick);
     }
     this.flush();
   }

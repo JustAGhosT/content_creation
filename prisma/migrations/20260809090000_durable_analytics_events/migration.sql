@@ -34,22 +34,21 @@ CREATE INDEX "AnalyticsEventRecord_name_occurredAt_idx" ON "AnalyticsEventRecord
 -- AddForeignKey
 ALTER TABLE "AnalyticsEventRecord" ADD CONSTRAINT "AnalyticsEventRecord_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Public attribution tokens must identify exactly one campaign globally. Keep
--- the oldest existing token stable and repair only previously ambiguous copies.
-WITH "rankedAttributionTokens" AS (
-    SELECT
-        "id",
-        ROW_NUMBER() OVER (
-            PARTITION BY "trackingToken"
-            ORDER BY "createdAt" ASC, "id" ASC
-        ) AS "duplicateRank"
-    FROM "AttributionLink"
-)
-UPDATE "AttributionLink" AS "link"
-SET "trackingToken" = 'mtk_' || REPLACE("link"."id", '-', '')
-FROM "rankedAttributionTokens" AS "ranked"
-WHERE "link"."id" = "ranked"."id"
-  AND "ranked"."duplicateRank" > 1;
+-- Public attribution tokens must identify exactly one campaign globally.
+-- Existing duplicates may already be embedded in distributed URLs, so changing
+-- either row here would silently reattribute traffic. Fail closed and require
+-- affected links to be regenerated before applying this migration.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM "AttributionLink"
+        GROUP BY "trackingToken"
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'Duplicate attribution tokens detected; regenerate affected campaign links before migration';
+    END IF;
+END $$;
 
 DROP INDEX IF EXISTS "AttributionLink_campaignId_trackingToken_key";
 CREATE UNIQUE INDEX "AttributionLink_trackingToken_key" ON "AttributionLink"("trackingToken");

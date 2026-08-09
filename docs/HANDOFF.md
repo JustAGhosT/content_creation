@@ -40,6 +40,11 @@
   validates properties against their specific event contract, preserves the
   existing bounded `post_created.status` field, and reports
   `reconciliation_required` provider outcomes as unknown rather than failures.
+- Public attribution captures `mtk`/`campaign_token` from landing URLs, persists
+  it with bounded UTMs, emits landing and signup-CTA evidence, and resolves the
+  immutable linked campaign version. Public ingestion strips caller-authored
+  identity headers and accepts ownership only from proxy-verified JWT context or
+  a recognized opaque campaign token.
 
 ### Next Session: Private Preview UX And Navigation
 
@@ -61,13 +66,109 @@ Start from current `origin/main`, inspect the existing sign-in, shared header,
 dashboard shell, and footer implementations before editing, and keep product
 status copy centralized so the three surfaces cannot drift.
 
+### Next Session: Cross-Repo Neural Liquid Migration Program
+
+Baton parent task `2fcf19ee-b5c7-462f-ad66-a9ecc692d17c` is the canonical
+restart point for a comprehensive plan covering OmniPost, ConvoLens, Cognitive
+Mesh, and NexaMesh. The two Private Preview tasks above are children of this
+program. Planning and inventory come before any Azure, DNS, identity, data, or
+deployment mutation.
+
+#### Verified Starting Point
+
+- Mystira's useful reference patterns are conventional-commit SemVer, a
+  protected release PR, immutable tags, stamped `version + commit + builtAt`
+  runtime evidence, post-deploy version verification, per-deploy Discord
+  notices, and independent marker-tag windows for daily and Friday weekly
+  summaries. The marker design reports what actually shipped, rolls missed
+  windows forward, and does not call merged-but-undeployed work released.
+- Azure subscription `bb4e3882-2079-4bab-8974-611bc0b8bb58` currently contains
+  both `mys-*` and `nl-*` estates. Resource names therefore do not prove a
+  separate Neural Liquid subscription boundary. The next session must identify
+  the authoritative target subscription GUID, tenant, billing owner, and
+  management boundary before moving anything.
+- OmniPost's discovered estate is `nl-dev-omnipost-rg` in that shared
+  subscription: Web App, PostgreSQL, Key Vault, App Insights/Log Analytics,
+  Container Apps environment/Sluice, scheduler job, DNS certificate, and
+  identities. Its package version is still `1.0.0`; the active deployment
+  workflow has no durable automated release/version/Discord summary contract.
+- ConvoLens has dev and production resources in the same subscription, including
+  Web App, Container Apps, storage, Cosmos, Key Vault, ACR, telemetry, and
+  Terraform state. GitHub currently targets subscription `bb4e...`, tenant
+  `9530...`, and version `0.1.0`; its repository variables also retain a
+  Mystira-admin setting that must be classified rather than blindly copied.
+- Cognitive Mesh's production API/frontend App Services, slots, Key Vault,
+  certificates, and Terraform state are in the same subscription. Its version
+  is `0.0.1`; deployment uses staging slots and health checks, while current
+  repository variables still reference Mystira Identity and PhoenixVC-hosted
+  Docket/Sluice endpoints and secret URIs.
+- NexaMesh's canonical source found in this checkout is
+  `Nexamesh/nexamesh-core`. Its existing release workflow creates changelogs
+  and GitHub Releases only after a tag; it does not create the revision bump.
+  `www.nexamesh.ai` points to `nex-prod-marketing-swa` in
+  `nex-prod-shared-rg`, but the DNS zone itself is in
+  `mys-global-shared-rg`. That shared Mystira ownership is an explicit
+  migration or governance decision, not a completed Neural Liquid cutover.
+
+#### Canonical Task List
+
+1. `389a7fbb-ff93-4a6e-87da-b3ae4e502b62` — decide the authoritative
+   Neural Liquid subscription/tenant and produce a four-repo current-to-target
+   inventory covering OIDC, environments, state, runtime, data, DNS,
+   certificates, secrets, identity, telemetry, backups, cost, dependencies,
+   move-versus-rebuild feasibility, sequencing, rollback, and retirement.
+2. `d7cb51ce-2448-49a6-a50f-a0a3859b53f0` — design the reusable CI/CD
+   baseline: exact-head component gates, path-aware reusable workflows,
+   concurrency, least-privilege OIDC, protected environments, pinned actions
+   and toolchains, dependency/secret/code scans, IaC plan, database migration
+   gates, provenance/SBOM, staging or canary promotion, post-deploy E2E,
+   observability evidence, runtime-version proof, rollback, and branch rules.
+3. `6ed39c8a-86f8-4599-a7be-e506dd637e3b` — standardize revision bumps,
+   release PRs/tags/changelogs, artifact and runtime stamping, the same approved
+   Discord release destination, and Friday shipped summaries with dry-run,
+   idempotency, duplicate suppression, independent marker windows, and
+   missed-run roll-forward.
+4. `c7bb4242-ed50-45d7-9c49-277d691a8a0e` — OmniPost workstream:
+   subscription migration, version evidence, Mystira Identity, user/session
+   migration, Private Preview surfaces, journey/header optimization,
+   accessibility/responsive proof, scheduler/data/attribution acceptance, and
+   rollback. The detailed UX children are `69643968-...` and
+   `578c6e2c-...`.
+5. `da68d7eb-28b0-4741-969b-1e4fe579c9fd` — ConvoLens workstream:
+   migrate web/API/data/state/identity/telemetry/DNS, remove inappropriate
+   cross-product admin coupling, add release evidence, optimize capture,
+   catch-up, and personal-todo flows, preserve privacy and confirmation, and
+   prove authentic extension/web/API behavior plus rollback.
+6. `96c933d2-c11d-4c2b-9653-962ff28e60c9` — Cognitive Mesh workstream:
+   migrate API/frontend/slots/state/DNS/secrets/telemetry, replace residual
+   PhoenixVC service dependencies only after target services are verified, add
+   release evidence, optimize the control UI, integrate Mystira Identity and
+   roles, and prove health, model routing, authorization, and rollback.
+7. `0bcb613d-888a-41dd-9a55-7b1d2591c492` — NexaMesh workstream:
+   confirm source and ownership, migrate marketing/docs/functions/ML and DNS,
+   reconcile the tag-driven release with automated revisions and runtime
+   provenance, add Discord/weekly summaries, optimize UI, integrate Mystira
+   Identity, and prove custom domains, APIs, authorization, and rollback.
+8. `c7f52d07-fc2a-4cfe-abed-9a1071168652` — execute approved staged
+   cutovers: backups/restores, target deployments, data and secret migration,
+   DNS TTL/certificate checks, health/version/synthetic/authentic identity and
+   role/UI/accessibility/telemetry acceptance, observation, cost reconciliation,
+   rollback drills, and only then legacy resource, state, OIDC, and DNS
+   retirement under explicit destructive authorization.
+
+The next session should turn this inventory into an ordered decision record and
+per-repository PR plan with dependencies, estimates, owners, acceptance gates,
+and rollback points. Do not combine all four implementations into one PR, do
+not copy production secrets between tenants, and do not retire the shared
+estate until target data, DNS, identity, and runtime evidence all pass.
+
 ### Validation And Continuation
 
 - Prisma client generation and schema validation, TypeScript, marketing contract
   validation, lint, targeted Prettier, and the production build pass locally.
   The build compiled 60 routes/pages, including `/api/analytics/workbook`. Lint
   retains the repository's 120 pre-existing warnings and adds no errors.
-- Jest passed 51 suites and 353 tests. Two PostgreSQL integration suites and 11
+- Jest passed 51 suites and 356 tests. Two PostgreSQL integration suites and 11
   tests were skipped because no local test database was supplied; CI must run
   them against PostgreSQL before merge.
 - `pnpm check-all` passed marketing validation, TypeScript, and lint, then
@@ -76,9 +177,13 @@ status copy centralized so the three surfaces cannot drift.
   file passed, as did `git diff --check`.
 - Before merge, run `pnpm check-all`, obtain exact-head CI and review-thread
   proof, and keep deployment separate from local validation.
-- Deployment must apply the committed PostgreSQL migration before the new code
-  serves analytics traffic. After deployment, use an authenticated read-only
-  workbook request to verify schema availability. No provider publish,
+- Before deployment, inventory duplicate `AttributionLink.trackingToken` values.
+  The migration deliberately fails closed if any exist because silently
+  rewriting a token would misattribute already-distributed URLs; regenerate the
+  affected campaign links and update their destinations before retrying. Then
+  apply the committed PostgreSQL migration before the new code serves analytics
+  traffic and use an authenticated read-only workbook request to verify schema
+  availability. No provider publish,
   disconnect, Pinterest smoke, or production telemetry fabrication is part of
   that verification.
 

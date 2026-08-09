@@ -88,7 +88,11 @@ export async function buildCampaignWorkbook(
   ]);
 
   const eventCounts = countBy(events, event => event.name);
-  const malformedLinks = campaign.attributionLinks.filter(
+  const latestVersion = campaign.versions[0];
+  const currentAttributionLinks = latestVersion
+    ? campaign.attributionLinks.filter(link => link.campaignVersionId === latestVersion.id)
+    : [];
+  const malformedLinks = currentAttributionLinks.filter(
     link =>
       !/^mtk_[a-z0-9_]+$/.test(link.trackingToken) ||
       !/^utm_[a-z0-9_]+$/.test(link.utmId) ||
@@ -149,13 +153,12 @@ export async function buildCampaignWorkbook(
       ),
     };
   });
-  const latestVersion = campaign.versions[0];
   const missingPreflight: string[] = [];
   if (!latestVersion) missingPreflight.push('campaign_version');
   if (!latestVersion?.approvals.some(approval => approval.state === 'approved')) {
     missingPreflight.push('approved_content');
   }
-  if (campaign.attributionLinks.length === 0) missingPreflight.push('attribution_links');
+  if (currentAttributionLinks.length === 0) missingPreflight.push('attribution_links');
   if (malformedLinks.length > 0) missingPreflight.push('valid_attribution_tags');
 
   return {
@@ -174,7 +177,7 @@ export async function buildCampaignWorkbook(
         versionCount: campaign.currentVersion,
         approvedContent:
           latestVersion?.approvals.filter(approval => approval.state === 'approved').length ?? 0,
-        attributionLinks: campaign.attributionLinks.length,
+        attributionLinks: currentAttributionLinks.length,
       },
       approvalAndScheduling: {
         approved:

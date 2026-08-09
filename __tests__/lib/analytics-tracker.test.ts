@@ -166,4 +166,51 @@ describe('Analytics Tracker', () => {
     expect(event.properties.referrer).toBe('https://google.com');
     expect(event.properties.title).toBe('OmniPost Dashboard');
   });
+
+  test('captures a public campaign token and emits landing and CTA events', async () => {
+    tracker.destroy();
+    jest.clearAllMocks();
+    Object.defineProperty(window, 'location', {
+      value: {
+        pathname: '/',
+        search: '?mtk=mtk_campaign_public_1&utm_source=x&utm_medium=organic_social',
+        href: 'http://localhost:3000/?mtk=mtk_campaign_public_1',
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    jest.resetModules();
+    const campaignTracker = require('../../lib/analytics/tracker').tracker as typeof tracker;
+    await campaignTracker.flush();
+
+    const landingCall = mockFetch.mock.calls[0] as unknown[];
+    const landingBatch = JSON.parse((landingCall[1] as RequestInit).body as string);
+    expect(landingBatch.events[0]).toMatchObject({
+      name: 'landing_view',
+      properties: {
+        campaignToken: 'mtk_campaign_public_1',
+        utm_source: 'x',
+        landingPage: '/',
+      },
+    });
+
+    const signupLink = document.createElement('a');
+    signupLink.href = '/signup';
+    document.body.appendChild(signupLink);
+    signupLink.click();
+    await campaignTracker.flush();
+
+    const ctaCall = mockFetch.mock.calls[1] as unknown[];
+    const ctaBatch = JSON.parse((ctaCall[1] as RequestInit).body as string);
+    expect(ctaBatch.events[0]).toMatchObject({
+      name: 'cta_clicked',
+      properties: {
+        campaignToken: 'mtk_campaign_public_1',
+        landingPage: '/',
+      },
+    });
+    campaignTracker.destroy();
+    signupLink.remove();
+  });
 });

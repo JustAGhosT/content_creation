@@ -13,10 +13,11 @@ describe('campaign evidence workbook', () => {
       name: 'OmniPost X live',
       status: 'active',
       currentVersion: 1,
-      versions: [{ approvals: [{ state: 'approved' }] }],
+      versions: [{ id: 'version-1', approvals: [{ state: 'approved' }] }],
       attributionLinks: [
         {
           id: 'link-1',
+          campaignVersionId: 'version-1',
           contentId: 'content-1',
           variantId: 'variant-x-1',
           platformId: 'twitter',
@@ -154,5 +155,18 @@ describe('campaign evidence workbook', () => {
       unknown: 1,
     });
     expect(workbookWithUnknownOutcome.reconciliation.reconciled).toBe(false);
+
+    campaign.attributionLinks[0].campaignVersionId = 'version-0';
+    const workbookWithoutCurrentLinks = await buildCampaignWorkbook(
+      'user-1',
+      'omnipost-x-live-001',
+      client
+    );
+    expect(workbookWithoutCurrentLinks.views.preflight).toMatchObject({
+      complete: false,
+      attributionLinks: 0,
+      missing: expect.arrayContaining(['attribution_links']),
+    });
+    expect(workbookWithoutCurrentLinks.views.dataQuality.malformedAttributionLinkIds).toEqual([]);
   });
 });

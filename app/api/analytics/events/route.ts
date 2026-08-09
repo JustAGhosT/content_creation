@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCurrentUserId, isAuthenticated } from '../../_utils/auth';
+import { getCurrentUserId, getVerifiedCurrentUserId, isAuthenticated } from '../../_utils/auth';
 import { Errors, withErrorHandling } from '../../_utils/errors';
 import { withRateLimit, RateLimitPresets } from '../../_utils/rateLimit';
 import { logToAuditTrail } from '../../_utils/audit';
@@ -36,7 +36,7 @@ export const POST = withRateLimit(
       return Errors.forbidden('Campaign lifecycle events are recorded by trusted server workflows');
     }
 
-    const userId = await getCurrentUserId();
+    const userId = await getVerifiedCurrentUserId();
     try {
       await recordAnalyticsEvents(validation.data.events, userId);
     } catch (error) {

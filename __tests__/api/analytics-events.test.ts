@@ -116,6 +116,18 @@ describe('Analytics Events API', () => {
       expect(data.received).toBe(2);
     });
 
+    test('does not trust an unverified user header on public ingestion', async () => {
+      const response = await POST(
+        createRequest('POST', { events: [event('page_viewed', { url: '/home' })] })
+      );
+      const { recordAnalyticsEvents } = require('../../lib/analytics/repository') as {
+        recordAnalyticsEvents: jest.Mock;
+      };
+
+      expect(response.status).toBe(200);
+      expect(recordAnalyticsEvents).toHaveBeenCalledWith(expect.any(Array), null);
+    });
+
     test('should reject an empty events array (400)', async () => {
       const request = createRequest('POST', {
         events: [],

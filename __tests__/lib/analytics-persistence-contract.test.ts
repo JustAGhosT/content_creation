@@ -21,6 +21,8 @@ describe('durable analytics persistence contract', () => {
     expect(migration).toContain('AnalyticsEventRecord_userId_campaignId_occurredAt_idx');
     expect(migration).toContain('AnalyticsEventRecord_campaignToken_occurredAt_idx');
     expect(migration).toContain('AttributionLink_trackingToken_key');
+    expect(migration).toContain('Duplicate attribution tokens detected');
+    expect(migration).not.toContain('SET "trackingToken"');
   });
 
   test('rejects secret-bearing and unknown telemetry attributes', () => {

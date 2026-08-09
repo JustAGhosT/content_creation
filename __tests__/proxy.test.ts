@@ -64,6 +64,10 @@ jest.mock('next/server', () => {
       this.store[name.toLowerCase()] = value;
     }
 
+    delete(name: string): void {
+      delete this.store[name.toLowerCase()];
+    }
+
     has(name: string): boolean {
       return name.toLowerCase() in this.store;
     }
@@ -113,6 +117,7 @@ interface MockRequestOptions {
   pathname?: string;
   cookieToken?: string;
   authHeader?: string;
+  forgedUserId?: string;
 }
 
 /**
@@ -125,6 +130,12 @@ function createMockNextRequest(options: MockRequestOptions = {}) {
   const headerStore: Record<string, string> = {};
   if (options.authHeader) {
     headerStore['authorization'] = options.authHeader;
+  }
+  if (options.forgedUserId) {
+    headerStore['x-user-id'] = options.forgedUserId;
+    headerStore['x-user-role'] = 'admin';
+    headerStore['x-user-name'] = 'forged-user';
+    headerStore['x-user-authenticated'] = 'true';
   }
 
   const headers = {
@@ -240,6 +251,24 @@ describe('proxy (root middleware on /api/:path*)', () => {
       expect(response._requestHeaders!.get('x-user-id')).toBe('u-cookie');
       expect(response._requestHeaders!.get('x-user-name')).toBe('cookie-user');
       expect(response._requestHeaders!.get('x-user-role')).toBe('editor');
+      expect(response._requestHeaders!.get('x-user-authenticated')).toBe('true');
+    });
+
+    test('strips caller-authored identity headers from a public ingestion route', () => {
+      const proxy = loadProxy();
+      const request = createMockNextRequest({
+        pathname: '/api/analytics/events',
+        forgedUserId: 'victim-user-id',
+      });
+      const response = proxy(request) as {
+        _requestHeaders?: { get: (k: string) => string | null };
+      };
+
+      expect(response._requestHeaders).toBeDefined();
+      expect(response._requestHeaders!.get('x-user-id')).toBeNull();
+      expect(response._requestHeaders!.get('x-user-role')).toBeNull();
+      expect(response._requestHeaders!.get('x-user-name')).toBeNull();
+      expect(response._requestHeaders!.get('x-user-authenticated')).toBeNull();
     });
 
     test('injects x-user-* headers when a valid token is in Authorization: Bearer', () => {
@@ -296,13 +325,13 @@ describe('proxy (root middleware on /api/:path*)', () => {
   // 3. Public-ish API paths: no token / invalid token => pass through
   // ------------------------------------------------------------------
   describe('non-protected /api/* paths tolerate missing/invalid tokens', () => {
-    test('no token, no error: passes through with no header injection', () => {
+    test('no token, no error: passes through with sanitized headers', () => {
       const proxy = loadProxy();
       const request = createMockNextRequest({ pathname: '/api/health' });
       const response = proxy(request) as Record<string, unknown>;
 
       expect(response.status).toBe(200);
-      expect(response._requestHeaders).toBeUndefined();
+      expect(response._requestHeaders).toBeDefined();
     });
 
     test('invalid token: passes through silently (no error response)', () => {
@@ -314,7 +343,7 @@ describe('proxy (root middleware on /api/:path*)', () => {
       const response = proxy(request) as Record<string, unknown>;
 
       expect(response.status).toBe(200);
-      expect(response._requestHeaders).toBeUndefined();
+      expect(response._requestHeaders).toBeDefined();
     });
 
     test('expired token: passes through silently', () => {
@@ -329,7 +358,7 @@ describe('proxy (root middleware on /api/:path*)', () => {
       const response = proxy(request) as Record<string, unknown>;
 
       expect(response.status).toBe(200);
-      expect(response._requestHeaders).toBeUndefined();
+      expect(response._requestHeaders).toBeDefined();
     });
 
     test('JWT_SECRET missing: still passes through on public-ish API path', () => {
@@ -342,7 +371,7 @@ describe('proxy (root middleware on /api/:path*)', () => {
       const response = proxy(request) as Record<string, unknown>;
 
       expect(response.status).toBe(200);
-      expect(response._requestHeaders).toBeUndefined();
+      expect(response._requestHeaders).toBeDefined();
     });
 
     test('allows the exact X OAuth callback to validate its sealed flow cookie', () => {
@@ -353,7 +382,7 @@ describe('proxy (root middleware on /api/:path*)', () => {
       const response = proxy(request) as Record<string, unknown>;
 
       expect(response.status).toBe(200);
-      expect(response._requestHeaders).toBeUndefined();
+      expect(response._requestHeaders).toBeDefined();
     });
 
     test('allows the exact scheduler processor to validate its cron secret', () => {
@@ -364,7 +393,7 @@ describe('proxy (root middleware on /api/:path*)', () => {
       const response = proxy(request) as Record<string, unknown>;
 
       expect(response.status).toBe(200);
-      expect(response._requestHeaders).toBeUndefined();
+      expect(response._requestHeaders).toBeDefined();
     });
 
     test('does not exempt scheduler processor subpaths from JWT authentication', async () => {

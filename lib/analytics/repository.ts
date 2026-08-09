@@ -33,15 +33,16 @@ async function resolveCampaignOwner(
   const match = await client.attributionLink.findUnique({
     where: { trackingToken: campaignToken },
     select: {
-      campaign: { select: { userId: true, externalId: true, id: true, currentVersion: true } },
+      campaign: { select: { userId: true, externalId: true, id: true } },
+      campaignVersion: { select: { version: true } },
     },
   });
   const campaign = match?.campaign;
-  return campaign
+  return campaign && match
     ? {
         userId: campaign.userId,
         campaignId: campaign.externalId ?? campaign.id,
-        campaignVersion: campaign.currentVersion,
+        campaignVersion: match.campaignVersion.version,
       }
     : null;
 }
