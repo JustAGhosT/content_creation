@@ -221,7 +221,6 @@ export class InMemoryQueue implements JobQueue {
         leaseToken,
         leaseExpiresAt: leaseExpiresAt.toISOString(),
         attemptStartedAt: undefined,
-        error: undefined,
         updatedAt: before.toISOString(),
       };
       this.jobs.set(current.id, updated);
@@ -461,7 +460,6 @@ export class ServerMemoryQueue implements JobQueue {
         leaseToken,
         leaseExpiresAt: leaseExpiresAt.toISOString(),
         attemptStartedAt: undefined,
-        error: undefined,
         updatedAt: before.toISOString(),
       };
       this.jobs.set(current.id, updated);

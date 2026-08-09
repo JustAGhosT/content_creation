@@ -99,7 +99,7 @@ export const platformConfigurations: Record<string, PlatformConfig> = {
     apiUrl: process.env.TWITTER_API_URL || 'https://api.x.com/2/tweets',
     apiKey: '',
     required: false,
-    capabilities: ['text', 'image', 'video'],
+    capabilities: ['text'],
   },
   tiktok: {
     apiUrl: process.env.TIKTOK_API_URL || 'https://open.tiktokapis.com/v2/post/publish/video/init/',

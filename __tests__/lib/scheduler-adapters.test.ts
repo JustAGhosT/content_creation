@@ -168,6 +168,26 @@ describe('Scheduler platform adapters', () => {
     expect(resolveAccessToken).not.toHaveBeenCalled();
   });
 
+  test('X preserves HTTP status metadata for provider billing failures', async () => {
+    setNodeEnv('production');
+    const resolveAccessToken = jest.fn(async () => 'x-user-access-token');
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: false,
+      status: 402,
+      statusText: 'Payment Required',
+    } as Response);
+
+    await expect(
+      new TwitterAdapter(resolveAccessToken).publish(
+        { text: 'Controlled live post' },
+        { userId: 'user-1' }
+      )
+    ).rejects.toMatchObject({
+      name: 'PlatformHttpError',
+      response: { status: 402 },
+    });
+  });
+
   test('TikTok is excluded from the default text-only content flow', () => {
     const tiktok = platforms.find(platform => platform.slug === 'tiktok');
 

@@ -35,6 +35,24 @@ export class RetryHandler {
    * Classify an error for retry handling
    */
   classifyError(error: unknown): ErrorClassification {
+    // A thread can publish one or more posts before a later provider call
+    // fails. Classify the provider failure, not the partial-result wrapper, so
+    // non-retryable responses cannot replay already-public thread parts.
+    if (this.isPartialPublishError(error)) {
+      return this.classifyError(error.partialResult.error);
+    }
+
+    // Publisher errors have already been classified at the provider boundary.
+    // Preserve that decision when the scheduler receives the wrapper instead
+    // of accidentally treating it as an unknown retryable error.
+    if (this.isPreclassifiedError(error)) {
+      return {
+        retryable: error.retryable,
+        code: error.code,
+        message: this.getErrorMessage(error),
+      };
+    }
+
     // Handle axios-style errors with status codes
     if (this.isAxiosError(error)) {
       return this.classifyHttpError(error);
@@ -66,6 +84,34 @@ export class RetryHandler {
     };
   }
 
+  private isPreclassifiedError(error: unknown): error is {
+    code: string;
+    retryable: boolean;
+    message?: string;
+  } {
+    if (typeof error !== 'object' || error === null) return false;
+
+    const candidate = error as { code?: unknown; retryable?: unknown };
+    return typeof candidate.code === 'string' && typeof candidate.retryable === 'boolean';
+  }
+
+  private isPartialPublishError(error: unknown): error is {
+    partialResult: { error: unknown };
+  } {
+    if (typeof error !== 'object' || error === null || !('partialResult' in error)) return false;
+
+    const partialResult = (error as { partialResult?: unknown }).partialResult;
+    if (
+      typeof partialResult !== 'object' ||
+      partialResult === null ||
+      !('error' in partialResult)
+    ) {
+      return false;
+    }
+
+    return (partialResult as { error: unknown }).error !== error;
+  }
+
   /**
    * Classify HTTP errors by status code
    */
@@ -75,6 +121,16 @@ export class RetryHandler {
   }): ErrorClassification {
     const status = error.response?.status;
     const message = error.response?.data?.message || error.message || 'Unknown error';
+
+    // Provider billing and credit failures require an operator action. Retrying
+    // cannot change the outcome and can consume the job's entire retry budget.
+    if (status === 402) {
+      return {
+        retryable: false,
+        code: 'PAYMENT_REQUIRED',
+        message: `Provider credits or billing required (402): ${message}`,
+      };
+    }
 
     // Rate limit errors - retryable with longer backoff
     if (status === 429) {
@@ -147,9 +203,7 @@ export class RetryHandler {
     message?: string;
     code?: string;
   } {
-    return (
-      typeof error === 'object' && error !== null && ('response' in error || 'message' in error)
-    );
+    return typeof error === 'object' && error !== null && 'response' in error;
   }
 
   /**

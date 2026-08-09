@@ -1,5 +1,76 @@
 # OmniPost Alpha — Handoff Document
 
+## 2026-08-09 X Billing Hardening And Operations Reconciliation
+
+### Current State
+
+- [PR #199](https://github.com/neuralliquid/omnipost/pull/199) is the active
+  change for classifying X API HTTP 402 responses as operator-actionable and
+  non-retryable, persisting the classification, and showing truthful provider
+  capacity guidance in the platform settings UI.
+- The implementation was rebased onto `origin/main` at
+  `233f6c0a266af5d11bd9c61fb5480dffb2df6cff` and marked ready for review. It
+  must not be merged without fresh exact-head CI, review-thread, mergeability,
+  and user-authorization checks.
+- The X Developer Console showed a `US$5.00` prepaid balance on 2026-08-09
+  (`US$0.00` free credits). Authentic acceptance still requires the PR gates,
+  merge authority, and explicit authorization for one staffed job. Do not retry
+  the existing dead job or create another job during code validation.
+- The Pinterest console showed the OmniPost app as `Sandbox` / `Production
+limited` on 2026-08-09, superseding the July 28 `Trial access pending`
+  snapshot. Token controls are operator-held; no token was copied or used.
+
+### Validation
+
+- Marketing contract validation, TypeScript, and lint passed locally; lint
+  retained the repository's 120 pre-existing warnings and added no errors.
+- The production Next.js build passed with all 59 static pages generated.
+- Jest passed 48 suites and 338 tests; 2 PostgreSQL integration suites and 11
+  tests were skipped locally because no test database was supplied. The four
+  PR-specific suites passed 17/17 tests.
+- Review follow-up preserves publisher error classifications in the scheduler,
+  selects X capacity evidence by the latest attempted publish, and provides the
+  missing Pinterest operational profile. It also unwraps partial-thread provider
+  failures and retains confirmed billing evidence while a manual retry is queued
+  or claimed. The latest four scheduler/capacity regression suites pass 21/21
+  tests; the focused Pinterest profile suite and ESLint, Prettier, and TypeScript
+  checks pass.
+- `git diff --check` passed. The repository-wide Windows Prettier check remains
+  blocked by the existing broad formatting baseline, so GitHub's Linux format
+  check is authoritative for the refreshed PR head.
+
+### Workspace And Tracker Follow-up
+
+- Three missing `C:\tmp` worktree registrations were pruned. The primary
+  checkout's untracked Pinterest source icon at
+  `output/imagegen/omnipost-app-icon.png` must be preserved during branch
+  cleanup.
+- The primary checkout is on current `main`; merged branch clutter is removed,
+  and `agent/x-402-nonretryable` is retained until PR #199 is closed.
+- The stale Gate 3B, Gate 3C, and parent records are closed. The canonical X
+  and Pinterest acceptance tasks now hold the live console evidence and retain
+  their explicit operator-action boundaries.
+- Baton task `e050947d-655f-481a-97a9-0bdbd203d1aa` tracks OmniPost-to-Sluice
+  verification separately: prove a real routed request,
+  model alias, cost/operation telemetry, and fail-closed behavior before
+  deciding whether to migrate from the OmniPost-owned LiteLLM Container App to
+  the shared `phoenixvc/sluice` gateway. No provider call, spend, deployment, or
+  migration is authorized by this handoff.
+
+### Exact Continuation
+
+1. Wait for all checks and bot reviews on the latest PR #199 head, then inspect
+   GraphQL `reviewThreads`, exact head SHA, mergeability, and checks again.
+2. If the PR is green and review-clean, request explicit merge authorization;
+   do not infer it from this handoff.
+3. Perform a no-spend OmniPost-to-Sluice configuration and contract preflight.
+   A billable or production gateway request requires separate authorization.
+4. After merge and explicit operator authorization, execute at most one staffed
+   X job and capture authentic acceptance evidence. The console-status check did
+   not authorize publishing, retrying a job, or creating a Pin.
+
+---
+
 ## 2026-07-28 Pinterest Sandbox Registration Handoff
 
 ### Current State
