@@ -155,6 +155,21 @@ describe('Analytics Tracker', () => {
     expect(body.events[0].name).toBe('important_event');
   });
 
+  test('flush() drops permanently rejected events without blocking later telemetry', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 400 } as Response);
+    tracker.track('landing_view', { campaignToken: 'mtk_stale_campaign' });
+    await tracker.flush();
+
+    mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+    tracker.track('signup_started', { method: 'email' });
+    await tracker.flush();
+
+    const callArgs = mockFetch.mock.calls[1] as unknown[];
+    const body = JSON.parse((callArgs[1] as RequestInit).body as string);
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0].name).toBe('signup_started');
+  });
+
   test('pageView() captures URL and referrer', () => {
     // Set document.referrer via Object.defineProperty since it's read-only in jsdom
     Object.defineProperty(document, 'referrer', {

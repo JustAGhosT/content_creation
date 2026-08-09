@@ -210,8 +210,12 @@ class AnalyticsTracker {
         keepalive: true,
       });
 
-      if (!response.ok) {
-        // Re-queue on failure (up to a limit to prevent infinite growth)
+      if (
+        !response.ok &&
+        (response.status === 408 || response.status === 429 || response.status >= 500)
+      ) {
+        // Re-queue transient failures only (up to a limit to prevent infinite growth).
+        // Permanent 4xx responses identify an invalid batch and must not block later events.
         if (this.queue.length + events.length <= BATCH_SIZE * 5) {
           this.queue.push(...events);
         }
