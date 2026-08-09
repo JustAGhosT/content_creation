@@ -21,6 +21,7 @@ describe('signup analytics wiring', () => {
 
     expect(signupPage).toContain("callbackUrl.searchParams.set('campaign_token', campaignToken)");
     expect(callback).toContain('campaignToken: storedState.campaignToken');
+    expect(callback).toContain('value.length <= MAX_CAMPAIGN_TOKEN_LENGTH');
     expect(callback).toContain("name: 'signup_started'");
     expect(callback).toContain("name: 'signup_completed'");
     expect(callback).toContain('if (isNewUser)');

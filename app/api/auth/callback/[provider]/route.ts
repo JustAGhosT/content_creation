@@ -23,6 +23,15 @@ import { prisma } from '../../../../../lib/db/prisma';
 import { recordAnalyticsEvents } from '../../../../../lib/analytics/repository';
 
 const OAUTH_STATE_COOKIE_PREFIX = 'oauth-state-';
+const MAX_CAMPAIGN_TOKEN_LENGTH = 128;
+
+function isValidCampaignToken(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= MAX_CAMPAIGN_TOKEN_LENGTH &&
+    /^mtk_[a-z0-9_]+$/.test(value)
+  );
+}
 
 interface StoredOAuthState {
   state: string;
@@ -69,10 +78,7 @@ function parseStoredOAuthState(value: string | undefined): StoredOAuthState | nu
       state: parsed.state,
       redirect: parsed.redirect,
       codeVerifier: parsed.codeVerifier,
-      campaignToken:
-        typeof parsed.campaignToken === 'string' && /^mtk_[a-z0-9_]+$/.test(parsed.campaignToken)
-          ? parsed.campaignToken
-          : undefined,
+      campaignToken: isValidCampaignToken(parsed.campaignToken) ? parsed.campaignToken : undefined,
     };
   } catch {
     return null;
@@ -109,10 +115,9 @@ async function handleCallback(
     const codeChallenge = createCodeChallenge(codeVerifier);
     const requestedRedirect = url.searchParams.get('redirect') || '/dashboard';
     const requestedCampaignToken = url.searchParams.get('campaign_token');
-    const campaignToken =
-      requestedCampaignToken && /^mtk_[a-z0-9_]+$/.test(requestedCampaignToken)
-        ? requestedCampaignToken
-        : undefined;
+    const campaignToken = isValidCampaignToken(requestedCampaignToken)
+      ? requestedCampaignToken
+      : undefined;
     const redirect = await initiateExternalAuth(provider, callbackUrl, state, codeChallenge);
 
     if (!redirect) {

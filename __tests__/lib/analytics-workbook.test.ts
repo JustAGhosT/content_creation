@@ -77,6 +77,10 @@ describe('campaign evidence workbook', () => {
       variantId: name.startsWith('publish_') ? 'variant-x-1' : null,
       platform: name.startsWith('publish_') ? 'twitter' : null,
       campaignToken: name === 'landing_view' ? 'mtk_omnipost_x_1' : null,
+      utmSource: name === 'landing_view' ? 'x' : null,
+      utmMedium: name === 'landing_view' ? 'organic_social' : null,
+      utmCampaign: name === 'landing_view' ? 'omnipost-x-live-001' : null,
+      utmContent: name === 'landing_view' ? 'variant-x-1' : null,
       userId: 'user-1',
       properties: JSON.stringify({
         latencyMs: name === 'publish_failed' ? 10_000 : name === 'publish_succeeded' ? 2_000 : null,
@@ -89,6 +93,10 @@ describe('campaign evidence workbook', () => {
       variantId: null,
       platform: null,
       campaignToken: 'mtk_omnipost_x_1',
+      utmSource: 'x',
+      utmMedium: 'organic_social',
+      utmCampaign: 'omnipost-x-live-001',
+      utmContent: 'variant-x-1',
       userId: 'converted-user-1',
       properties: '{}',
     });
@@ -99,6 +107,10 @@ describe('campaign evidence workbook', () => {
       variantId: null,
       platform: null,
       campaignToken: 'mtk_omnipost_x_1',
+      utmSource: 'x',
+      utmMedium: 'organic_social',
+      utmCampaign: 'omnipost-x-live-001',
+      utmContent: 'variant-x-1',
       userId: 'converted-user-2',
       properties: '{}',
     });
@@ -153,6 +165,7 @@ describe('campaign evidence workbook', () => {
       averageLatencyMs: 6000,
     });
     expect(workbook.views.attribution[0]).toMatchObject({ landingViews: 1 });
+    expect(workbook.views.dataQuality.mismatchedAttributionEventIds).toEqual([]);
     expect(workbook.views.conversion.firstPublish).toBe(2);
     expect(analyticsFindMany).toHaveBeenCalledWith({
       where: {
@@ -203,6 +216,21 @@ describe('campaign evidence workbook', () => {
     ]);
     campaign.attributionLinks[0].utmContent = 'variant-x-1';
 
+    events[5].utmMedium = null;
+    const workbookWithObservedUtmMismatch = await buildCampaignWorkbook(
+      'user-1',
+      'omnipost-x-live-001',
+      client
+    );
+    expect(workbookWithObservedUtmMismatch.views.preflight).toMatchObject({
+      complete: false,
+      missing: expect.arrayContaining(['valid_attribution_tags']),
+    });
+    expect(workbookWithObservedUtmMismatch.views.dataQuality.mismatchedAttributionEventIds).toEqual(
+      ['event-5']
+    );
+    events[5].utmMedium = 'organic_social';
+
     events.push(
       {
         eventId: 'event-unknown-queued',
@@ -211,6 +239,10 @@ describe('campaign evidence workbook', () => {
         variantId: 'variant-x-1',
         platform: 'twitter',
         campaignToken: null,
+        utmSource: null,
+        utmMedium: null,
+        utmCampaign: null,
+        utmContent: null,
         userId: 'user-1',
         properties: '{}',
       },
@@ -221,6 +253,10 @@ describe('campaign evidence workbook', () => {
         variantId: 'variant-x-1',
         platform: 'twitter',
         campaignToken: null,
+        utmSource: null,
+        utmMedium: null,
+        utmCampaign: null,
+        utmContent: null,
         userId: 'user-1',
         properties: '{}',
       }

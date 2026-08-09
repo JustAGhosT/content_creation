@@ -59,7 +59,7 @@ function captureAttributionParams(): StoredAttribution {
   }
 
   const campaignToken = params.get('mtk') ?? params.get('campaign_token');
-  if (campaignToken && /^mtk_[a-z0-9_]+$/.test(campaignToken)) {
+  if (campaignToken && campaignToken.length <= 128 && /^mtk_[a-z0-9_]+$/.test(campaignToken)) {
     attribution.campaignToken = campaignToken;
   }
 

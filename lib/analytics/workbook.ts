@@ -178,6 +178,20 @@ export async function buildCampaignWorkbook(
       !link.utmContent ||
       link.utmContent !== link.variantId
   );
+  const currentLinksByToken = new Map(
+    currentAttributionLinks.map(link => [link.trackingToken, link] as const)
+  );
+  const mismatchedAttributionEvents = events.filter(event => {
+    if (event.name !== 'landing_view' || !event.campaignToken) return false;
+    const link = currentLinksByToken.get(event.campaignToken);
+    if (!link) return false;
+    return (
+      event.utmSource !== link.utmSource ||
+      event.utmMedium !== link.utmMedium ||
+      event.utmCampaign !== link.utmCampaign ||
+      event.utmContent !== link.utmContent
+    );
+  });
   const campaignEvents = events.filter(event => event.name.startsWith('publish_'));
   const incompleteEvents = campaignEvents.filter(
     event => !event.contentId || !event.variantId || !event.platform
@@ -241,7 +255,9 @@ export async function buildCampaignWorkbook(
   }
   if (currentAttributionLinks.length === 0) missingPreflight.push('attribution_links');
   if (approvedAttributionLinks.length === 0) missingPreflight.push('approved_attribution_links');
-  if (malformedLinks.length > 0) missingPreflight.push('valid_attribution_tags');
+  if (malformedLinks.length > 0 || mismatchedAttributionEvents.length > 0) {
+    missingPreflight.push('valid_attribution_tags');
+  }
 
   return {
     schemaVersion: 1,
@@ -304,6 +320,7 @@ export async function buildCampaignWorkbook(
       },
       dataQuality: {
         malformedAttributionLinkIds: malformedLinks.map(link => link.id),
+        mismatchedAttributionEventIds: mismatchedAttributionEvents.map(event => event.eventId),
         incompleteEventIds: incompleteEvents.map(event => event.eventId),
         reconciliationRequiredJobIds: reconciliationRequiredJobs.map(job => job.id),
       },

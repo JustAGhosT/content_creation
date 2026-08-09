@@ -25,6 +25,7 @@ export const analyticsPropertiesSchema = z
     providerPostId: optionalBoundedText(256),
     campaignToken: z
       .string()
+      .max(128)
       .regex(/^mtk_[a-z0-9_]+$/)
       .optional(),
     utmSource: optionalBoundedText(128),
