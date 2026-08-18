@@ -8,7 +8,7 @@
  * When enabled via feature flags, all AI service calls are routed
  * through the gateway instead of directly to individual providers.
  *
- * @see https://github.com/phoenixvc/sluice
+ * @see https://github.com/celladore/sluice
  */
 
 import featureFlags from '@/lib/featureFlags';
