@@ -35,7 +35,9 @@ export default function HomePage() {
       {/* ---- Hero ---- */}
       <section className={styles.hero}>
         <div className={styles.heroInner}>
-          <h1 className={styles.headline}>Publish Once. Reach Every Platform.</h1>
+          <h1 className={styles.headline}>
+            Publish Once. Reach <span className={styles.gradText}>Every Platform</span>.
+          </h1>
           <p className={styles.subheadline}>
             AI-powered content publishing for creators who want to grow everywhere &mdash; without
             the busywork.
@@ -52,26 +54,46 @@ export default function HomePage() {
 
           <div className={styles.platformIcons} aria-label="Supported platforms">
             <span className={styles.platformIcon}>
-              <span role="img" aria-hidden="true">
+              <span className={styles.platformBadge} aria-hidden="true">
                 f
               </span>
               <span>Facebook</span>
             </span>
             <span className={styles.platformIcon}>
-              <span role="img" aria-hidden="true">
-                ig
+              <span className={styles.platformBadge} aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+                  <circle cx="12" cy="12" r="4.2" />
+                  <circle cx="16.8" cy="7.2" r="0.6" fill="currentColor" stroke="none" />
+                </svg>
               </span>
               <span>Instagram</span>
             </span>
             <span className={styles.platformIcon}>
-              <span role="img" aria-hidden="true">
+              <span className={styles.platformBadge} aria-hidden="true">
                 in
               </span>
               <span>LinkedIn</span>
             </span>
             <span className={styles.platformIcon}>
-              <span role="img" aria-hidden="true">
-                X
+              <span className={styles.platformBadge} aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 5l14 14M19 5L5 19" />
+                </svg>
               </span>
               <span>Twitter</span>
             </span>
@@ -124,7 +146,19 @@ export default function HomePage() {
           <div className={styles.featureGrid}>
             <article className={styles.featureCard}>
               <div className={styles.featureIcon} aria-hidden="true">
-                <span>&#9881;</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="5" r="2.2" />
+                  <circle cx="5" cy="19" r="2.2" />
+                  <circle cx="19" cy="19" r="2.2" />
+                  <path d="M12 7.2v6M12 13.2L6.6 17M12 13.2l5.4 3.8" />
+                </svg>
               </div>
               <h3>Multi-Platform Publishing</h3>
               <p>
@@ -135,7 +169,17 @@ export default function HomePage() {
 
             <article className={styles.featureCard}>
               <div className={styles.featureIcon} aria-hidden="true">
-                <span>&#9733;</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />
+                  <path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z" />
+                </svg>
               </div>
               <h3>AI Content Adaptation</h3>
               <p>
@@ -146,7 +190,17 @@ export default function HomePage() {
 
             <article className={styles.featureCard}>
               <div className={styles.featureIcon} aria-hidden="true">
-                <span>&#9202;</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="8.5" />
+                  <path d="M12 7.5V12l3.2 2" />
+                </svg>
               </div>
               <h3>Smart Scheduling</h3>
               <p>
@@ -157,7 +211,16 @@ export default function HomePage() {
 
             <article className={styles.featureCard}>
               <div className={styles.featureIcon} aria-hidden="true">
-                <span>&#9776;</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 19V10M12 19V5M19 19v-6" />
+                </svg>
               </div>
               <h3>Unified Analytics</h3>
               <p>
@@ -189,33 +252,32 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className={styles.testimonials}>
-            <article className={styles.testimonialCard}>
-              <blockquote>
-                &ldquo;OmniPost is currently being shaped with direct tester feedback before public
-                launch.&rdquo;
-              </blockquote>
-              <p className={styles.testimonialAuthor}>
+          <div className={styles.statusNotes}>
+            <article className={styles.statusNote}>
+              <p className={styles.statusNoteText}>
+                OmniPost is currently being shaped with direct tester feedback before public launch.
+              </p>
+              <p className={styles.statusNoteMeta}>
                 <strong>Alpha note</strong> — Product status
               </p>
             </article>
 
-            <article className={styles.testimonialCard}>
-              <blockquote>
-                &ldquo;The focus is a practical first posting flow with AI-assisted wording for each
-                platform.&rdquo;
-              </blockquote>
-              <p className={styles.testimonialAuthor}>
+            <article className={styles.statusNote}>
+              <p className={styles.statusNoteText}>
+                The focus is a practical first posting flow with AI-assisted wording for each
+                platform.
+              </p>
+              <p className={styles.statusNoteMeta}>
                 <strong>Current scope</strong> — Platform adaptation
               </p>
             </article>
 
-            <article className={styles.testimonialCard}>
-              <blockquote>
-                &ldquo;Metrics, scheduling depth, and advanced platform workflows will grow after
-                the first live path is stable.&rdquo;
-              </blockquote>
-              <p className={styles.testimonialAuthor}>
+            <article className={styles.statusNote}>
+              <p className={styles.statusNoteText}>
+                Metrics, scheduling depth, and advanced platform workflows will grow after the first
+                live path is stable.
+              </p>
+              <p className={styles.statusNoteMeta}>
                 <strong>Roadmap</strong> — Alpha readiness
               </p>
             </article>
