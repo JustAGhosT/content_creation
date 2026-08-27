@@ -15,23 +15,35 @@ zero.
 
 ## Preserved source
 
-The dirty FlairForge `feat/monorepo` worktree is preserved locally at snapshot
-commit `9a582727caddd036870df1098397a9d1c75c3b16`, parent
-`ae00b769c60e227c4ff2a97c9af3252b90146918`. A verified local Git bundle and
-inventory are recorded on Baton task `830f3b45`. The source worktree and real
-index were not changed, and the recovery ref was not pushed.
+The dirty FlairForge `feat/monorepo` worktree is preserved at snapshot commit
+`9a582727caddd036870df1098397a9d1c75c3b16`, parent
+`ae00b769c60e227c4ff2a97c9af3252b90146918`, and tree
+`8567cdd83f2ec512e4c6997478437933102b7caf`. The source worktree and real index
+were not changed.
 
 The snapshot is recovery evidence, not a merge candidate. No bulk history
 merge or direct copy into OmniPost is planned.
 
-This local-only copy is not yet durable shared recovery evidence. Before any
-source import, pilot reliance, or retirement decision, an authorized operator
-must place the bundle in access-controlled shared storage, verify its SHA-256
-after upload, test retrieval in a clean environment, and record the durable URI,
-checksum, retention owner, and recovery procedure in Baton. Until that gate is
-complete, the source machine remains a single point of failure and the rollback
-path must be reported as unavailable outside that machine. This plan does not
-authorize the upload or provision storage.
+Durable shared recovery is stored in the private GitHub repository
+`JustAGhosT/flairforge-recovery` on branch
+`recovery/flairforge-wip-20260827` and release `recovery-20260827`:
+
+- release URI:
+  `https://github.com/JustAGhosT/flairforge-recovery/releases/tag/recovery-20260827`
+  (authorized repository access required);
+- Git bundle SHA-256:
+  `0254DF071425F881ADA4B1ED6BE6DA6634CBDC2F0952643A3805178784460043`;
+- inventory SHA-256:
+  `226E39728DD5110F286AAA9712ADA204E4D32D6C9D511E340A36C42538B8CD34`;
+- retention owner: `JustAGhosT`, through the migration and rollback window.
+
+An authenticated clean download matched both hashes, `git bundle verify`
+passed, and a fresh repository materialized the expected snapshot commit and
+tree. Recovery requires downloading both release assets, comparing their
+SHA-256 values, verifying the bundle, fetching
+`refs/codex/flairforge-wip-20260827` from it into a clean repository, and
+checking out the snapshot commit. Baton task `830f3b45` records the durable
+receipts and full verification procedure.
 
 ## Scope map
 
