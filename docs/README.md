@@ -26,6 +26,8 @@ Located in the repository root for easy access:
 
 - **[Marketing and Campaign Operating-System Roadmap](./roadmaps/MARKETING_CAMPAIGN_OPERATING_SYSTEM.md)** - Canonical X-first capability sequence, governance boundaries, evidence gates, and LinkedIn entry criteria
 - **[X-First Campaign Delivery Plan](./plans/X_FIRST_CAMPAIGN_DELIVERY_PLAN.md)** - Planned pull requests, workstreams, dependencies, verification, and campaign review cadence
+- **[Creative Assets and Rendering Boundary ADR](./adr/0001-creative-assets-and-rendering-boundary.md)** - OmniPost ownership, immutable creative contracts, and the bounded Mill rendering adapter
+- **[FlairForge to OmniPost Migration Plan](./plans/FLAIRFORGE_TO_OMNIPOST_MIGRATION.md)** - Provenance-led capability absorption, delivery gates, pilot evidence, and retirement criteria
 - **[Alpha Launch Plan](./ALPHA_LAUNCH_PLAN.md)** - Wider product alpha scope and launch checklist
 - **[X Campaign Go-Live Runbook](./runbooks/X_CAMPAIGN_GO_LIVE.md)** - Staffed operator procedure for the first controlled production X post
 
@@ -91,6 +93,8 @@ Historical documentation from previous development phases:
 - **Check migration status** → [api/api-migration-todo.md](./api/api-migration-todo.md)
 - **Review the campaign roadmap** → [roadmaps/MARKETING_CAMPAIGN_OPERATING_SYSTEM.md](./roadmaps/MARKETING_CAMPAIGN_OPERATING_SYSTEM.md)
 - **Plan the X-first delivery** → [plans/X_FIRST_CAMPAIGN_DELIVERY_PLAN.md](./plans/X_FIRST_CAMPAIGN_DELIVERY_PLAN.md)
+- **Review creative ownership and rendering boundaries** → [adr/0001-creative-assets-and-rendering-boundary.md](./adr/0001-creative-assets-and-rendering-boundary.md)
+- **Plan the FlairForge capability migration** → [plans/FLAIRFORGE_TO_OMNIPOST_MIGRATION.md](./plans/FLAIRFORGE_TO_OMNIPOST_MIGRATION.md)
 - **View project structure** → [PROJECT_STRUCTURE.md](../PROJECT_STRUCTURE.md)
 - **Explore program name suggestions** → [PROGRAM_NAME_SUGGESTIONS.md](./PROGRAM_NAME_SUGGESTIONS.md)
 
@@ -124,4 +128,4 @@ If you can't find what you're looking for:
 
 ---
 
-**Last Updated**: July 24, 2026
+**Last Updated**: August 27, 2026
