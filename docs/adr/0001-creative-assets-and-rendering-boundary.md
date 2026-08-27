@@ -46,17 +46,25 @@ replace Mill without changing its domain model.
 ## Contract
 
 All IDs are opaque strings and all timestamps are UTC ISO 8601. Canonical JSON
-version 1 uses OmniPost's `stableStringify` in
-`lib/campaigns/contracts.ts` as the normative implementation. It recursively
-sorts object keys using the implementation's `localeCompare` ordering, omits
-object properties whose value is `undefined`, preserves array order, and
-serializes strings, booleans, finite numbers, and explicit `null` with
-JavaScript `JSON.stringify` semantics. It performs no Unicode normalization;
-producers must therefore supply identically normalized strings. Explicit
-`null` remains distinct from an omitted property. The resulting string is
-encoded as UTF-8 and SHA-256 hashed as `sha256:<lowercase-hex>`. OmniPost and
-Mill must pass shared canonicalization conformance vectors, including nested
-objects, arrays, Unicode, numbers, nulls, and omitted values, before activation.
+version 1 recursively sorts object keys by unsigned UTF-16 code units: compare
+each code unit numerically from left to right, and sort a shorter key first when
+it is an exact prefix. This ordering is independent of locale, operating
+system, and ICU data. The serializer omits object properties whose value is
+`undefined`, preserves array order, and serializes strings, booleans, finite
+numbers, and explicit `null` with JavaScript `JSON.stringify` semantics. It
+performs no Unicode normalization; producers must therefore supply identically
+normalized strings. Explicit `null` remains distinct from an omitted property.
+The resulting string is encoded as UTF-8 and SHA-256 hashed as
+`sha256:<lowercase-hex>`.
+
+OmniPost's current `stableStringify` in `lib/campaigns/contracts.ts` uses
+default `localeCompare` ordering and is therefore not a conforming canonical
+JSON version 1 implementation. Activation is blocked until it uses the
+environment-independent ordering above and OmniPost and Mill pass the same
+shared conformance vectors. Those vectors must include nested objects, arrays,
+Unicode and non-ASCII keys with deliberately different locale and code-unit
+orders, prefix keys, numbers, nulls, and omitted values, with exact serialized
+bytes and hashes asserted in both services.
 
 ### Ownership and authoring records
 
@@ -122,37 +130,94 @@ OmniPost sends Mill a `RenderRequest` containing only:
 - accessibility output requirements; and
 - trace correlation ID and bounded deadline.
 
-The canonical input hash and request fingerprint cover the complete resolved
-request except operational fields that cannot affect output, such as trace ID
-and deadline. OmniPost rejects a render request when any output-affecting field
-does not match the approved fingerprint; Mill independently verifies the same
-fingerprint before rendering.
+The canonical input hash identifies the approved creative input: resolved
+layout and slot values, immutable template and variant versions, ordered asset
+version/content hashes, and the complete approved target specification. It
+does not include delivery or execution metadata.
+
+The request fingerprint is distinct from that input hash. It is
+`sha256(canonical-json-v1(fingerprintInput))`, where `fingerprintInput` is
+exactly:
+
+```text
+{
+  contractVersion,
+  canonicalInputHash,
+  templateVersionId,
+  variantVersionId,
+  assetContentHashes,
+  target: {
+    platform, mediaType, dimensions, unit, dpi, colorProfile,
+    qualityConstraints, accessibilityOutputRequirements
+  }
+}
+```
+
+The contract/schema version, canonical input hash, immutable template and
+variant identifiers, ordered asset content hashes, and every target field are
+included directly. Resolved layout/slot values and stable asset identities are
+included transitively through `canonicalInputHash`. `renderJobId`,
+`idempotencyKey`, short-lived asset-grant URL/token/expiry values, trace
+correlation ID, and deadline are excluded because they control delivery or
+execution rather than output. Asset grants must still resolve only to the
+included asset identities and content hashes; changing a grant must not change
+the fingerprint, while changing the bytes it authorizes must fail hash
+verification. OmniPost rejects any output-affecting mismatch against the
+approval, and Mill independently derives and verifies the same fingerprint
+before rendering.
+
+Shared contract vectors must vary every `RenderRequest` field independently,
+assert whether the fingerprint changes, and assert identical canonical bytes
+and fingerprint results in OmniPost and Mill. They must also prove that grant
+rotation and operational-ID changes do not alter the fingerprint, while any
+creative, asset-content, contract-version, or target change does.
 
 Mill returns a `RenderResult` with renderer name/version, status, output media
 type, dimensions, byte size, content hash, artifact handoff reference,
 started/completed timestamps, warnings, and a stable error code. It must not
 return credentials or echo source content into logs.
 
-OmniPost persists `RenderJob` state (`requested`, `running`, `succeeded`,
-`failed`, `cancelled`, or `expired`), request fingerprint, attempt count,
-renderer version, artifact metadata, and classified failure. Storage enforces a
-unique `(tenantId, idempotencyKey)` binding to exactly one request fingerprint.
-Creation is atomic: concurrent identical submissions resolve to the same job;
-the same key with a different fingerprint fails with an idempotency conflict
-before Mill is called.
+OmniPost persists `RenderJob` state (`requested`, `running`, `reconciling`,
+`succeeded`, `failed`, `cancelled`, or `expired`), request fingerprint, attempt
+count, dispatch deadline, lease token and expiry, last heartbeat, Mill attempt
+reference/receipt, renderer version, artifact metadata, and classified failure.
+Storage enforces a unique `(tenantId, idempotencyKey)` binding to exactly one
+request fingerprint. Creation is atomic: concurrent identical submissions
+resolve to the same job; the same key with a different fingerprint fails with
+an idempotency conflict before Mill is called.
 
 Retries read the durable job before doing external work. A succeeded job reuses
-its immutable artifact when its hash and retention state remain valid. A
-requested or running job returns its current state and does not start a second
-render. A definitely failed pre-render attempt may add a bounded attempt to the
-same logical job. Timed-out, expired-after-dispatch, or otherwise unknown Mill
-outcomes enter reconciliation and cannot be retried until Mill or artifact
-evidence proves whether output exists. Reconciliation attaches a verified
-existing artifact or records a terminal failure; a new `RenderJob` requires a
-new idempotency key and an explicit operator/product decision. Contract tests
-must cover fingerprint conflict, concurrent submission, in-flight retry,
-successful artifact reuse, safe pre-dispatch retry, expiry, and unknown-outcome
-reconciliation before the pilot.
+its immutable artifact when its hash and retention state remain valid. A worker
+claims a job atomically with a unique lease token and must heartbeat before the
+lease expires; every state write is fenced by that token so a stale worker
+cannot overwrite recovery work. A periodic reaper processes overdue dispatch
+deadlines and expired leases, so `requested` and `running` cannot remain stale
+indefinitely.
+
+For stale `requested` work with no durable dispatch attempt, the reaper records
+a bounded retry and re-enqueues the same job and idempotency key atomically. For
+an expired `running` lease, a failure proven to have occurred before any Mill
+call may likewise retry the same job. Once transport to Mill may have started,
+the attempt must have a durable Mill reference/receipt or be treated as an
+unknown outcome: the reaper moves the job to `reconciling` and must not issue
+another render call. An in-time retry only returns the current job state.
+
+Timed-out, expired-after-dispatch, receipt-without-result, or otherwise unknown
+Mill outcomes remain in bounded reconciliation until Mill or artifact evidence
+proves whether output exists. Reconciliation attaches a verified existing
+artifact, records a terminal classified failure, or escalates after its own
+deadline; it never silently starts a duplicate render. A definitely failed
+pre-render attempt may add a bounded attempt to the same logical job. A new
+`RenderJob` requires a new idempotency key and an explicit operator/product
+decision.
+
+Contract tests must cover fingerprint conflict, concurrent submission,
+successful artifact reuse, queue loss before dispatch, worker failure before a
+Mill call, worker failure after dispatch with and without a receipt, lease
+expiry and stale-worker fencing, safe pre-dispatch retry, reconciliation
+deadline/escalation, and unknown-outcome reconciliation before the pilot. Each
+test must prove that the job reaches a terminal or explicitly escalated state
+without duplicate Mill execution.
 
 `PreviewArtifact` is explicitly non-publishable and may be watermarked or
 lower resolution. `ApprovedCreativeArtifact` is immutable, references the
