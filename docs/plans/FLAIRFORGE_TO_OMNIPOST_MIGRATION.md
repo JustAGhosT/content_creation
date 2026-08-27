@@ -24,6 +24,15 @@ index were not changed, and the recovery ref was not pushed.
 The snapshot is recovery evidence, not a merge candidate. No bulk history
 merge or direct copy into OmniPost is planned.
 
+This local-only copy is not yet durable shared recovery evidence. Before any
+source import, pilot reliance, or retirement decision, an authorized operator
+must place the bundle in access-controlled shared storage, verify its SHA-256
+after upload, test retrieval in a clean environment, and record the durable URI,
+checksum, retention owner, and recovery procedure in Baton. Until that gate is
+complete, the source machine remains a single point of failure and the rollback
+path must be reported as unavailable outside that machine. This plan does not
+authorize the upload or provision storage.
+
 ## Scope map
 
 | FlairForge material                                       | Migration action                                                                                                            |
@@ -49,7 +58,9 @@ FlairForge path and snapshot commit.
 
 Exit when tenant ownership, versions, hashes, approvals, render jobs,
 accessibility, retention, audit events, and the Mill boundary are reviewable;
-no provider credential or raw prompt is part of the contract.
+no provider credential or raw prompt is part of the contract; and the recovery
+bundle has verified durable shared storage and clean-environment retrieval
+evidence.
 
 ### 2. OmniPost composer slice
 
@@ -67,7 +78,12 @@ identifiers. Do not expand into a general-purpose design suite.
 
 Exit when reload preserves state; cross-tenant access tests fail closed; edits
 after approval create a new version; accessibility fields are enforced; and
-the audit trail reconstructs authoring and review.
+the audit trail reconstructs authoring and review. The implementation must
+extend `approvalSchema`, Prisma `CampaignApproval`, and
+`assertApprovedForQueue` so variant/template/asset versions, the complete target
+specification, accessibility metadata, and canonical input hash are persisted
+and revalidated. Tests independently change every bound input and prove the old
+approval fails closed.
 
 ### 3. Mill adapter
 
@@ -78,7 +94,10 @@ test renderer for contract tests, not as a production fallback.
 
 Exit when the same approved input produces a verified artifact hash, mismatched
 hashes/stale approvals fail closed, unknown outcomes are reconcilable, and no
-credential or source payload leaks to telemetry.
+credential or source payload leaks to telemetry. Contract tests must also prove
+canonicalization conformance between OmniPost and Mill, atomic idempotency under
+concurrency, fingerprint-conflict rejection, in-flight retry behavior, artifact
+reuse, safe pre-dispatch retry, expiry, and unknown-outcome reconciliation.
 
 ### 4. CoilTrace pilot
 
@@ -113,9 +132,11 @@ separate authorized operations. This plan does not perform them.
 
 | Concern            | Required evidence                                                                                            |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Source durability  | Shared bundle URI, matching SHA-256, clean retrieval, retention owner, and recovery test                     |
 | Tenant isolation   | API/data-access tests for read, update, asset access, render request, and export across two tenants          |
 | Immutability       | Tests proving approved versions/hashes cannot be mutated and stale approval cannot render/publish            |
-| Renderer boundary  | Contract tests for success, timeout, unsupported format, mismatched fingerprint, unknown outcome, and retry  |
+| Approval binding   | Independent invalidation tests for creative versions, target fields, accessibility metadata, and input hash  |
+| Renderer boundary  | Canonicalization vectors plus concurrency, conflict, timeout, reconciliation, artifact reuse, and retry      |
 | Accessibility      | Required alt text/reading order and platform dimension validation                                            |
 | Privacy/security   | Upload validation/scanning, short-lived grants, allow-listed telemetry, and secret/prompt exclusion tests    |
 | Audit              | Query reconstructing source asset -> template -> variant -> approval -> render -> artifact -> publish/export |

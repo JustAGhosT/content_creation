@@ -46,8 +46,17 @@ replace Mill without changing its domain model.
 ## Contract
 
 All IDs are opaque strings and all timestamps are UTC ISO 8601. Canonical JSON
-uses a documented stable key order and UTF-8 encoding. Hashes use
-`sha256:<lowercase-hex>`.
+version 1 uses OmniPost's `stableStringify` in
+`lib/campaigns/contracts.ts` as the normative implementation. It recursively
+sorts object keys using the implementation's `localeCompare` ordering, omits
+object properties whose value is `undefined`, preserves array order, and
+serializes strings, booleans, finite numbers, and explicit `null` with
+JavaScript `JSON.stringify` semantics. It performs no Unicode normalization;
+producers must therefore supply identically normalized strings. Explicit
+`null` remains distinct from an omitted property. The resulting string is
+encoded as UTF-8 and SHA-256 hashed as `sha256:<lowercase-hex>`. OmniPost and
+Mill must pass shared canonicalization conformance vectors, including nested
+objects, arrays, Unicode, numbers, nulls, and omitted values, before activation.
 
 ### Ownership and authoring records
 
@@ -86,9 +95,21 @@ The variant version is the unit reviewed and rendered.
 Approval is server-authoritative and append-only. An approval binds reviewer,
 decision, time, `campaignVersionId`, `contentId`, `variantId`, creative variant
 version, template-version hash, asset-version hashes, and canonical input hash.
-Any change to template, slot content, referenced asset, platform dimensions, or
-accessibility metadata invalidates the previous approval and creates a new
-variant version. UI state cannot approve or mutate an approved record.
+The canonical input hash also covers every output-affecting target field:
+platform, media type, dimensions, unit, DPI, color profile, quality constraints,
+and accessibility output requirements. Any change to template, slot content,
+referenced asset, target field, or accessibility metadata invalidates the
+previous approval and creates a new variant version. UI state cannot approve or
+mutate an approved record.
+
+The current `approvalSchema`, Prisma `CampaignApproval`, and
+`assertApprovedForQueue` bind only campaign/content identity and `contentHash`;
+they do not yet satisfy this creative contract. The composer implementation
+must extend request validation, append-only persistence, and queue/render
+authorization with the creative variant version, template-version hash,
+ordered asset-version hashes, canonical target specification, accessibility
+metadata, and canonical input hash. Contract tests must mutate each bound input
+independently and prove that the previous approval is rejected.
 
 ### Render job
 
@@ -101,6 +122,12 @@ OmniPost sends Mill a `RenderRequest` containing only:
 - accessibility output requirements; and
 - trace correlation ID and bounded deadline.
 
+The canonical input hash and request fingerprint cover the complete resolved
+request except operational fields that cannot affect output, such as trace ID
+and deadline. OmniPost rejects a render request when any output-affecting field
+does not match the approved fingerprint; Mill independently verifies the same
+fingerprint before rendering.
+
 Mill returns a `RenderResult` with renderer name/version, status, output media
 type, dimensions, byte size, content hash, artifact handoff reference,
 started/completed timestamps, warnings, and a stable error code. It must not
@@ -108,9 +135,24 @@ return credentials or echo source content into logs.
 
 OmniPost persists `RenderJob` state (`requested`, `running`, `succeeded`,
 `failed`, `cancelled`, or `expired`), request fingerprint, attempt count,
-renderer version, artifact metadata, and classified failure. A successful
-retry with the same idempotency key and fingerprint resolves to the same
-logical result. A key reused with a different fingerprint fails closed.
+renderer version, artifact metadata, and classified failure. Storage enforces a
+unique `(tenantId, idempotencyKey)` binding to exactly one request fingerprint.
+Creation is atomic: concurrent identical submissions resolve to the same job;
+the same key with a different fingerprint fails with an idempotency conflict
+before Mill is called.
+
+Retries read the durable job before doing external work. A succeeded job reuses
+its immutable artifact when its hash and retention state remain valid. A
+requested or running job returns its current state and does not start a second
+render. A definitely failed pre-render attempt may add a bounded attempt to the
+same logical job. Timed-out, expired-after-dispatch, or otherwise unknown Mill
+outcomes enter reconciliation and cannot be retried until Mill or artifact
+evidence proves whether output exists. Reconciliation attaches a verified
+existing artifact or records a terminal failure; a new `RenderJob` requires a
+new idempotency key and an explicit operator/product decision. Contract tests
+must cover fingerprint conflict, concurrent submission, in-flight retry,
+successful artifact reuse, safe pre-dispatch retry, expiry, and unknown-outcome
+reconciliation before the pilot.
 
 `PreviewArtifact` is explicitly non-publishable and may be watermarked or
 lower resolution. `ApprovedCreativeArtifact` is immutable, references the
