@@ -15,6 +15,16 @@ describe('campaign persistence contracts', () => {
     expect(sha256({ b: 2, a: 1 })).toBe(sha256({ a: 1, b: 2 }));
   });
 
+  test('orders canonical object keys by unsigned UTF-16 code units', () => {
+    const value = { '�': 6, '😀': 5, ä: 4, a: 3, Aa: 2, A: 1 };
+    const expected = '{"A":1,"Aa":2,"a":3,"ä":4,"😀":5,"�":6}';
+
+    expect(stableStringify(value)).toBe(expected);
+    expect(sha256(value)).toBe(
+      'sha256:c798f5c4318b28564822dd4547c11bad6d303ad6a59bdc2fcca92da993cfc6c4'
+    );
+  });
+
   test('binds content hashes to stable adaptation IDs and content', () => {
     const content = omnipostXCampaignSeed.contentItems[0];
     const original = campaignContentHash(content);

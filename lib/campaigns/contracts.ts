@@ -188,12 +188,25 @@ export function stableStringify(value: unknown): string {
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, entry]) => entry !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right));
+      .sort(([left], [right]) => compareUtf16CodeUnits(left, right));
     return `{${entries
       .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`)
       .join(',')}}`;
   }
   return JSON.stringify(value) ?? 'null';
+}
+
+function compareUtf16CodeUnits(left: string, right: string): number {
+  const sharedLength = Math.min(left.length, right.length);
+
+  for (let index = 0; index < sharedLength; index += 1) {
+    const difference = left.charCodeAt(index) - right.charCodeAt(index);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+
+  return left.length - right.length;
 }
 
 export function sha256(value: unknown): string {
