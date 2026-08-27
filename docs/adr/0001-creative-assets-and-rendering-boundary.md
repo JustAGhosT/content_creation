@@ -135,6 +135,20 @@ layout and slot values, immutable template and variant versions, ordered asset
 version/content hashes, and the complete approved target specification. It
 does not include delivery or execution metadata.
 
+OmniPost must recompute this hash server-side from the authoritative approved
+template and variant records, resolved layout and slot values, verified asset
+version/content hashes, and target specification before dispatch. A hash
+supplied by a client or carried on an earlier request is a claim, never the
+authority. OmniPost rejects a mismatch against the recomputed and approved hash
+before it derives the request fingerprint or calls Mill.
+
+The Mill envelope must contain the complete resolved inputs needed to perform
+the same derivation. Mill independently recomputes the canonical input hash
+from that envelope, verifies asset bytes against the bound content hashes, and
+rejects a mismatch before accepting the request fingerprint or rendering. The
+`canonicalInputHash` placed in `fingerprintInput` is the recomputed value, not
+an unverified request field.
+
 The request fingerprint is distinct from that input hash. It is
 `sha256(canonical-json-v1(fingerprintInput))`, where `fingerprintInput` is
 exactly:
@@ -170,7 +184,10 @@ Shared contract vectors must vary every `RenderRequest` field independently,
 assert whether the fingerprint changes, and assert identical canonical bytes
 and fingerprint results in OmniPost and Mill. They must also prove that grant
 rotation and operational-ID changes do not alter the fingerprint, while any
-creative, asset-content, contract-version, or target change does.
+creative, asset-content, contract-version, or target change does. A required
+negative vector changes resolved slot values while retaining the old claimed
+hash and proves that both services reject the request before fingerprinting or
+rendering.
 
 Mill returns a `RenderResult` with renderer name/version, status, output media
 type, dimensions, byte size, content hash, artifact handoff reference,
@@ -178,13 +195,13 @@ started/completed timestamps, warnings, and a stable error code. It must not
 return credentials or echo source content into logs.
 
 OmniPost persists `RenderJob` state (`requested`, `running`, `reconciling`,
-`succeeded`, `failed`, `cancelled`, or `expired`), request fingerprint, attempt
-count, dispatch deadline, lease token and expiry, last heartbeat, Mill attempt
-reference/receipt, renderer version, artifact metadata, and classified failure.
-Storage enforces a unique `(tenantId, idempotencyKey)` binding to exactly one
-request fingerprint. Creation is atomic: concurrent identical submissions
-resolve to the same job; the same key with a different fingerprint fails with
-an idempotency conflict before Mill is called.
+`escalated`, `succeeded`, `failed`, `cancelled`, or `expired`), request
+fingerprint, attempt count, dispatch deadline, lease token and expiry, last
+heartbeat, Mill attempt reference/receipt, renderer version, artifact metadata,
+and classified failure. Storage enforces a unique `(tenantId, idempotencyKey)`
+binding to exactly one request fingerprint. Creation is atomic: concurrent
+identical submissions resolve to the same job; the same key with a different
+fingerprint fails with an idempotency conflict before Mill is called.
 
 Retries read the durable job before doing external work. A succeeded job reuses
 its immutable artifact when its hash and retention state remain valid. A worker
@@ -205,19 +222,28 @@ another render call. An in-time retry only returns the current job state.
 Timed-out, expired-after-dispatch, receipt-without-result, or otherwise unknown
 Mill outcomes remain in bounded reconciliation until Mill or artifact evidence
 proves whether output exists. Reconciliation attaches a verified existing
-artifact, records a terminal classified failure, or escalates after its own
-deadline; it never silently starts a duplicate render. A definitely failed
-pre-render attempt may add a bounded attempt to the same logical job. A new
-`RenderJob` requires a new idempotency key and an explicit operator/product
-decision.
+artifact, records a terminal classified failure, or atomically enters
+`escalated` after its own deadline; it never silently starts a duplicate
+render. A definitely failed pre-render attempt may add a bounded attempt to the
+same logical job.
+
+`escalated` is durable and terminal for automatic dispatch, retry, and
+reconciliation. It clears any active lease and records `escalatedAt`, a stable
+reason code, the last known Mill/attempt references, evidence consulted, and a
+required operator action or resolution path. Reapers and ordinary retries only
+return this state. An authorized operator/product decision is recorded as an
+append-only resolution event and may attach a verified artifact, record a
+terminal classified failure or cancellation, or authorize a new `RenderJob`
+with a new idempotency key. It must not resume or re-dispatch the escalated job.
 
 Contract tests must cover fingerprint conflict, concurrent submission,
 successful artifact reuse, queue loss before dispatch, worker failure before a
 Mill call, worker failure after dispatch with and without a receipt, lease
 expiry and stale-worker fencing, safe pre-dispatch retry, reconciliation
-deadline/escalation, and unknown-outcome reconciliation before the pilot. Each
-test must prove that the job reaches a terminal or explicitly escalated state
-without duplicate Mill execution.
+deadline and persisted escalation, operator resolution, and unknown-outcome
+reconciliation before the pilot. Each test must prove that the job reaches a
+terminal state without duplicate Mill execution and that an escalated job
+cannot be retried or replaced without the explicit resolution event.
 
 `PreviewArtifact` is explicitly non-publishable and may be watermarked or
 lower resolution. `ApprovedCreativeArtifact` is immutable, references the
