@@ -15,11 +15,15 @@ zero.
 
 ## Preserved source
 
-The dirty FlairForge `feat/monorepo` worktree is preserved at snapshot commit
+The Git-visible contents of the dirty FlairForge `feat/monorepo` worktree are
+preserved at snapshot commit
 `9a582727caddd036870df1098397a9d1c75c3b16`, parent
 `ae00b769c60e227c4ff2a97c9af3252b90146918`, and tree
-`8567cdd83f2ec512e4c6997478437933102b7caf`. The source worktree and real index
-were not changed.
+`8567cdd83f2ec512e4c6997478437933102b7caf`. The snapshot intentionally converts
+tracked modifications and untracked files into one committed forensic tree. It
+does not preserve the original staged/unstaged classification or index
+metadata; those are not recovery targets. The source worktree and its real
+index were not changed during capture.
 
 The snapshot is recovery evidence, not a merge candidate. No bulk history
 merge or direct copy into OmniPost is planned.
@@ -35,15 +39,33 @@ Durable shared recovery is stored in the private GitHub repository
   `0254DF071425F881ADA4B1ED6BE6DA6634CBDC2F0952643A3805178784460043`;
 - inventory SHA-256:
   `226E39728DD5110F286AAA9712ADA204E4D32D6C9D511E340A36C42538B8CD34`;
-- retention owner: `JustAGhosT`, through the migration and rollback window.
+- transitional retention owner: `JustAGhosT`, through the migration and
+  rollback window.
+
+The current repository is private but user-owned, so it is not the final
+access-continuity control. Before source deletion or standalone retirement,
+Baton task `93512e91` must move or replicate the evidence into
+organization-owned private storage, name at least two maintainers, document
+least-privilege access, offboarding and break-glass recovery, and prove that a
+second maintainer can retrieve and verify both assets without the `JustAGhosT`
+account. Until then, the release is durable recovery evidence with a recorded
+single-account continuity risk.
 
 An authenticated clean download matched both hashes, `git bundle verify`
 passed, and a fresh repository materialized the expected snapshot commit and
-tree. Recovery requires downloading both release assets, comparing their
-SHA-256 values, verifying the bundle, fetching
-`refs/codex/flairforge-wip-20260827` from it into a clean repository, and
-checking out the snapshot commit. Baton task `830f3b45` records the durable
-receipts and full verification procedure.
+tree. There are two distinct recovery paths:
+
+1. Release bundle: download both assets, compare their SHA-256 values, run
+   `git bundle verify`, initialize a clean repository, fetch the bundle's
+   internal `refs/codex/flairforge-wip-20260827` ref, and check out the snapshot
+   commit.
+2. Private Git repository: authenticate, fetch the published
+   `refs/heads/recovery/flairforge-wip-20260827` branch, and check out the same
+   snapshot commit.
+
+The bundle ref and repository branch intentionally use different namespaces;
+both resolve to `9a582727caddd036870df1098397a9d1c75c3b16`. Baton task `830f3b45`
+records the durable receipts and tested bundle procedure.
 
 ## Scope map
 
@@ -134,6 +156,8 @@ Retire the standalone runtime only when, for an agreed observation window:
 - zero production traffic and scheduled work remain;
 - zero active users, integrations, DNS routes, and runtime dependants remain;
 - all selected provenance is recorded and all required data/assets are migrated;
+- access continuity task `93512e91` is complete;
+- rollback rehearsal task `ad90e3dd` has produced runnable-runtime evidence;
 - rollback and support ownership are explicit; and
 - the OmniPost pilot has passed authentic acceptance.
 
@@ -145,6 +169,7 @@ separate authorized operations. This plan does not perform them.
 | Concern            | Required evidence                                                                                            |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
 | Source durability  | Shared bundle URI, matching SHA-256, clean retrieval, retention owner, and recovery test                     |
+| Access continuity  | Organization ownership, two named maintainers, offboarding/break-glass procedure, and second-party retrieval |
 | Tenant isolation   | API/data-access tests for read, update, asset access, render request, and export across two tenants          |
 | Immutability       | Tests proving approved versions/hashes cannot be mutated and stale approval cannot render/publish            |
 | Approval binding   | Independent invalidation tests for creative versions, target fields, accessibility metadata, and input hash  |
@@ -153,6 +178,7 @@ separate authorized operations. This plan does not perform them.
 | Privacy/security   | Upload validation/scanning, short-lived grants, allow-listed telemetry, and secret/prompt exclusion tests    |
 | Audit              | Query reconstructing source asset -> template -> variant -> approval -> render -> artifact -> publish/export |
 | Product acceptance | Staffed CoilTrace journey with legitimate reviewer and visible artifact/result                               |
+| Rollback rehearsal | Runnable artifact, dependency/configuration sources, data checks, health probes, and isolated restore proof  |
 | Retirement         | Time-bounded traffic, dependency, scheduled-job, data, DNS, and support-owner inventory                      |
 
 ## Metrics and review cadence
@@ -174,6 +200,25 @@ credentials, signed asset URLs, or full creative payloads.
 
 Before standalone retirement, disable the OmniPost creative feature flag and
 leave existing publishing paths unchanged. Render jobs are additive and must
-not rewrite approved campaign/content state. After retirement, rollback means
-restoring the preserved FlairForge snapshot/runtime under explicit operator
-authorization; the bundle alone is not deployment approval.
+not rewrite approved campaign/content state.
+
+Standalone retirement is prohibited until Baton task `ad90e3dd` delivers an
+authorized rollback runbook and a successful isolated, non-production restore
+rehearsal. The runbook must identify:
+
+- the exact deployable commit, package/image artifact, dependency lockfile, and
+  required runtime/toolchain versions;
+- configuration sources and secret-reference owners without copying secret
+  values into the runbook or evidence;
+- external services, persistent data, backup/restore inputs, schema and data
+  compatibility checks, and irreversible migration boundaries;
+- DNS and traffic restoration, health and authentic acceptance probes,
+  observability, abort criteria, and the accountable operator; and
+- rehearsal evidence tying the runnable runtime to the recovered snapshot and
+  recording commands, timestamps, outcomes, and residual limitations without
+  credentials or sensitive payloads.
+
+Only after that gate passes may an authorized operator restore the rehearsed
+FlairForge runtime or execute its documented alternative. The verified bundle
+proves source recovery only; it is not proof of deployability, configuration,
+data compatibility, runtime health, or rollback readiness.
