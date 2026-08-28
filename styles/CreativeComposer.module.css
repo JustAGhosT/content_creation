@@ -289,6 +289,113 @@
   color: #64748b;
 }
 
+/* Multi-View Matrix */
+.matrixGrid {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.matrixCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.matrixLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.brandSelector {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.brandPill {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.brandPill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text-primary);
+}
+
+.brandPillActive {
+  background-color: var(--color-primary-50);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.interactiveCanvasSlot {
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.interactiveCanvasSlot:hover {
+  outline: 2px dashed var(--color-primary);
+  background-color: rgba(99, 102, 241, 0.06);
+}
+
+.focusedSlot {
+  outline: 2px solid var(--color-primary) !important;
+  background-color: rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Export Hub */
+.exportHub {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.exportBtn {
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.exportBtn:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-50);
+  color: var(--color-primary);
+}
+
+.exportSize {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
 /* Diagnostics Cards */
 .diagnosticsCard {
   background-color: var(--color-bg-tertiary);

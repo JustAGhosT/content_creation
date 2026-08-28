@@ -5,27 +5,31 @@ import styles from '@/styles/Toast.module.css';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
-interface Toast {
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+export interface Toast {
   id: string;
   message: string;
   type: ToastType;
   duration?: number;
+  action?: ToastAction;
 }
 
-interface ToastContextValue {
+export interface ToastContextValue {
   toasts: Toast[];
-  addToast: (message: string, type?: ToastType, duration?: number) => void;
+  addToast: (message: string, type?: ToastType, duration?: number, action?: ToastAction) => void;
   removeToast: (id: string) => void;
-  success: (message: string, duration?: number) => void;
-  error: (message: string, duration?: number) => void;
-  warning: (message: string, duration?: number) => void;
-  info: (message: string, duration?: number) => void;
+  success: (message: string, duration?: number, action?: ToastAction) => void;
+  error: (message: string, duration?: number, action?: ToastAction) => void;
+  warning: (message: string, duration?: number, action?: ToastAction) => void;
+  info: (message: string, duration?: number, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-// Counter-based ID generation for toast notifications
-// This is safe because toast IDs are only used for React keys and local state management
 let toastCounter = 0;
 const generateId = () => `toast_${Date.now()}_${++toastCounter}`;
 
@@ -65,28 +69,45 @@ interface ToastItemProps {
 }
 
 const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
+  const duration = toast.duration ?? 5000;
+
   useEffect(() => {
     const timer = setTimeout(() => {
       onRemove(toast.id);
-    }, toast.duration || 5000);
+    }, duration);
 
     return () => clearTimeout(timer);
-  }, [toast.id, toast.duration, onRemove]);
+  }, [toast.id, duration, onRemove]);
 
   return (
     <div className={`${styles.toast} ${styles[toast.type]}`} role="alert" aria-live="polite">
-      <span className={styles.icon}>{icons[toast.type]}</span>
-      <p className={styles.message}>{toast.message}</p>
-      <button
-        className={styles.closeButton}
-        onClick={() => onRemove(toast.id)}
-        aria-label="Dismiss notification"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
+      <div className={styles.toastContent}>
+        <span className={styles.icon}>{icons[toast.type]}</span>
+        <p className={styles.message}>{toast.message}</p>
+        {toast.action && (
+          <button
+            type="button"
+            className={styles.actionButton}
+            onClick={() => {
+              toast.action?.onClick();
+              onRemove(toast.id);
+            }}
+          >
+            {toast.action.label}
+          </button>
+        )}
+        <button
+          className={styles.closeButton}
+          onClick={() => onRemove(toast.id)}
+          aria-label="Dismiss notification"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div className={styles.progressBar} style={{ animationDuration: `${duration}ms` }} />
     </div>
   );
 };
@@ -98,37 +119,59 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setToasts(prev => prev.filter(toast => toast.id !== id));
   }, []);
 
-  const addToast = useCallback((message: string, type: ToastType = 'info', duration = 5000) => {
-    const id = generateId();
-    setToasts(prev => [...prev, { id, message, type, duration }]);
-  }, []);
+  const addToast = useCallback(
+    (message: string, type: ToastType = 'info', duration = 5000, action?: ToastAction) => {
+      const id = generateId();
+      setToasts(prev => [...prev, { id, message, type, duration, action }]);
+    },
+    []
+  );
 
   const success = useCallback(
-    (message: string, duration?: number) => addToast(message, 'success', duration),
-    [addToast]
-  );
-  const error = useCallback(
-    (message: string, duration?: number) => addToast(message, 'error', duration),
-    [addToast]
-  );
-  const warning = useCallback(
-    (message: string, duration?: number) => addToast(message, 'warning', duration),
-    [addToast]
-  );
-  const info = useCallback(
-    (message: string, duration?: number) => addToast(message, 'info', duration),
+    (message: string, duration?: number, action?: ToastAction) => {
+      addToast(message, 'success', duration, action);
+    },
     [addToast]
   );
 
-  const contextValue = useMemo(
-    () => ({ toasts, addToast, removeToast, success, error, warning, info }),
+  const error = useCallback(
+    (message: string, duration?: number, action?: ToastAction) => {
+      addToast(message, 'error', duration, action);
+    },
+    [addToast]
+  );
+
+  const warning = useCallback(
+    (message: string, duration?: number, action?: ToastAction) => {
+      addToast(message, 'warning', duration, action);
+    },
+    [addToast]
+  );
+
+  const info = useCallback(
+    (message: string, duration?: number, action?: ToastAction) => {
+      addToast(message, 'info', duration, action);
+    },
+    [addToast]
+  );
+
+  const value = useMemo(
+    () => ({
+      toasts,
+      addToast,
+      removeToast,
+      success,
+      error,
+      warning,
+      info,
+    }),
     [toasts, addToast, removeToast, success, error, warning, info]
   );
 
   return (
-    <ToastContext.Provider value={contextValue}>
+    <ToastContext.Provider value={value}>
       {children}
-      <div className={styles.container} aria-label="Notifications">
+      <div className={styles.container} aria-label="Notifications" aria-live="polite">
         {toasts.map(toast => (
           <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
         ))}

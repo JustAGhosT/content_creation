@@ -7,6 +7,7 @@ import styles from '@/styles/Header.module.css';
 import { NavigationItem, siteConfig } from '../../data/siteConfig';
 import { useAuth } from '../providers/AuthProvider';
 import ProductStatus from './ProductStatus';
+import CommandPalette from './CommandPalette';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -83,111 +84,139 @@ const Header: React.FC = () => {
   const navigationItems = siteConfig.navigation;
 
   return (
-    <header className={styles.header}>
-      <div className={styles.headerContainer}>
-        <div className={styles.logoContainer}>
-          <Link href="/" className={styles.logoLink}>
-            <span className={styles.logoBadge} aria-hidden="true">
-              ◈
-            </span>
-            <span className={styles.logoText}>{siteConfig.siteName || 'Site'}</span>
-          </Link>
-        </div>
+    <>
+      <header className={styles.header}>
+        <div className={styles.headerContainer}>
+          <div className={styles.logoContainer}>
+            <Link href="/" className={styles.logoLink}>
+              <span className={styles.logoBadge} aria-hidden="true">
+                ◈
+              </span>
+              <span className={styles.logoText}>{siteConfig.siteName || 'Site'}</span>
+            </Link>
+          </div>
 
-        <button
-          ref={menuButtonRef}
-          className={styles.mobileMenuButton}
-          onClick={toggleMenu}
-          aria-label="Toggle menu"
-          aria-expanded={menuOpen}
-          aria-controls="main-navigation"
-        >
-          <span className={styles.menuIcon}></span>
-          <span className={styles.menuIcon}></span>
-          <span className={styles.menuIcon}></span>
-        </button>
+          <button
+            ref={menuButtonRef}
+            className={styles.mobileMenuButton}
+            onClick={toggleMenu}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+            aria-controls="main-navigation"
+          >
+            <span className={styles.menuIcon}></span>
+            <span className={styles.menuIcon}></span>
+            <span className={styles.menuIcon}></span>
+          </button>
 
-        <nav
-          ref={menuRef}
-          id="main-navigation"
-          className={`${styles.navigation} ${menuOpen ? styles.menuOpen : ''}`}
-        >
-          <ul className={styles.navList}>
-            {navigationItems.map(item => (
-              <li
-                key={`nav-${item.path}`}
-                className={`${styles.navItem} ${item.children ? styles.hasDropdown : ''}`}
-              >
-                {item.children ? (
-                  <>
+          <nav
+            ref={menuRef}
+            id="main-navigation"
+            className={`${styles.navigation} ${menuOpen ? styles.menuOpen : ''}`}
+          >
+            <ul className={styles.navList}>
+              {navigationItems.map(item => (
+                <li
+                  key={`nav-${item.path}`}
+                  className={`${styles.navItem} ${item.children ? styles.hasDropdown : ''}`}
+                >
+                  {item.children ? (
+                    <>
+                      <Link
+                        href={item.path}
+                        className={`${styles.navLink} ${styles.dropdownTrigger} ${
+                          isNavItemActive(item) ? styles.activeLink : ''
+                        }`}
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        {item.name}
+                        <span className={styles.dropdownChevron} aria-hidden="true">
+                          v
+                        </span>
+                      </Link>
+                      <ul className={styles.dropdownMenu} aria-label={`${item.name} navigation`}>
+                        {item.children.map(child => (
+                          <li key={`nav-${item.path}-${child.path}`}>
+                            <Link
+                              href={child.path}
+                              className={`${styles.dropdownLink} ${
+                                pathname === child.path ? styles.activeDropdownLink : ''
+                              }`}
+                              onClick={() => setMenuOpen(false)}
+                            >
+                              {child.name}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
                     <Link
                       href={item.path}
-                      className={`${styles.navLink} ${styles.dropdownTrigger} ${
-                        isNavItemActive(item) ? styles.activeLink : ''
-                      }`}
+                      className={`${styles.navLink} ${pathname === item.path ? styles.activeLink : ''}`}
                       onClick={() => setMenuOpen(false)}
                     >
                       {item.name}
-                      <span className={styles.dropdownChevron} aria-hidden="true">
-                        v
-                      </span>
                     </Link>
-                    <ul className={styles.dropdownMenu} aria-label={`${item.name} navigation`}>
-                      {item.children.map(child => (
-                        <li key={`nav-${item.path}-${child.path}`}>
-                          <Link
-                            href={child.path}
-                            className={`${styles.dropdownLink} ${
-                              pathname === child.path ? styles.activeDropdownLink : ''
-                            }`}
-                            onClick={() => setMenuOpen(false)}
-                          >
-                            {child.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
+                  )}
+                </li>
+              ))}
+              <li
+                className={`${styles.navItem} ${styles.utilityGroup}`}
+                aria-label="Header controls"
+              >
+                <button
+                  type="button"
+                  className={styles.iconToggleButton}
+                  onClick={() => {
+                    window.dispatchEvent(
+                      new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true })
+                    );
+                  }}
+                  aria-label="Search and command palette"
+                  title="Command Palette (Cmd+K)"
+                >
+                  <span>🔍</span>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      opacity: 0.75,
+                      fontFamily: 'var(--font-family-mono)',
+                    }}
+                  >
+                    ⌘K
+                  </span>
+                </button>
+                {isAuthenticated && <ProductStatus variant="header" />}
+                <button
+                  type="button"
+                  className={styles.iconToggleButton}
+                  onClick={toggleTheme}
+                  aria-label={`Switch to ${themeMode === 'dark' ? 'light' : 'dark'} mode`}
+                  title={`Switch to ${themeMode === 'dark' ? 'light' : 'dark'} mode`}
+                >
+                  {themeMode === 'dark' ? 'Light' : 'Dark'}
+                </button>
+                {isAuthenticated ? (
+                  <button onClick={handleLogout} className={styles.authButton}>
+                    Logout ({user?.username})
+                  </button>
                 ) : (
                   <Link
-                    href={item.path}
-                    className={`${styles.navLink} ${pathname === item.path ? styles.activeLink : ''}`}
+                    href="/login"
+                    className={`${styles.navLink} ${styles.loginLink}`}
                     onClick={() => setMenuOpen(false)}
                   >
-                    {item.name}
+                    Login
                   </Link>
                 )}
               </li>
-            ))}
-            <li className={`${styles.navItem} ${styles.utilityGroup}`} aria-label="Header controls">
-              {isAuthenticated && <ProductStatus variant="header" />}
-              <button
-                type="button"
-                className={styles.iconToggleButton}
-                onClick={toggleTheme}
-                aria-label={`Switch to ${themeMode === 'dark' ? 'light' : 'dark'} mode`}
-                title={`Switch to ${themeMode === 'dark' ? 'light' : 'dark'} mode`}
-              >
-                {themeMode === 'dark' ? 'Light' : 'Dark'}
-              </button>
-              {isAuthenticated ? (
-                <button onClick={handleLogout} className={styles.authButton}>
-                  Logout ({user?.username})
-                </button>
-              ) : (
-                <Link
-                  href="/login"
-                  className={`${styles.navLink} ${styles.loginLink}`}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Login
-                </Link>
-              )}
-            </li>
-          </ul>
-        </nav>
-      </div>
-    </header>
+            </ul>
+          </nav>
+        </div>
+      </header>
+      <CommandPalette />
+    </>
   );
 };
 
