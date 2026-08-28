@@ -6,6 +6,7 @@ import { sha256 } from '@/lib/campaigns/contracts';
 import { COILTRACE_BRAND_KIT } from '@/lib/creative/pilot/coiltrace-pilot';
 import { BUILTIN_FLYER_TEMPLATE_V1 } from '@/lib/creative/templates/builtin';
 import type { BrandKit } from '@/lib/creative/types';
+import { useToast } from '@/components/ui';
 
 type PlatformPreset = 'instagram' | 'linkedin' | 'story';
 type ViewMode = 'single' | 'matrix';
@@ -81,6 +82,8 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
   campaignId = 'camp-coiltrace-q3',
   onApprovalComplete,
 }) => {
+  const toast = useToast();
+
   // State for view & brand
   const [platform, setPlatform] = useState<PlatformPreset>('linkedin');
   const [viewMode, setViewMode] = useState<ViewMode>('single');
@@ -112,6 +115,14 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
   const [isRendering, setIsRendering] = useState(false);
   const [artifactHash, setArtifactHash] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+
+  // Copy helper
+  const copyToClipboard = (text: string, label: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    }
+    toast.success(`Copied ${label} to clipboard!`, 3000);
+  };
 
   // Compute live Canonical Input Hash
   const canonicalInputHash = useMemo(() => {
@@ -201,6 +212,10 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
       });
       setArtifactHash(generatedArtifact);
       setIsRendering(false);
+      toast.success('Mill rendered verified artifact!', 5000, {
+        label: 'Copy Hash',
+        onClick: () => copyToClipboard(generatedArtifact, 'Artifact Hash'),
+      });
       onApprovalComplete?.({
         artifactHash: generatedArtifact,
         canonicalInputHash,
@@ -211,6 +226,9 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
 
   const handleExport = (format: string) => {
     setDownloadSuccess(`Exported preview-${platform}.${format}`);
+    toast.info(
+      `Exporting ${format.toUpperCase()} asset (~${format === 'pdf' ? '1.4 MB' : '120 KB'})`
+    );
     setTimeout(() => setDownloadSuccess(null), 3000);
   };
 
@@ -550,18 +568,55 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
           </div>
 
           <div className={styles.diagnosticsCard}>
-            <span className={styles.diagTitle}>Canonical Input Hash</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className={styles.diagTitle}>Canonical Input Hash</span>
+              <button
+                type="button"
+                className={styles.brandPill}
+                style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem' }}
+                onClick={() => copyToClipboard(canonicalInputHash, 'Canonical Input Hash')}
+              >
+                Copy
+              </button>
+            </div>
             <div className={styles.hashBadge}>{canonicalInputHash}</div>
           </div>
 
           <div className={styles.diagnosticsCard}>
-            <span className={styles.diagTitle}>Mill Request Fingerprint</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className={styles.diagTitle}>Mill Request Fingerprint</span>
+              <button
+                type="button"
+                className={styles.brandPill}
+                style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem' }}
+                onClick={() => copyToClipboard(requestFingerprint, 'Request Fingerprint')}
+              >
+                Copy
+              </button>
+            </div>
             <div className={styles.hashBadge}>{requestFingerprint}</div>
           </div>
 
           {artifactHash ? (
             <div className={styles.diagnosticsCard} style={{ borderColor: 'var(--color-success)' }}>
-              <span className={styles.diagTitle}>Deterministic Artifact Hash</span>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <span className={styles.diagTitle}>Deterministic Artifact Hash</span>
+                <button
+                  type="button"
+                  className={styles.brandPill}
+                  style={{
+                    fontSize: '0.7rem',
+                    padding: '0.15rem 0.45rem',
+                    borderColor: 'var(--color-success)',
+                    color: 'var(--color-success)',
+                  }}
+                  onClick={() => copyToClipboard(artifactHash, 'Artifact Hash')}
+                >
+                  Copy
+                </button>
+              </div>
               <div className={styles.hashBadge} style={{ color: 'var(--color-success)' }}>
                 {artifactHash}
               </div>

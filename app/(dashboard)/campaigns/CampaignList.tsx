@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { CampaignCard, CampaignForm, EmptyState } from '@/components/campaigns';
-import { Button, LoadingSpinner } from '@/components/ui';
+import { Button, LoadingSpinner, useToast } from '@/components/ui';
 import { useCampaign } from '@/hooks/useCampaign';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { Campaign, CampaignStatus, CreateCampaignInput } from '@/types/campaign';
@@ -23,11 +23,29 @@ const STATUS_FILTERS: { label: string; value: CampaignStatus | 'all' }[] = [
   { label: 'Completed', value: 'completed' },
 ];
 
-const KANBAN_STAGES: { label: string; status: CampaignStatus; icon: string }[] = [
-  { label: 'Draft', status: 'draft', icon: '📝' },
-  { label: 'Scheduled', status: 'scheduled', icon: '⏱️' },
-  { label: 'Active', status: 'active', icon: '🚀' },
-  { label: 'Paused', status: 'paused', icon: '⏸️' },
+const KANBAN_STAGES: {
+  label: string;
+  status: CampaignStatus;
+  icon: string;
+  nextStatus?: CampaignStatus;
+  nextLabel?: string;
+}[] = [
+  { label: 'Draft', status: 'draft', icon: '📝', nextStatus: 'scheduled', nextLabel: 'Schedule →' },
+  {
+    label: 'Scheduled',
+    status: 'scheduled',
+    icon: '⏱️',
+    nextStatus: 'active',
+    nextLabel: 'Activate →',
+  },
+  {
+    label: 'Active',
+    status: 'active',
+    icon: '🚀',
+    nextStatus: 'completed',
+    nextLabel: 'Complete →',
+  },
+  { label: 'Paused', status: 'paused', icon: '⏸️', nextStatus: 'active', nextLabel: 'Resume →' },
   { label: 'Completed', status: 'completed', icon: '✓' },
 ];
 
@@ -36,8 +54,10 @@ const KANBAN_STAGES: { label: string; status: CampaignStatus; icon: string }[] =
  */
 function CampaignKanbanBoard({
   campaigns,
+  onMoveStage,
 }: Readonly<{
   campaigns: Campaign[];
+  onMoveStage?: (campaignId: string, fromStatus: CampaignStatus, toStatus: CampaignStatus) => void;
 }>) {
   return (
     <div className={styles.kanbanBoard}>
@@ -66,8 +86,13 @@ function CampaignKanbanBoard({
                 </div>
               ) : (
                 stageCampaigns.map(c => (
-                  <Link key={c.id} href={`/campaigns/${c.id}`} className={styles.kanbanCard}>
-                    <h4 className={styles.kanbanCardTitle}>{c.name}</h4>
+                  <div key={c.id} className={styles.kanbanCard}>
+                    <Link
+                      href={`/campaigns/${c.id}`}
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <h4 className={styles.kanbanCardTitle}>{c.name}</h4>
+                    </Link>
                     <div className={styles.kanbanPlatforms}>
                       {c.platforms && c.platforms.length > 0 ? (
                         c.platforms.map(p => (
@@ -81,9 +106,29 @@ function CampaignKanbanBoard({
                     </div>
                     <div className={styles.kanbanCardFooter}>
                       <span>{c.contentItems?.length || 0} contents</span>
-                      <span>{new Date(c.updatedAt).toLocaleDateString()}</span>
+                      {stage.nextStatus && onMoveStage ? (
+                        <button
+                          type="button"
+                          className={styles.platformChip}
+                          style={{
+                            cursor: 'pointer',
+                            border: '1px solid var(--color-primary)',
+                            background: 'var(--color-primary-50)',
+                          }}
+                          onClick={e => {
+                            e.stopPropagation();
+                            if (stage.nextStatus) {
+                              onMoveStage(c.id, c.status, stage.nextStatus);
+                            }
+                          }}
+                        >
+                          {stage.nextLabel}
+                        </button>
+                      ) : (
+                        <span>{new Date(c.updatedAt).toLocaleDateString()}</span>
+                      )}
                     </div>
-                  </Link>
+                  </div>
                 ))
               )}
             </div>
@@ -106,6 +151,7 @@ function CampaignContent({
   onClearFilter,
   onDelete,
   onDuplicate,
+  onMoveStage,
 }: Readonly<{
   isLoading: boolean;
   viewMode: 'grid' | 'kanban';
@@ -115,6 +161,7 @@ function CampaignContent({
   onClearFilter: () => void;
   onDelete?: (id: string) => boolean;
   onDuplicate?: (id: string) => Campaign | null;
+  onMoveStage?: (campaignId: string, fromStatus: CampaignStatus, toStatus: CampaignStatus) => void;
 }>) {
   if (isLoading) {
     return (
@@ -130,7 +177,7 @@ function CampaignContent({
   }
 
   if (viewMode === 'kanban') {
-    return <CampaignKanbanBoard campaigns={campaigns} />;
+    return <CampaignKanbanBoard campaigns={campaigns} onMoveStage={onMoveStage} />;
   }
 
   if (filteredCampaigns.length === 0) {
@@ -159,9 +206,17 @@ function CampaignContent({
 }
 
 export default function CampaignList() {
-  const { campaigns, isLoading, error, createCampaign, deleteCampaign, duplicateCampaign } =
-    useCampaign();
+  const {
+    campaigns,
+    isLoading,
+    error,
+    createCampaign,
+    deleteCampaign,
+    duplicateCampaign,
+    updateStatus,
+  } = useCampaign();
   const { isAuthenticated } = useAuth();
+  const toast = useToast();
 
   const [showForm, setShowForm] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'kanban'>('grid');
@@ -170,6 +225,22 @@ export default function CampaignList() {
   const handleCreateCampaign = (data: CreateCampaignInput) => {
     createCampaign(data);
     setShowForm(false);
+    toast.success('Campaign initialized successfully!', 4000);
+  };
+
+  const handleMoveStage = (
+    campaignId: string,
+    fromStatus: CampaignStatus,
+    toStatus: CampaignStatus
+  ) => {
+    updateStatus(campaignId, toStatus);
+    toast.success(`Campaign moved to ${toStatus.toUpperCase()}`, 6000, {
+      label: 'Undo',
+      onClick: () => {
+        updateStatus(campaignId, fromStatus);
+        toast.info(`Reverted campaign to ${fromStatus.toUpperCase()}`);
+      },
+    });
   };
 
   const filteredCampaigns =
@@ -260,6 +331,7 @@ export default function CampaignList() {
           onClearFilter={() => setStatusFilter('all')}
           onDelete={isAuthenticated ? deleteCampaign : undefined}
           onDuplicate={isAuthenticated ? duplicateCampaign : undefined}
+          onMoveStage={isAuthenticated ? handleMoveStage : undefined}
         />
 
         <div className={styles.navigationLinks}>
