@@ -1,105 +1,110 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  padding: 1.5rem;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
 }
 
 .section {
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .section h2 {
   margin-top: 0;
-  color: #2c3e50;
-  border-bottom: 2px solid #4a6491;
-  padding-bottom: 0.5rem;
+  color: var(--color-text-heading);
+  border-bottom: 2px solid var(--color-primary);
+  padding-bottom: var(--spacing-sm);
 }
 
 .automation {
-  margin: 2rem 0;
+  margin: var(--spacing-xl) 0;
 }
 
 .automationContainer {
-  background-color: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .automationTools {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-  margin: 1.5rem 0;
+  gap: var(--spacing-md);
+  margin: var(--spacing-lg) 0;
 }
 
 .toolCard {
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  padding: 1rem;
-  border-top: 4px solid #4a6491;
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  border-top: 4px solid var(--color-primary);
   cursor: pointer;
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+    transform var(--transition-base),
+    box-shadow var(--transition-base);
   position: relative;
 }
 
 .toolCard:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
 }
 
 .toolCard h4 {
   margin-top: 0;
-  color: #2c3e50;
+  color: var(--color-text-heading);
 }
 
 .toolCard p {
-  margin: 0.5rem 0;
-  font-size: 0.9rem;
+  margin: var(--spacing-xs) 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }
 
 .toolCard ul {
-  padding-left: 1.2rem;
-  margin: 0.5rem 0;
+  padding-left: var(--spacing-lg);
+  margin: var(--spacing-xs) 0;
 }
 
 .toolCard li {
-  margin-bottom: 0.3rem;
-  font-size: 0.85rem;
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
 }
 
 .toolImage {
   position: relative;
   height: 120px;
-  margin-bottom: 1rem;
-  background-color: #eaeef2;
-  border-radius: 4px;
+  margin-bottom: var(--spacing-md);
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .conclusion {
-  background-color: #2c3e50;
-  color: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  margin-top: 1.5rem;
+  background: linear-gradient(135deg, var(--color-secondary), var(--color-secondary-light));
+  color: var(--color-text-inverse);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  margin-top: var(--spacing-lg);
 }
 
 .conclusion h3 {
   margin-top: 0;
-  font-size: 1.3rem;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-  padding-bottom: 0.5rem;
+  font-size: var(--font-size-xl);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: var(--spacing-sm);
 }
 
 .conclusion p {
-  margin: 1rem 0;
+  margin: var(--spacing-md) 0;
 }
 
 .loading {
@@ -112,24 +117,25 @@
 }
 
 .loadingImageContainer {
-  margin-bottom: 1rem;
+  margin-bottom: var(--spacing-md);
 }
 
 .loadingComponent {
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 4px;
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   text-align: center;
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .error {
-  background-color: #fee2e2;
-  border-left: 4px solid #ef4444;
-  padding: 1rem;
-  margin: 1rem 0;
-  color: #b91c1c;
-  border-radius: 4px;
+  background-color: var(--color-error-bg);
+  border-left: 4px solid var(--color-error);
+  padding: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+  color: var(--color-error-text);
+  border-radius: var(--radius-sm);
 }
 
 .toolDetailModal {
@@ -138,45 +144,49 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: var(--z-modal);
 }
 
 .toolDetailContent {
-  background-color: white;
-  padding: 2rem;
-  border-radius: 8px;
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-lg);
   max-width: 800px;
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
+  box-shadow: var(--shadow-xl);
 }
 
 .navigationLinks {
   display: flex;
   justify-content: space-between;
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
 }
 
 .navLink {
   display: inline-flex;
   align-items: center;
-  padding: 0.5rem 1rem;
-  background-color: #4a6491;
-  color: white;
-  border-radius: 4px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  border-radius: var(--radius-sm);
   text-decoration: none;
-  font-size: 0.9rem;
-  transition: background-color 0.2s;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: opacity var(--transition-fast);
 }
 
 .navLink:hover {
-  background-color: #3a5070;
+  opacity: 0.9;
 }
 
 @media (max-width: 768px) {
@@ -185,6 +195,6 @@
   }
   .navigationLinks {
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 }
