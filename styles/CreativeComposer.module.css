@@ -1,0 +1,459 @@
+/**
+ * Creative Composer Styles
+ * Glassmorphic studio layout with live preview canvas and slot controls.
+ */
+
+.composerContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.composerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.25rem 1.75rem;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl, 16px);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+}
+
+.headerInfo h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-text-heading);
+  letter-spacing: -0.02em;
+}
+
+.headerInfo p {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.platformSelector {
+  display: flex;
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 0.25rem;
+  gap: 0.25rem;
+}
+
+.platformButton {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.825rem;
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.platformButton:hover {
+  color: var(--color-text-primary);
+}
+
+.platformActive {
+  background-color: var(--color-bg-primary);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold, 600);
+  box-shadow: var(--shadow-sm);
+}
+
+.studioLayout {
+  display: grid;
+  grid-template-columns: 360px 1fr 320px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .studioLayout {
+    grid-template-columns: 340px 1fr;
+  }
+  .diagnosticsPanel {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 900px) {
+  .studioLayout {
+    grid-template-columns: 1fr;
+  }
+  .diagnosticsPanel {
+    grid-column: span 1;
+  }
+}
+
+.editorPanel,
+.diagnosticsPanel {
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl, 16px);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.panelTitle {
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-text-heading);
+  margin: 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.slotGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.slotLabel {
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-bold, 700);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.slotInput,
+.slotTextarea,
+.slotSelect {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.9rem;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  transition:
+    border-color var(--transition-fast, 150ms ease),
+    box-shadow var(--transition-fast, 150ms ease);
+}
+
+.slotInput:focus,
+.slotTextarea:focus,
+.slotSelect:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-100);
+  background-color: var(--color-bg-primary);
+}
+
+.slotTextarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* Canvas Area */
+.canvasContainer {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl, 16px);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 580px;
+  position: relative;
+  overflow: hidden;
+}
+
+.canvasWrapper {
+  box-shadow: var(--shadow-xl);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+  transition: all var(--transition-normal, 250ms ease);
+  position: relative;
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+.canvasFlyer {
+  width: 480px;
+  height: 480px;
+  padding: 2.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.canvasFlyerLandscape {
+  width: 540px;
+  height: 360px;
+  padding: 2rem;
+}
+
+.canvasFlyerStory {
+  width: 320px;
+  height: 560px;
+  padding: 2rem;
+}
+
+.canvasHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.canvasLogo {
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.canvasHeadline {
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0.5rem 0;
+  color: #0f172a;
+}
+
+.canvasBody {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #334155;
+  margin: 0.5rem 0 1rem;
+}
+
+.canvasHeroGraphic {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(20, 184, 166, 0.15));
+  border: 1px dashed rgba(99, 102, 241, 0.4);
+  border-radius: 8px;
+  padding: 1.25rem;
+  text-align: center;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.canvasFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.canvasCtaButton {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 0.6rem 1.1rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: inline-block;
+}
+
+.canvasContact {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* Multi-View Matrix */
+.matrixGrid {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.matrixCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.matrixLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.brandSelector {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.brandPill {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.brandPill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text-primary);
+}
+
+.brandPillActive {
+  background-color: var(--color-primary-50);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.interactiveCanvasSlot {
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.interactiveCanvasSlot:hover {
+  outline: 2px dashed var(--color-primary);
+  background-color: rgba(99, 102, 241, 0.06);
+}
+
+.focusedSlot {
+  outline: 2px solid var(--color-primary) !important;
+  background-color: rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Export Hub */
+.exportHub {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.exportBtn {
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.exportBtn:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-50);
+  color: var(--color-primary);
+}
+
+.exportSize {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+/* Diagnostics Cards */
+.diagnosticsCard {
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.diagTitle {
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-bold, 700);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.diagValue {
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-text-heading);
+}
+
+.hashBadge {
+  font-family: var(--font-family-mono);
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+
+.successChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--color-success);
+  font-weight: var(--font-weight-semibold, 600);
+  font-size: 0.85rem;
+}
+
+.actionButtonPrimary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: #ffffff;
+  border: none;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-semibold, 600);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.actionButtonPrimary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}

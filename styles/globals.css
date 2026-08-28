@@ -4,32 +4,34 @@
 
 :root {
   /* Colors - Primary */
-  --color-primary: #4a6491;
-  --color-primary-dark: #3a5481;
-  --color-primary-light: #5a7db3;
-  --color-primary-50: rgba(74, 100, 145, 0.05);
-  --color-primary-100: rgba(74, 100, 145, 0.1);
-  --color-primary-200: rgba(74, 100, 145, 0.2);
+  --color-primary: #6366f1;
+  --color-primary-dark: #4f46e5;
+  --color-primary-light: #818cf8;
+  --color-primary-50: rgba(99, 102, 241, 0.06);
+  --color-primary-100: rgba(99, 102, 241, 0.12);
+  --color-primary-200: rgba(99, 102, 241, 0.24);
 
   /* Colors - Secondary */
-  --color-secondary: #2c3e50;
-  --color-secondary-dark: #1a252f;
-  --color-secondary-light: #3d566e;
+  --color-secondary: #0f172a;
+  --color-secondary-dark: #020617;
+  --color-secondary-light: #1e293b;
 
   /* Colors - Accent */
-  --color-accent: #3498db;
-  --color-accent-dark: #2980b9;
-  --color-accent-light: #5dade2;
+  --color-accent: #06b6d4;
+  --color-accent-dark: #0891b2;
+  --color-accent-light: #22d3ee;
+  --color-accent-teal: #14b8a6;
+  --color-accent-violet: #8b5cf6;
 
   /* Colors - Semantic */
-  --color-success: #16a34a;
+  --color-success: #10b981;
   --color-success-dark: #059669;
   --color-success-light: #d1fae5;
   --color-success-bg: #dcfce7;
   --color-success-bg-subtle: #f0fdf4;
   --color-warning: #f59e0b;
   --color-warning-light: #fef3c7;
-  --color-error: #dc2626;
+  --color-error: #ef4444;
   --color-error-light: #fee2e2;
   --color-error-bg: #fee2e2;
   --color-error-border: #fecaca;
@@ -38,27 +40,30 @@
   --color-info-light: #dbeafe;
 
   /* Colors - Text */
-  --color-text-primary: #1a1a2e;
-  --color-text-secondary: #64748b;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
   --color-text-muted: #94a3b8;
-  --color-text-body: #475569;
-  --color-text-heading: #1e293b;
+  --color-text-body: #334155;
+  --color-text-heading: #0f172a;
   --color-text-label: #374151;
   --color-text-placeholder: #9ca3af;
   --color-text-inverse: #ffffff;
 
   /* Colors - Background */
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f9fafb;
+  --color-bg-secondary: #f8fafc;
   --color-bg-tertiary: #f1f5f9;
   --color-bg-card: #ffffff;
-  --color-bg-dark: #2c3e50;
-  --color-bg-disabled: #f3f4f6;
+  --color-bg-card-hover: #f8fafc;
+  --color-bg-dark: #0f172a;
+  --color-bg-disabled: #f1f5f9;
+  --color-bg-glass: rgba(255, 255, 255, 0.75);
 
   /* Colors - Border */
   --color-border: #e2e8f0;
-  --color-border-light: #edf2f7;
-  --color-border-dark: #cbd5e0;
+  --color-border-light: #f1f5f9;
+  --color-border-dark: #cbd5e1;
+  --color-border-glass: rgba(255, 255, 255, 0.4);
 
   /* Typography */
   --font-family-base:
@@ -125,6 +130,59 @@
   --max-width-content: 1200px;
   --header-height: 64px;
   --footer-min-height: 200px;
+}
+
+[data-theme='dark'] {
+  /* Colors - Primary */
+  --color-primary: #818cf8;
+  --color-primary-dark: #6366f1;
+  --color-primary-light: #a5b4fc;
+  --color-primary-50: rgba(129, 140, 248, 0.08);
+  --color-primary-100: rgba(129, 140, 248, 0.16);
+  --color-primary-200: rgba(129, 140, 248, 0.28);
+
+  /* Colors - Secondary */
+  --color-secondary: #f8fafc;
+  --color-secondary-dark: #cbd5e1;
+  --color-secondary-light: #ffffff;
+
+  /* Colors - Accent */
+  --color-accent: #22d3ee;
+  --color-accent-dark: #06b6d4;
+  --color-accent-light: #67e8f9;
+
+  /* Colors - Text */
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-body: #cbd5e1;
+  --color-text-heading: #ffffff;
+  --color-text-label: #e2e8f0;
+  --color-text-placeholder: #64748b;
+  --color-text-inverse: #090d16;
+
+  /* Colors - Background */
+  --color-bg-primary: #0f172a;
+  --color-bg-secondary: #090d16;
+  --color-bg-tertiary: #1e293b;
+  --color-bg-card: #0f172a;
+  --color-bg-card-hover: #1e293b;
+  --color-bg-dark: #020617;
+  --color-bg-disabled: #1e293b;
+  --color-bg-glass: rgba(15, 23, 42, 0.8);
+
+  /* Colors - Border */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-light: rgba(255, 255, 255, 0.04);
+  --color-border-dark: rgba(255, 255, 255, 0.15);
+  --color-border-glass: rgba(255, 255, 255, 0.12);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 24px 36px rgba(0, 0, 0, 0.7);
+  --shadow-header: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 /* ==========================================================================

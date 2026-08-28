@@ -612,6 +612,147 @@
   color: var(--color-primary-dark, #4338ca);
 }
 
+/* Kanban Board Styles */
+.kanbanBoard {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(240px, 1fr));
+  gap: 1.25rem;
+  overflow-x: auto;
+  padding-bottom: 1.5rem;
+  margin-top: 1rem;
+}
+
+.kanbanColumn {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl, 16px);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 480px;
+}
+
+.kanbanColumnHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.kanbanColumnTitle {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-heading);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kanbanBadge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full, 9999px);
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.kanbanCardsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex-grow: 1;
+}
+
+.kanbanCard {
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition:
+    transform var(--transition-fast, 150ms ease),
+    box-shadow var(--transition-fast, 150ms ease),
+    border-color var(--transition-fast, 150ms ease);
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.kanbanCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary-light);
+}
+
+.kanbanCardTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text-heading);
+  margin: 0;
+}
+
+.kanbanPlatforms {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.platformChip {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background-color: var(--color-primary-50);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.kanbanCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.viewModeToggle {
+  display: flex;
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 0.25rem;
+  gap: 0.25rem;
+}
+
+.viewModeButton {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.825rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.viewModeActive {
+  background-color: var(--color-bg-primary);
+  color: var(--color-primary);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .container {
@@ -624,6 +765,10 @@
   }
 
   .campaignGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .kanbanBoard {
     grid-template-columns: 1fr;
   }
 

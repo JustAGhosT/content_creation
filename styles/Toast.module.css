@@ -1,5 +1,6 @@
 /* ==========================================================================
    Toast Notification Component Styles
+   Glassmorphic notifications with actionable buttons and progress countdown
    ========================================================================== */
 
 .container {
@@ -10,30 +11,40 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm, 0.5rem);
-  max-width: 400px;
+  max-width: 420px;
   width: calc(100% - var(--spacing-xl, 2rem));
   pointer-events: none;
 }
 
 .toast {
   display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-sm, 0.5rem);
-  padding: var(--spacing-md, 1rem);
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  padding: 1rem 1.25rem;
   border-radius: var(--radius-lg, 12px);
-  box-shadow: var(--shadow-lg, 0 10px 15px rgba(0, 0, 0, 0.1));
+  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   pointer-events: auto;
-  animation: slideIn var(--transition-slow, 300ms ease) forwards;
+  animation: slideIn var(--transition-slow, 300ms cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+}
+
+.toastContent {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
 }
 
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateX(100%);
+    transform: translateY(16px) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -42,27 +53,43 @@
    ========================================================================== */
 
 .success {
-  background-color: var(--color-success-light, #d1fae5);
-  border: 1px solid var(--color-success, #10b981);
-  color: #065f46;
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-success);
+  color: var(--color-text-primary);
+}
+
+.success .icon {
+  color: var(--color-success);
 }
 
 .error {
-  background-color: var(--color-error-light, #fee2e2);
-  border: 1px solid var(--color-error, #ef4444);
-  color: #991b1b;
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-error);
+  color: var(--color-text-primary);
+}
+
+.error .icon {
+  color: var(--color-error);
 }
 
 .warning {
-  background-color: var(--color-warning-light, #fef3c7);
-  border: 1px solid var(--color-warning, #f59e0b);
-  color: #92400e;
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-warning);
+  color: var(--color-text-primary);
+}
+
+.warning .icon {
+  color: var(--color-warning);
 }
 
 .info {
-  background-color: var(--color-info-light, #dbeafe);
-  border: 1px solid var(--color-info, #3b82f6);
-  color: #1e40af;
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-info);
+  color: var(--color-text-primary);
+}
+
+.info .icon {
+  color: var(--color-info);
 }
 
 /* ==========================================================================
@@ -71,8 +98,8 @@
 
 .icon {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -87,7 +114,26 @@
   flex: 1;
   margin: 0;
   font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 500;
   line-height: var(--line-height-normal, 1.5);
+}
+
+.actionButton {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid var(--color-primary);
+  background-color: var(--color-primary-50);
+  color: var(--color-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.actionButton:hover {
+  background-color: var(--color-primary);
+  color: #ffffff;
 }
 
 .closeButton {
@@ -102,17 +148,41 @@
   border: none;
   border-radius: var(--radius-sm, 4px);
   cursor: pointer;
-  opacity: 0.6;
-  transition: opacity var(--transition-fast, 150ms ease);
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  transition:
+    opacity var(--transition-fast, 150ms ease),
+    color var(--transition-fast, 150ms ease);
 }
 
 .closeButton:hover {
   opacity: 1;
+  color: var(--color-text-primary);
 }
 
 .closeButton svg {
   width: 14px;
   height: 14px;
+}
+
+/* Progress bar */
+.progressBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  width: 100%;
+  animation: progressDrain linear forwards;
+}
+
+@keyframes progressDrain {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
 }
 
 /* ==========================================================================
@@ -121,14 +191,10 @@
 
 @media (max-width: 480px) {
   .container {
-    bottom: var(--spacing-md, 1rem);
-    right: var(--spacing-md, 1rem);
-    left: var(--spacing-md, 1rem);
-    max-width: none;
+    bottom: var(--spacing-sm, 0.5rem);
+    right: var(--spacing-sm, 0.5rem);
+    left: var(--spacing-sm, 0.5rem);
     width: auto;
-  }
-
-  .toast {
-    padding: var(--spacing-sm, 0.5rem) var(--spacing-md, 1rem);
+    max-width: none;
   }
 }

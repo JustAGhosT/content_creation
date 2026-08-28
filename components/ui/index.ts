@@ -9,6 +9,7 @@ export { EmptyState } from './EmptyState';
 export { PageSkeleton } from './PageSkeleton';
 export { default as StatusBadge } from './StatusBadge';
 export { ToastProvider, useToast } from './Toast';
+export { default as CommandPalette } from './CommandPalette';
 export { ErrorBoundary, withErrorBoundary } from './ErrorBoundary';
 export { default as ScrollingHeader } from './ScrollingHeader';
 export { default as SharedFooter } from './SharedFooter';

@@ -1,6 +1,6 @@
 /**
  * Campaign List Client Component
- * Handles interactive campaign management with CRUD operations
+ * Handles interactive campaign management with Grid & Kanban Board views
  */
 
 'use client';
@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { CampaignCard, CampaignForm, EmptyState } from '@/components/campaigns';
-import { Button, LoadingSpinner } from '@/components/ui';
+import { Button, LoadingSpinner, useToast } from '@/components/ui';
 import { useCampaign } from '@/hooks/useCampaign';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { Campaign, CampaignStatus, CreateCampaignInput } from '@/types/campaign';
@@ -23,25 +23,145 @@ const STATUS_FILTERS: { label: string; value: CampaignStatus | 'all' }[] = [
   { label: 'Completed', value: 'completed' },
 ];
 
+const KANBAN_STAGES: {
+  label: string;
+  status: CampaignStatus;
+  icon: string;
+  nextStatus?: CampaignStatus;
+  nextLabel?: string;
+}[] = [
+  { label: 'Draft', status: 'draft', icon: '📝', nextStatus: 'scheduled', nextLabel: 'Schedule →' },
+  {
+    label: 'Scheduled',
+    status: 'scheduled',
+    icon: '⏱️',
+    nextStatus: 'active',
+    nextLabel: 'Activate →',
+  },
+  {
+    label: 'Active',
+    status: 'active',
+    icon: '🚀',
+    nextStatus: 'completed',
+    nextLabel: 'Complete →',
+  },
+  { label: 'Paused', status: 'paused', icon: '⏸️', nextStatus: 'active', nextLabel: 'Resume →' },
+  { label: 'Completed', status: 'completed', icon: '✓' },
+];
+
 /**
- * Renders the campaign content based on loading state and data
+ * Kanban Board Component
+ */
+function CampaignKanbanBoard({
+  campaigns,
+  onMoveStage,
+}: Readonly<{
+  campaigns: Campaign[];
+  onMoveStage?: (campaignId: string, fromStatus: CampaignStatus, toStatus: CampaignStatus) => void;
+}>) {
+  return (
+    <div className={styles.kanbanBoard}>
+      {KANBAN_STAGES.map(stage => {
+        const stageCampaigns = campaigns.filter(c => c.status === stage.status);
+        return (
+          <div key={stage.status} className={styles.kanbanColumn}>
+            <div className={styles.kanbanColumnHeader}>
+              <span className={styles.kanbanColumnTitle}>
+                <span>{stage.icon}</span> {stage.label}
+              </span>
+              <span className={styles.kanbanBadge}>{stageCampaigns.length}</span>
+            </div>
+
+            <div className={styles.kanbanCardsList}>
+              {stageCampaigns.length === 0 ? (
+                <div
+                  style={{
+                    padding: '1.5rem 0.5rem',
+                    textAlign: 'center',
+                    color: 'var(--color-text-muted)',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  No campaigns in {stage.label.toLowerCase()}
+                </div>
+              ) : (
+                stageCampaigns.map(c => (
+                  <div key={c.id} className={styles.kanbanCard}>
+                    <Link
+                      href={`/campaigns/${c.id}`}
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <h4 className={styles.kanbanCardTitle}>{c.name}</h4>
+                    </Link>
+                    <div className={styles.kanbanPlatforms}>
+                      {c.platforms && c.platforms.length > 0 ? (
+                        c.platforms.map(p => (
+                          <span key={p.platformId} className={styles.platformChip}>
+                            {p.platformName}
+                          </span>
+                        ))
+                      ) : (
+                        <span className={styles.platformChip}>Multi-platform</span>
+                      )}
+                    </div>
+                    <div className={styles.kanbanCardFooter}>
+                      <span>{c.contentItems?.length || 0} contents</span>
+                      {stage.nextStatus && onMoveStage ? (
+                        <button
+                          type="button"
+                          className={styles.platformChip}
+                          style={{
+                            cursor: 'pointer',
+                            border: '1px solid var(--color-primary)',
+                            background: 'var(--color-primary-50)',
+                          }}
+                          onClick={e => {
+                            e.stopPropagation();
+                            if (stage.nextStatus) {
+                              onMoveStage(c.id, c.status, stage.nextStatus);
+                            }
+                          }}
+                        >
+                          {stage.nextLabel}
+                        </button>
+                      ) : (
+                        <span>{new Date(c.updatedAt).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Renders the campaign content based on viewMode, loading state and data
  */
 function CampaignContent({
   isLoading,
+  viewMode,
   campaigns,
   filteredCampaigns,
   onCreateClick,
   onClearFilter,
   onDelete,
   onDuplicate,
+  onMoveStage,
 }: Readonly<{
   isLoading: boolean;
+  viewMode: 'grid' | 'kanban';
   campaigns: Campaign[];
   filteredCampaigns: Campaign[];
   onCreateClick: () => void;
   onClearFilter: () => void;
   onDelete?: (id: string) => boolean;
   onDuplicate?: (id: string) => Campaign | null;
+  onMoveStage?: (campaignId: string, fromStatus: CampaignStatus, toStatus: CampaignStatus) => void;
 }>) {
   if (isLoading) {
     return (
@@ -54,6 +174,10 @@ function CampaignContent({
 
   if (campaigns.length === 0) {
     return <EmptyState onCreateClick={onCreateClick} />;
+  }
+
+  if (viewMode === 'kanban') {
+    return <CampaignKanbanBoard campaigns={campaigns} onMoveStage={onMoveStage} />;
   }
 
   if (filteredCampaigns.length === 0) {
@@ -82,16 +206,41 @@ function CampaignContent({
 }
 
 export default function CampaignList() {
-  const { campaigns, isLoading, error, createCampaign, deleteCampaign, duplicateCampaign } =
-    useCampaign();
+  const {
+    campaigns,
+    isLoading,
+    error,
+    createCampaign,
+    deleteCampaign,
+    duplicateCampaign,
+    updateStatus,
+  } = useCampaign();
   const { isAuthenticated } = useAuth();
+  const toast = useToast();
 
   const [showForm, setShowForm] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'kanban'>('grid');
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | 'all'>('all');
 
   const handleCreateCampaign = (data: CreateCampaignInput) => {
     createCampaign(data);
     setShowForm(false);
+    toast.success('Campaign initialized successfully!', 4000);
+  };
+
+  const handleMoveStage = (
+    campaignId: string,
+    fromStatus: CampaignStatus,
+    toStatus: CampaignStatus
+  ) => {
+    updateStatus(campaignId, toStatus);
+    toast.success(`Campaign moved to ${toStatus.toUpperCase()}`, 6000, {
+      label: 'Undo',
+      onClick: () => {
+        updateStatus(campaignId, fromStatus);
+        toast.info(`Reverted campaign to ${fromStatus.toUpperCase()}`);
+      },
+    });
   };
 
   const filteredCampaigns =
@@ -103,26 +252,51 @@ export default function CampaignList() {
         <h1 className={styles.pageTitle}>Campaigns</h1>
         <p className={styles.pageDescription}>
           Create and manage multi-platform content distribution campaigns. Link your content series,
-          schedule posts, and track engagement across all platforms.
+          schedule posts, design creative flyers in the studio, and track engagement across all
+          platforms.
         </p>
 
         {error ? <div className={styles.errorMessage}>{error}</div> : null}
 
         {!showForm && campaigns.length > 0 ? (
           <div className={styles.headerActions}>
-            <div className={styles.filterGroup}>
-              {STATUS_FILTERS.map(filter => (
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}
+            >
+              <div className={styles.viewModeToggle} role="group" aria-label="View Mode">
                 <button
-                  key={filter.value}
-                  onClick={() => setStatusFilter(filter.value)}
-                  className={`${styles.filterButton} ${
-                    statusFilter === filter.value ? styles.active : ''
-                  }`}
+                  type="button"
+                  className={`${styles.viewModeButton} ${viewMode === 'grid' ? styles.viewModeActive : ''}`}
+                  onClick={() => setViewMode('grid')}
                 >
-                  {filter.label}
+                  Grid View
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className={`${styles.viewModeButton} ${viewMode === 'kanban' ? styles.viewModeActive : ''}`}
+                  onClick={() => setViewMode('kanban')}
+                >
+                  Kanban Pipeline
+                </button>
+              </div>
+
+              {viewMode === 'grid' && (
+                <div className={styles.filterGroup}>
+                  {STATUS_FILTERS.map(filter => (
+                    <button
+                      key={filter.value}
+                      onClick={() => setStatusFilter(filter.value)}
+                      className={`${styles.filterButton} ${
+                        statusFilter === filter.value ? styles.active : ''
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
             {isAuthenticated && (
               <Button
                 variant="primary"
@@ -150,12 +324,14 @@ export default function CampaignList() {
 
         <CampaignContent
           isLoading={isLoading}
+          viewMode={viewMode}
           campaigns={campaigns}
           filteredCampaigns={filteredCampaigns}
           onCreateClick={() => setShowForm(true)}
           onClearFilter={() => setStatusFilter('all')}
           onDelete={isAuthenticated ? deleteCampaign : undefined}
           onDuplicate={isAuthenticated ? duplicateCampaign : undefined}
+          onMoveStage={isAuthenticated ? handleMoveStage : undefined}
         />
 
         <div className={styles.navigationLinks}>
