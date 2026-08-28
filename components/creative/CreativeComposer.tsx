@@ -12,6 +12,7 @@ import {
 import {
   extractPaletteFromSeed,
   getContrastRatio,
+  getRelativeLuminance,
   evaluateWcagCompliance,
 } from '@/lib/creative/palette';
 import { executeStreamingRender, RenderStreamEvent } from '@/lib/creative/renderer/stream';
