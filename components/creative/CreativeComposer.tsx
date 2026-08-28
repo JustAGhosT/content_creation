@@ -239,10 +239,8 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
   };
 
   const handleSeedColorChange = (seedHex: string) => {
-    const derived = extractPaletteFromSeed(
-      seedHex,
-      selectedBrand.colors.background === '#090d16' ? 'dark' : 'light'
-    );
+    const isDarkBg = getRelativeLuminance(selectedBrand.colors.background) < 0.2;
+    const derived = extractPaletteFromSeed(seedHex, isDarkBg ? 'dark' : 'light');
     setSelectedBrand(b => ({
       ...b,
       colors: {

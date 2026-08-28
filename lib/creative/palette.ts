@@ -9,7 +9,18 @@ import { BrandKitColors } from './types';
  * Calculates relative luminance for an sRGB color per WCAG 2.1 specification.
  */
 export function getRelativeLuminance(hex: string): number {
-  const cleanHex = hex.replace('#', '');
+  let cleanHex = hex.replace('#', '').trim();
+  if (cleanHex.length === 3) {
+    cleanHex = cleanHex
+      .split('')
+      .map(c => c + c)
+      .join('');
+  }
+  if (cleanHex.length >= 6) {
+    cleanHex = cleanHex.substring(0, 6);
+  } else {
+    cleanHex = cleanHex.padEnd(6, '0');
+  }
   const r = parseInt(cleanHex.substring(0, 2), 16) / 255;
   const g = parseInt(cleanHex.substring(2, 4), 16) / 255;
   const b = parseInt(cleanHex.substring(4, 6), 16) / 255;
@@ -17,9 +28,9 @@ export function getRelativeLuminance(hex: string): number {
   const srgbTransform = (c: number) =>
     c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
 
-  const rLum = srgbTransform(r);
-  const gLum = srgbTransform(g);
-  const bLum = srgbTransform(b);
+  const rLum = srgbTransform(isNaN(r) ? 0 : r);
+  const gLum = srgbTransform(isNaN(g) ? 0 : g);
+  const bLum = srgbTransform(isNaN(b) ? 0 : b);
 
   return 0.2126 * rLum + 0.7152 * gLum + 0.0722 * bLum;
 }
@@ -35,7 +46,7 @@ export function getContrastRatio(hex1: string, hex2: string): number {
     const lighter = Math.max(lum1, lum2);
     const darker = Math.min(lum1, lum2);
     const ratio = (lighter + 0.05) / (darker + 0.05);
-    return Math.round(ratio * 10) / 10;
+    return Math.round(ratio * 100) / 100;
   } catch {
     return 4.5;
   }
