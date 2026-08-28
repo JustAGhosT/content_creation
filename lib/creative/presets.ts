@@ -4,6 +4,7 @@
 
 import { BrandKit } from './types';
 import { COILTRACE_BRAND_KIT } from './pilot/coiltrace-pilot';
+export { COILTRACE_BRAND_KIT } from './pilot/coiltrace-pilot';
 
 export const TECHNOVA_BRAND_KIT: BrandKit = {
   id: 'brand-technova-v1',

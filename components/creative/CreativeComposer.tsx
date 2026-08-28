@@ -15,6 +15,7 @@ import {
   evaluateWcagCompliance,
 } from '@/lib/creative/palette';
 import { executeStreamingRender, RenderStreamEvent } from '@/lib/creative/renderer/stream';
+import type { RenderRequest } from '@/lib/creative/renderer/contracts';
 import type {
   BrandKit,
   RenderedAssetEntry,
@@ -275,9 +276,10 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
     setStreamStage('queued');
     setStreamMessage('Initializing render request stream...');
 
-    const renderRequest = {
-      contractVersion: 'v1' as const,
+    const renderRequest: RenderRequest = {
+      contractVersion: 'v1',
       renderJobId: `job-stream-${Date.now()}`,
+      correlationId: `corr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       idempotencyKey: `idem-stream-${requestFingerprint}`,
       canonicalInputHash,
       templateVersionId: BUILTIN_FLYER_TEMPLATE_V1.canonicalHash,
@@ -303,32 +305,36 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
         },
       },
       resolvedSlots: {
-        'slot-headline': { type: 'text' as const, content: headline },
-        'slot-body': { type: 'text' as const, content: bodyText },
+        'slot-headline': { type: 'text', content: headline },
+        'slot-body': { type: 'text', content: bodyText },
         'slot-logo': {
-          type: 'logo' as const,
+          type: 'logo',
           assetId: selectedBrand.logoAssetId || 'asset-logo',
           assetHash: 'sha256:3333333333333333333333333333333333333333333333333333333333333333',
           altText: logoAlt,
         },
         'slot-hero-image': {
-          type: 'image' as const,
+          type: 'image',
           assetId: 'asset-diagram',
           assetHash: 'sha256:4444444444444444444444444444444444444444444444444444444444444444',
           altText: heroAlt,
         },
-        'slot-cta': { type: 'cta' as const, label: ctaLabel, url: ctaUrl },
-        'slot-contact': { type: 'contact' as const, text: contactInfo },
+        'slot-cta': { type: 'cta', label: ctaLabel, url: ctaUrl },
+        'slot-contact': { type: 'contact', text: contactInfo },
       },
       target: {
-        platform,
-        mediaType: 'image/png' as const,
+        platform: (platform === 'linkedin'
+          ? 'linkedin'
+          : platform === 'instagram' || platform === 'story'
+            ? 'instagram'
+            : 'generic') as SupportedPlatform,
+        mediaType: 'image/png',
         dimensions:
           platform === 'linkedin'
-            ? { width: 1200, height: 627, unit: 'px' as const, dpi: 72 }
+            ? { width: 1200, height: 627, unit: 'px', dpi: 72 }
             : platform === 'story'
-              ? { width: 1080, height: 1920, unit: 'px' as const, dpi: 72 }
-              : { width: 1080, height: 1080, unit: 'px' as const, dpi: 72 },
+              ? { width: 1080, height: 1920, unit: 'px', dpi: 72 }
+              : { width: 1080, height: 1080, unit: 'px', dpi: 72 },
       },
       deadline: new Date(Date.now() + 60000).toISOString(),
     };
@@ -354,14 +360,18 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
         // Add to Asset Library
         const newAssetEntry: RenderedAssetEntry = {
           id: `asset-rendered-${Date.now()}`,
-          campaignId,
+          campaignId: campaignId || 'camp-pilot',
           variantVersionId: `crv-variant-${version}`,
           templateVersionHash: BUILTIN_FLYER_TEMPLATE_V1.canonicalHash,
           canonicalInputHash,
           artifactHash: result.artifactHash,
           storageReference: result.artifactStorageReference || 'artifacts/creative/latest.png',
-          platform,
-          dimensions: result.dimensions,
+          platform: (platform === 'linkedin'
+            ? 'linkedin'
+            : platform === 'instagram' || platform === 'story'
+              ? 'instagram'
+              : 'generic') as SupportedPlatform,
+          dimensions: result.dimensions || renderRequest.target.dimensions,
           brandName: selectedBrand.name,
           version,
           headline,
