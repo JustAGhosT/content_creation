@@ -99,6 +99,21 @@ export interface BrandKitTypography {
   accentFont?: string;
 }
 
+export type WatermarkPosition =
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'center-stamp';
+
+export interface WatermarkConfig {
+  enabled: boolean;
+  position: WatermarkPosition;
+  opacity: number; // 0.0 to 1.0
+  scale: number; // 0.1 to 1.0
+  badgeText?: string;
+}
+
 export interface BrandKit {
   id: string;
   tenantId: string;
@@ -107,6 +122,7 @@ export interface BrandKit {
   logoAssetId?: string;
   colors: BrandKitColors;
   typography: BrandKitTypography;
+  watermarkConfig?: WatermarkConfig;
   accessibilityDefaults?: {
     enforceHighContrast?: boolean;
     defaultAltTextPrefix?: string;
@@ -249,4 +265,42 @@ export interface CreativeApprovalDecision {
   templateVersionHash: string;
   assetHashes: string[];
   notes?: string;
+}
+
+export interface RenderedAssetEntry {
+  id: string;
+  campaignId: string;
+  variantVersionId: string;
+  templateVersionHash: string;
+  canonicalInputHash: string;
+  artifactHash: string;
+  storageReference: string;
+  platform: SupportedPlatform;
+  dimensions: {
+    width: number;
+    height: number;
+    unit: string;
+    dpi: number;
+  };
+  brandName: string;
+  version: number;
+  headline: string;
+  createdAt: string;
+  scheduledSlot?: {
+    platform: SupportedPlatform;
+    slotTime: string;
+    targetCampaignId: string;
+    scheduledAt: string;
+  };
+}
+
+export interface CampaignSlotSchedule {
+  id: string;
+  assetId: string;
+  artifactHash: string;
+  targetPlatform: SupportedPlatform;
+  targetCampaignId: string;
+  slotTimestamp: string;
+  notes?: string;
+  status: 'scheduled' | 'published';
 }

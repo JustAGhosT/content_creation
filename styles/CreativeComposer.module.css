@@ -457,3 +457,232 @@
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
+
+/* SSE Streaming Progress Overlay */
+.streamProgressContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.15);
+}
+
+.streamProgressBarTrack {
+  width: 100%;
+  height: 8px;
+  background-color: var(--color-bg-tertiary);
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.streamProgressBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), #06b6d4);
+  transition: width 200ms ease-out;
+  border-radius: 9999px;
+}
+
+.streamStatusText {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.streamStagePill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  background-color: var(--color-primary-50);
+  color: var(--color-primary);
+  border-radius: 4px;
+}
+
+/* Watermark Canvas Layer */
+.canvasWatermark {
+  position: absolute;
+  pointer-events: none;
+  font-weight: 800;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 10;
+}
+
+.watermarkTopLeft {
+  top: 1rem;
+  left: 1rem;
+}
+
+.watermarkTopRight {
+  top: 1rem;
+  right: 1rem;
+}
+
+.watermarkBottomLeft {
+  bottom: 1rem;
+  left: 1rem;
+}
+
+.watermarkBottomRight {
+  bottom: 1rem;
+  right: 1rem;
+}
+
+.watermarkCenterStamp {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+  font-size: 1.1rem;
+  padding: 0.5rem 1.25rem;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Palette Extraction & Customization */
+.paletteSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--color-border);
+}
+
+.paletteRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.colorSwatchInput {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  background: none;
+}
+
+.contrastBadge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.contrastAAA {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.contrastAA {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
+.contrastFail {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Media Grid / Asset Library View */
+.mediaGridContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.mediaGridHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.mediaGridList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.mediaCard {
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl, 16px);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal, 250ms ease);
+}
+
+.mediaCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary);
+}
+
+.mediaCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mediaCardTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text-heading);
+}
+
+.mediaCardMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.scheduleBadge {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  background-color: #dcfce7;
+  color: #166534;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.scheduleDrawer {
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
