@@ -87,6 +87,9 @@ const Header: React.FC = () => {
       <div className={styles.headerContainer}>
         <div className={styles.logoContainer}>
           <Link href="/" className={styles.logoLink}>
+            <span className={styles.logoBadge} aria-hidden="true">
+              ◈
+            </span>
             <span className={styles.logoText}>{siteConfig.siteName || 'Site'}</span>
           </Link>
         </div>
