@@ -1,8 +1,8 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 import { tokenStorage } from './storage/token-storage';
 
 // Define API response interface
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = Record<string, unknown>> {
   data: T;
   status: number;
   statusText: string;
@@ -13,12 +13,13 @@ export interface ApiResponse<T = any> {
 export interface ApiError {
   message: string;
   status: number;
-  details?: any;
+  details?: Record<string, unknown> | unknown;
   code?: string;
 }
 
 export interface AuthSessionUser {
   id: string;
+  name: string;
   username: string;
   role: string;
 }
@@ -26,6 +27,35 @@ export interface AuthSessionUser {
 export interface AuthSessionResponse {
   authenticated: boolean;
   user: AuthSessionUser | null;
+}
+
+export interface PlatformItem {
+  id: number;
+  name: string;
+  icon: string;
+  enabled: boolean;
+  [key: string]: unknown;
+}
+
+export interface ImageGenerationResult {
+  url: string;
+  id?: string;
+  [key: string]: unknown;
+}
+
+export interface SummaryResult {
+  summary: string;
+  [key: string]: unknown;
+}
+
+export interface ContentTrackingResult {
+  data: unknown[];
+  pagination?: {
+    hasMorePages: boolean;
+    totalCount?: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 
 /**
@@ -81,7 +111,9 @@ class ApiClient {
           }
 
           // Format error for consistent handling
-          const responseData = error.response?.data as any;
+          const responseData = error.response?.data as
+            | { message?: string; details?: Record<string, unknown>; code?: string }
+            | undefined;
           const apiError: ApiError = {
             message: responseData?.message || error.message,
             status: error.response?.status || 500,
@@ -101,7 +133,10 @@ class ApiClient {
    * @param config Optional axios config
    * @returns Promise with response data
    */
-  public async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  public async get<T = Record<string, unknown>>(
+    url: string,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const response = await this.client.get<T>(url, config);
     return response.data;
   }
@@ -113,7 +148,11 @@ class ApiClient {
    * @param config Optional axios config
    * @returns Promise with response data
    */
-  public async post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  public async post<T = Record<string, unknown>>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const response = await this.client.post<T>(url, data, config);
     return response.data;
   }
@@ -125,7 +164,11 @@ class ApiClient {
    * @param config Optional axios config
    * @returns Promise with response data
    */
-  public async put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  public async put<T = Record<string, unknown>>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const response = await this.client.put<T>(url, data, config);
     return response.data;
   }
@@ -136,7 +179,10 @@ class ApiClient {
    * @param config Optional axios config
    * @returns Promise with response data
    */
-  public async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  public async delete<T = Record<string, unknown>>(
+    url: string,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const response = await this.client.delete<T>(url, config);
     return response.data;
   }
@@ -147,8 +193,11 @@ class ApiClient {
    * @param password Password
    * @returns User data and token
    */
-  public async login(username: string, password: string): Promise<{ user: any; token: string }> {
-    const response = await this.post<{ user: any; token: string }>('/api/auth', {
+  public async login(
+    username: string,
+    password: string
+  ): Promise<{ user: AuthSessionUser; token: string }> {
+    const response = await this.post<{ user: AuthSessionUser; token: string }>('/api/auth', {
       username,
       password,
     });
@@ -183,8 +232,8 @@ class ApiClient {
    * Get all platforms
    * @returns Array of platforms
    */
-  public async getPlatforms(): Promise<any[]> {
-    return this.get<any[]>('/api/platforms');
+  public async getPlatforms(): Promise<PlatformItem[]> {
+    return this.get<PlatformItem[]>('/api/platforms');
   }
 
   /**
@@ -192,16 +241,16 @@ class ApiClient {
    * @param platformId Platform ID
    * @returns Platform capabilities
    */
-  public async getPlatformCapabilities(platformId: number): Promise<any> {
-    return this.get<any>(`/api/platforms/${platformId}/capabilities`);
+  public async getPlatformCapabilities(platformId: number): Promise<Record<string, unknown>> {
+    return this.get<Record<string, unknown>>(`/api/platforms/${platformId}/capabilities`);
   }
 
   /**
    * Get feature flags
    * @returns Feature flags object
    */
-  public async getFeatureFlags(): Promise<any> {
-    return this.get<any>('/api/feature-flags');
+  public async getFeatureFlags<T = Record<string, boolean | string>>(): Promise<T> {
+    return this.get<T>('/api/feature-flags');
   }
 
   /**
@@ -228,8 +277,8 @@ class ApiClient {
    * @param queue Queue items
    * @returns Success message and results
    */
-  public async approveQueue(queue: any[]): Promise<any> {
-    return this.post<any>('/api/queue/approve', { queue });
+  public async approveQueue(queue: unknown[]): Promise<Record<string, unknown>> {
+    return this.post<Record<string, unknown>>('/api/queue/approve', { queue });
   }
 
   /**
@@ -237,8 +286,8 @@ class ApiClient {
    * @param context Image generation context
    * @returns Generated image data
    */
-  public async generateImage(context: string): Promise<any> {
-    return this.post<any>('/api/images', { context });
+  public async generateImage(context: string): Promise<ImageGenerationResult> {
+    return this.post<ImageGenerationResult>('/api/images', { context });
   }
 
   /**
@@ -247,8 +296,11 @@ class ApiClient {
    * @param action Action to perform (approve, reject, regenerate)
    * @returns Action result
    */
-  public async reviewImage(image: any, action: 'approve' | 'reject' | 'regenerate'): Promise<any> {
-    return this.put<any>('/api/images', { image, action });
+  public async reviewImage(
+    image: unknown,
+    action: 'approve' | 'reject' | 'regenerate'
+  ): Promise<ImageGenerationResult> {
+    return this.put<ImageGenerationResult>('/api/images', { image, action });
   }
 
   /**
@@ -256,8 +308,8 @@ class ApiClient {
    * @param rawInput Raw input text
    * @returns Parsed data
    */
-  public async parseText(rawInput: string): Promise<any> {
-    return this.post<any>('/api/parse', { rawInput });
+  public async parseText(rawInput: string): Promise<Record<string, unknown>> {
+    return this.post<Record<string, unknown>>('/api/parse', { rawInput });
   }
 
   /**
@@ -265,8 +317,8 @@ class ApiClient {
    * @param parsedData Parsed data to analyze
    * @returns Analysis results
    */
-  public async analyzeParsedData(parsedData: any): Promise<any> {
-    return this.put<any>('/api/parse', { parsedData });
+  public async analyzeParsedData(parsedData: unknown): Promise<Record<string, unknown>> {
+    return this.put<Record<string, unknown>>('/api/parse', { parsedData });
   }
 
   /**
@@ -274,8 +326,8 @@ class ApiClient {
    * @param rawText Raw text to summarize
    * @returns Summary data
    */
-  public async summarizeText(rawText: string): Promise<any> {
-    return this.post<any>('/api/summarize', { rawText });
+  public async summarizeText(rawText: string): Promise<SummaryResult> {
+    return this.post<SummaryResult>('/api/summarize', { rawText });
   }
 
   /**
@@ -283,8 +335,8 @@ class ApiClient {
    * @param summary Summary to approve
    * @returns Approval result
    */
-  public async approveSummary(summary: string): Promise<any> {
-    return this.put<any>('/api/summarize', { summary });
+  public async approveSummary(summary: string): Promise<SummaryResult> {
+    return this.put<SummaryResult>('/api/summarize', { summary });
   }
 
   /**
@@ -302,9 +354,9 @@ class ApiClient {
    * @param reviewId Optional review ID to filter by
    * @returns Array of feedback items
    */
-  public async getFeedback(reviewId?: string): Promise<any[]> {
+  public async getFeedback(reviewId?: string): Promise<unknown[]> {
     const url = reviewId ? `/api/feedback?reviewId=${reviewId}` : '/api/feedback';
-    return this.get<any[]>(url);
+    return this.get<unknown[]>(url);
   }
 
   /**
@@ -329,11 +381,11 @@ class ApiClient {
     pageSize: number = 20,
     filter?: string,
     nextToken?: string
-  ): Promise<any> {
+  ): Promise<ContentTrackingResult> {
     let url = `/api/content?page=${page}&pageSize=${pageSize}`;
     if (filter) url += `&filter=${encodeURIComponent(filter)}`;
     if (nextToken) url += `&nextToken=${encodeURIComponent(nextToken)}`;
-    return this.get<any>(url);
+    return this.get<ContentTrackingResult>(url);
   }
 
   /**
@@ -362,7 +414,7 @@ class ApiClient {
     limit: number = 100,
     page: number = 1,
     filters?: { action?: string; user?: string; startDate?: string; endDate?: string }
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     let url = `/api/audit?limit=${limit}&page=${page}`;
 
     if (filters) {
@@ -372,7 +424,7 @@ class ApiClient {
       if (filters.endDate) url += `&endDate=${encodeURIComponent(filters.endDate)}`;
     }
 
-    return this.get<any>(url);
+    return this.get<Record<string, unknown>>(url);
   }
 }
 

@@ -50,7 +50,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ task
         updateData.error = task.failure;
       }
 
-      job = await (prisma as any).videoJob.update({
+      job = await (
+        prisma as unknown as {
+          videoJob: {
+            update: (args: unknown) => Promise<{
+              id?: string;
+              platforms?: string;
+              characterPrompt?: string;
+            }>;
+          };
+        }
+      ).videoJob.update({
         where: { taskId },
         data: updateData,
       });

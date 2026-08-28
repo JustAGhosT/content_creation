@@ -38,12 +38,12 @@ const customJestConfig = {
 
   // Ignore paths
   testPathIgnorePatterns: [
-    '<rootDir>/node_modules/',
-    '<rootDir>/.next/',
-    '<rootDir>/.claude/worktrees/',
-    '<rootDir>/.serena/',
-    '<rootDir>/e2e/',
-    '<rootDir>/__tests__/a11y/a11y-setup.ts',
+    '/node_modules/',
+    '/.next/',
+    '/.claude/',
+    '/.serena/',
+    '/e2e/',
+    '/__tests__/a11y/a11y-setup.ts',
   ],
 
   // Collect coverage from these directories

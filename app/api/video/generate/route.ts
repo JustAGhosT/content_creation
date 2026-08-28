@@ -106,7 +106,11 @@ export const POST = withErrorHandling(async (request: Request) => {
   try {
     const { default: prisma } = await import('../../../../lib/db/prisma');
     if (!prisma) throw new Error('Prisma client not available');
-    job = await (prisma as any).videoJob.create({
+    job = await (
+      prisma as unknown as {
+        videoJob: { create: (args: unknown) => Promise<{ id: string; taskId: string }> };
+      }
+    ).videoJob.create({
       data: {
         taskId,
         status: 'PENDING',

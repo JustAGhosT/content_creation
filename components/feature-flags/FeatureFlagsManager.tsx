@@ -50,7 +50,7 @@ const FeatureFlagsManager: React.FC = () => {
     const fetchFeatureFlags = async () => {
       try {
         setLoading(true);
-        const flags = await apiClient.getFeatureFlags();
+        const flags = await apiClient.getFeatureFlags<FeatureFlags>();
         setFeatureFlags(flags);
         setError(null);
       } catch (err) {
