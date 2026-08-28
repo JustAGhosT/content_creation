@@ -183,6 +183,15 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
     });
   }, [canonicalInputHash, version, platform]);
 
+  const handlePlatformChange = (nextPlatform: PlatformPreset) => {
+    setPlatform(nextPlatform);
+    if (isApproved) {
+      setIsApproved(false);
+      setArtifactHash(null);
+      setVersion(v => v + 1);
+    }
+  };
+
   const handleSlotChange = (setter: (val: string) => void, val: string) => {
     setter(val);
     if (isApproved) {
@@ -359,21 +368,21 @@ export const CreativeComposer: React.FC<CreativeComposerProps> = ({
               <button
                 type="button"
                 className={`${styles.platformButton} ${platform === 'linkedin' ? styles.platformActive : ''}`}
-                onClick={() => handleSlotChange(() => setPlatform('linkedin'), 'linkedin')}
+                onClick={() => handlePlatformChange('linkedin')}
               >
                 LinkedIn
               </button>
               <button
                 type="button"
                 className={`${styles.platformButton} ${platform === 'instagram' ? styles.platformActive : ''}`}
-                onClick={() => handleSlotChange(() => setPlatform('instagram'), 'instagram')}
+                onClick={() => handlePlatformChange('instagram')}
               >
                 Instagram
               </button>
               <button
                 type="button"
                 className={`${styles.platformButton} ${platform === 'story' ? styles.platformActive : ''}`}
-                onClick={() => handleSlotChange(() => setPlatform('story'), 'story')}
+                onClick={() => handlePlatformChange('story')}
               >
                 Story
               </button>
